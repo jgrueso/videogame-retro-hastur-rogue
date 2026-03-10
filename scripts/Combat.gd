@@ -17,6 +17,7 @@ var combat_ended: bool = false
 var first_card_this_turn: bool = true
 var cards_played_this_turn: int = 0
 var velo_used: bool = false
+var furia_points: int = 0 # Pasiva del Guardián: daño acumulado para el siguiente ataque
 
 # ── UI References ──────────────────────────────────────────────────────────────
 var player_panel: Panel
@@ -87,11 +88,16 @@ func _ready() -> void:
 	player_hp = GameManager.player_hp
 	player_max_hp = GameManager.player_max_hp
 	
-	# Reliquias de energia inicial
-	player_max_energy = 3
+	# Reliquias y bonus de energia inicial
+	player_max_energy = GameManager.player_max_energy
 	if GameManager.has_relic("corona_dorada"):
 		player_max_energy += 1
 		GameManager.sanity = max(0, GameManager.sanity - 5)
+	
+	# Sinergia Reliquia: Escudo Astillado
+	if GameManager.has_relic("escudo_astillado"):
+		player_shield = 5
+		
 	player_energy = player_max_energy
 	
 	draw_pile = GameManager.player_deck.duplicate()
@@ -156,15 +162,20 @@ func _setup_encounter() -> void:
 
 	enemies.clear()
 	for e_data in pool:
+		var pen_mode = ""
+		if e_data["name"] == "El Penitente":
+			pen_mode = "silence" if randf() < 0.5 else "mercy"
+		
 		enemies.append({
 			"name":          e_data["name"],
 			"hp":            e_data["hp"],
 			"max_hp":        e_data["hp"],
 			"shield":        0,
-			"pattern":       e_data["pattern"],
+			"pattern":       e_data["pattern"].duplicate(true), # Duplicación profunda para poder modificar valores
 			"turn_index":    0,
 			"peaceful":      e_data.get("peaceful", false),
 			"peaceful_turns": e_data.get("peaceful_turns", 0),
+			"penitente_mode": pen_mode, # "silence" o "mercy"
 			"has_phase_2":   true if (GameManager.is_boss_fight or GameManager.is_final_boss or GameManager.is_hastur_fight) else false,
 			"in_phase_2":    false,
 			"panel":         null,
@@ -234,6 +245,11 @@ func build_ui() -> void:
 		var ep = _make_panel(Vector2(650 + i*220, 80), Vector2(200, 230), bg_col, border_col)
 		ep.mouse_filter = Control.MOUSE_FILTER_PASS
 		add_child(ep); enemies[i].panel = ep
+		
+		# Conectar señales para Tooltips de Intencion
+		var idx = i
+		ep.mouse_entered.connect(func(): _show_enemy_intent_tooltip(idx))
+		ep.mouse_exited.connect(func(): _hide_enemy_intent_tooltip(idx))
 
 		var en = Label.new(); en.text = enemies[i].name
 		en.position = Vector2(0, 8); en.size = Vector2(200, 30)
@@ -286,6 +302,14 @@ func build_ui() -> void:
 	dev_toggle.position = Vector2(vp.x - 80, vp.y - 36); dev_toggle.size = Vector2(75, 30)
 	dev_toggle.modulate = Color(0.5, 0.5, 0.5, 0.45)
 	add_child(dev_toggle)
+
+	# Botón Visor de Mazo
+	var deck_btn = Button.new()
+	deck_btn.text = " ▣ VER MAZO "
+	deck_btn.position = Vector2(vp.x - 160, 10); deck_btn.size = Vector2(150, 40)
+	deck_btn.add_theme_font_size_override("font_size", 14)
+	add_child(deck_btn)
+	deck_btn.pressed.connect(_show_deck_viewer)
 
 	var dev_panel = _build_dev_panel(vp)
 	dev_panel.visible = false
@@ -377,6 +401,8 @@ func draw_hand() -> void:
 	# Efecto Cordura Alta: Claridad (+1 carta)
 	var to_draw = 3
 	if GameManager.sanity >= 80: to_draw += 1
+	# Pasiva Estratega: Mayor robo
+	if GameManager.selected_character == "estratega": to_draw += 1
 	
 	for _i in range(to_draw):
 		if draw_pile.is_empty():
@@ -387,11 +413,18 @@ func draw_hand() -> void:
 	update_card_states()
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_draw")
 
-func _spawn_card_node(data: Dictionary) -> void:
+func _spawn_card_node(data_in: Dictionary) -> void:
+	var data = data_in.duplicate(true)
 	var card_scene = preload("res://scenes/combat/Card.tscn")
 	var card = card_scene.instantiate()
+	
 	hand_container.add_child(card)
 	card.setup(data)
+	
+	# Pasiva Estratega: Inquisidores mas baratos (Visual y Logica)
+	if GameManager.selected_character == "estratega" and "INQUISIDOR" in data.get("name", "").to_upper():
+		card.set_cost_modifier(-1)
+		
 	card.connect("card_selected", _on_card_selected)
 	card.connect("card_played",   _on_card_played)
 
@@ -508,10 +541,20 @@ func _check_targeting() -> void:
 		targeting_card.set_disabled(false)
 	targeting_active = false; targeting_arrow.visible = false; targeting_card = null
 
+var _is_resolving_extra_mirror_card: bool = false
+
 # ── Resolver carta ─────────────────────────────────────────────────────────────
 func _resolve_card(card, enemy_idx: int) -> void:
-	if player_energy < card.cost: return
-	player_energy -= card.cost
+	# Lógica del Espejo Fragmentado: Jugar la primera carta dos veces
+	if first_card_this_turn and GameManager.has_relic("espejo_fragmentado") and not _is_resolving_extra_mirror_card:
+		_is_resolving_extra_mirror_card = true
+		_resolve_card(card, enemy_idx)
+		_is_resolving_extra_mirror_card = false
+		flash_small("¡ESPEJO FRAGMENTADO! Movimiento duplicado.")
+
+	var effective_cost = max(0, card.cost + card.cost_modifier)
+	if player_energy < effective_cost: return
+	player_energy -= effective_cost
 	
 	# Efecto Cordura Baja: Desobediencia
 	if GameManager.sanity < 40 and card.card_name == "SIERVO QUEBRADO" and randf() < 0.20:
@@ -527,18 +570,66 @@ func _resolve_card(card, enemy_idx: int) -> void:
 
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_play")
 
-	if enemy_idx >= 0 and card.attack > 0:
-		var e = enemies[enemy_idx]
+	# ── LÓGICA DE CARTAS ESPECIALES (Independientes de ataque base) ──
+	
+	# ECO DEL VACIO (AOE)
+	if card.card_name == "ECO DEL VACIO":
+		flash_small("¡ECO DEL VACIO! Todos los enemigos sufren.")
+		for e_aoe in enemies:
+			if e_aoe.hp > 0:
+				var a_dmg = 4 + (GameManager.siervo_atk_bonus_perm if GameManager.selected_character == "conquistador" else 0)
+				e_aoe.hp -= a_dmg
+				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), a_dmg, Color(0.7, 0.7, 1.0))
+				_animate_enemy_hit(e_aoe)
+		check_combat_end(); update_ui(); update_intent_labels(); card.queue_free(); return
 
+	# SUSURRO DEBILITANTE (Debuff AOE)
+	if card.card_name == "SUSURRO DEBILITANTE":
+		var is_last = hand.is_empty()
+		var reduction = 12 if is_last else 6
+		
+		for e_deb in enemies:
+			if e_deb.hp > 0:
+				e_deb["atk_reduction"] = e_deb.get("atk_reduction", 0) + reduction
+		
+		if is_last:
+			flash_small("¡SUSURRO FINAL! Todos debilitados: -" + str(reduction))
+			_trigger_screen_blink()
+		else:
+			flash_small("Susurro: Todos -" + str(reduction) + " ATK")
+			
+		update_intent_labels(); update_ui(); card.queue_free(); return
+
+	# ── LÓGICA DE CARTAS CON OBJETIVO Y ATAQUE ──
+	if enemy_idx >= 0:
+		var e = enemies[enemy_idx]
+		
 		# El Penitente: atacarle lo hace agresivo
-		if e.peaceful:
+		if e.peaceful and card.attack > 0:
 			e.peaceful = false
 			e.peaceful_turns = 0
 			_show_enemy_banter(e.panel, "...Asi lo quieres. Bien.", Color(0.9, 0.4, 0.4))
 			_set_enemy_aggressive(e)
 
 		var dmg = card.attack
-		if card.card_name == "SIERVO QUEBRADO": dmg += siervo_attack_bonus
+		# Lógica especial para JAQUE ETERNO (Canaliza tu dolor)
+		if card.card_name == "JAQUE ETERNO":
+			dmg = player_max_hp - player_hp
+			flash_small("¡JAQUE ETERNO! Dolor canalizado: " + str(dmg))
+			_trigger_screen_blink()
+			if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+
+		# Pasiva Conquistador: Bono permanente
+		if card.card_name.begins_with("SIERVO"): 
+			dmg += GameManager.siervo_atk_bonus_perm
+		
+		# Pasiva Guardian: Furia (Daño x2)
+		if GameManager.selected_character == "guardian" and furia_points > 0:
+			dmg = dmg * 2
+			furia_points = 0 # Furia consumida
+			flash_small("¡RESILIENCIA! Daño duplicado.")
+			_trigger_screen_blink()
+
 		var absorbed = min(e.shield, dmg)
 		if absorbed > 0:
 			e.shield -= absorbed; dmg -= absorbed
@@ -553,17 +644,28 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			# Lógica de Fase 2
 			if e.has_phase_2 and not e.in_phase_2 and e.hp > 0 and e.hp <= (e.max_hp * 0.5):
 				_trigger_boss_phase_2(e)
+		
+		# Muerte de enemigo: Bono permanente para el Conquistador y Recuperación de Cordura
 		if e.hp <= 0:
 			e.hp = 0
-			_kill_enemy(e)  # async — maneja check_combat_end internamente
-			# No llamar check_combat_end aquí; _kill_enemy lo hará tras el diálogo
-			if card.defense > 0:
-				player_shield += card.defense
-				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1.0))
-			first_card_this_turn = false
-			card.queue_free()
-			update_ui(); update_intent_labels()
-			return
+			
+			# Recuperación de Cordura al matar (Alivio en peligro)
+			if GameManager.sanity < 30:
+				GameManager.sanity = min(100, GameManager.sanity + 5)
+				flash_small("¡CLARIDAD! +5 Cordura")
+			
+			if GameManager.selected_character == "conquistador":
+				GameManager.siervo_atk_bonus_perm += 1
+				GameManager.heal(3)
+				player_hp = GameManager.player_hp # Sincronizar vida local
+				flash_small("¡CONQUISTA! Siervos: +1 ATK | +3 HP")
+			
+			# Sinergia Reliquia: Sangre del Caido
+			if GameManager.has_relic("sangre_caido"):
+				GameManager.siervo_atk_bonus_perm += 1
+				flash_small("Sangre del Caido: +1 ATK extra!")
+				
+			_kill_enemy(e) # async
 
 	if card.defense > 0:
 		player_shield += card.defense
@@ -588,10 +690,108 @@ func _set_enemy_aggressive(e: Dictionary) -> void:
 	s.border_color = Color(0.6, 0.2, 0.2)
 	e.panel.add_theme_stylebox_override("panel", s)
 	if e.lbl_name: e.lbl_name.modulate = Color.WHITE
-	# Flash rojo
-	create_tween().tween_property(e.panel, "modulate", Color(1.5, 0.3, 0.3), 0.1).chain().tween_property(e.panel, "modulate", Color(1, 1, 1), 0.3)
+	# Flash rojo corregido (sin chain)
+	var tw = create_tween()
+	tw.tween_property(e.panel, "modulate", Color(1.5, 0.3, 0.3), 0.1)
+	tw.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.3)
+
+# ── Sistema de Descifrado de Pensamientos ─────────────────────────────────────
+func _get_deciphered_thought(original: String) -> String:
+	var sanity = GameManager.sanity
+	var legibility = (100.0 - sanity) / 100.0 # 0.0 a 1.0
+	
+	if sanity <= 0: return original # Claridad total
+	
+	var result = ""
+	var symbols = ["@", "#", "$", "%", "&", "*", "§", "Δ", "Ω", "▓", "░", "▒", "†", "‡"]
+	
+	for i in range(original.length()):
+		var c = original[i]
+		if c == " " or c == "\n":
+			result += c
+			continue
+		
+		# Decidir si este caracter es legible
+		if randf() < legibility:
+			result += c
+		else:
+			result += symbols[randi() % symbols.size()]
+	
+	return result
+
+func _get_penitente_thought() -> String:
+	var thoughts = [
+		"AYUDAME A SALIR DEL CICLO",
+		"EL JUGADOR NOS ESTA MIRANDO",
+		"HEMOS MUERTO MIL VECES AQUI",
+		"EL TABLERO ES UNA PRISION DE CARNE",
+		"NO ERES EL PRIMERO EN LLEGAR",
+		"EL REY TIENE SED DE MEMORIAS"
+	]
+	return thoughts[GameManager.total_runs % thoughts.size()]
 
 # ── Animaciones ────────────────────────────────────────────────────────────────
+func _animate_enemy_attack_unique(e: Dictionary) -> void:
+	if not e.panel: return
+	var orig = e.panel.position
+	var t = create_tween().set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+	
+	match e.name:
+		"EL CARCELERO":
+			# Salto y caida pesada
+			t.tween_property(e.panel, "position:y", orig.y - 40, 0.2)
+			t.tween_property(e.panel, "position:y", orig.y + 20, 0.1)
+			t.parallel().tween_property(e.panel, "scale", Vector2(1.2, 0.8), 0.1) # Impacto
+			t.tween_property(e.panel, "position", orig, 0.2)
+			t.parallel().tween_property(e.panel, "scale", Vector2(1, 1), 0.2)
+			await t.finished
+			# Temblor de pantalla sutil
+			var st = create_tween().set_loops(4)
+			st.tween_property(self, "position", Vector2(randf_range(-5,5), randf_range(-5,5)), 0.05)
+			st.tween_property(self, "position", Vector2.ZERO, 0.05)
+		
+		"LA DAMA DE CENIZA":
+			# Brillo incandescente
+			t.tween_property(e.panel, "modulate", Color(2.5, 0.8, 0.2), 0.15)
+			t.tween_property(e.panel, "position:x", orig.x - 30, 0.1)
+			# Particulas de ceniza hacia el jugador
+			_spawn_death_particles(e.panel.global_position + Vector2(0, 100))
+			t.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.3)
+			t.parallel().tween_property(e.panel, "position", orig, 0.3)
+			await t.finished
+			
+		"EL MARISCAL":
+			# Carga rapida
+			t.tween_property(e.panel, "position:x", orig.x - 150, 0.15).set_trans(Tween.TRANS_EXPO)
+			t.tween_property(e.panel, "position:x", orig.x + 20, 0.05)
+			t.tween_property(e.panel, "position", orig, 0.2)
+			await t.finished
+			
+		"EL VERDADERO HASTUR":
+			# Glitch total
+			is_eye_breaking_4th_wall = true
+			t.tween_property(e.panel, "scale", Vector2(1.5, 1.5), 0.1)
+			t.parallel().tween_property(e.panel, "modulate", Color(0,0,0), 0.1)
+			if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+			await get_tree().create_timer(0.15).timeout
+			e.panel.scale = Vector2(1,1); e.panel.modulate = Color.WHITE
+			is_eye_breaking_4th_wall = false
+			
+		_:
+			# Ataque generico
+			var is_weak = e.get("atk_reduction", 0) > 0
+			var dist = -40 if not is_weak else -15
+			
+			t.tween_property(e.panel, "position:x", orig.x + dist, 0.15)
+			t.tween_property(e.panel, "position", orig, 0.2)
+			
+			if is_weak:
+				var st = create_tween().set_loops(3)
+				st.tween_property(e.panel, "position:y", orig.y - 4, 0.05)
+				st.tween_property(e.panel, "position:y", orig.y, 0.05)
+				
+			await t.finished
+
 func _animate_enemy_hit(e: Dictionary) -> void:
 	if not e.panel: return
 	var orig = e.panel.position
@@ -628,8 +828,15 @@ func _kill_enemy(e: Dictionary) -> void:
 
 func _spawn_damage_number(pos: Vector2, amount: int, col: Color) -> void:
 	var lbl = Label.new()
-	lbl.text = "-%d" % amount if col.r > 0.7 else "+%d" % amount
-	lbl.modulate = col
+	
+	# Detectar si es un ataque enemigo fallido (daño 0)
+	if amount <= 0 and col.r > 0.7:
+		lbl.text = "FALLÓ"
+		lbl.modulate = Color(0.6, 0.6, 0.65)
+	else:
+		lbl.text = "-%d" % amount if col.r > 0.7 else "+%d" % amount
+		lbl.modulate = col
+		
 	lbl.add_theme_font_size_override("font_size", 22)
 	lbl.position = pos; lbl.z_index = 20; add_child(lbl)
 	var t = create_tween().set_parallel(true)
@@ -677,6 +884,17 @@ func update_ui() -> void:
 		if e.lbl_hp:     e.lbl_hp.text = "HP: %d/%d" % [e.hp, e.max_hp]
 		if e.lbl_shield: e.lbl_shield.text = "Escudo: %d" % e.shield if e.shield > 0 else ""
 		if e.hp_bar:     e.hp_bar.value = e.hp
+	
+	_check_sanity_myths()
+	update_intent_labels()
+
+func _trigger_screen_blink() -> void:
+	if not blink_overlay: return
+	blink_overlay.visible = true
+	blink_overlay.modulate.a = 1.0
+	var tw = create_tween()
+	tw.tween_property(blink_overlay, "modulate:a", 0.0, randf_range(0.15, 0.3))
+	tw.tween_callback(func(): blink_overlay.visible = false)
 
 func update_intent_labels() -> void:
 	for e in enemies:
@@ -690,19 +908,42 @@ func update_intent_labels() -> void:
 			continue
 		
 		if e.peaceful:
-			var phrases = ["Rezando al Vacio...", "Lamentandose...", "Buscando perdon...", "En trance..."]
-			e.lbl_intent_icon.text = phrases[GameManager.total_runs % phrases.size()]
-			e.lbl_intent_icon.modulate = Color(0.6, 0.6, 0.8)
+			if e.name == "El Penitente":
+				var thought = _get_penitente_thought()
+				var display_text = _get_deciphered_thought(thought)
+				
+				e.lbl_intent_icon.text = display_text + " (" + str(e.peaceful_turns) + ")"
+				e.lbl_intent_icon.modulate = Color(0.9, 0.8, 0.2) # Amarillo
+				
+				# Temblor de texto en cordura baja
+				if GameManager.sanity < 60:
+					var shake = (60.0 - GameManager.sanity) * 0.15
+					e.lbl_intent_icon.position.x = randf_range(-shake, shake)
+				else:
+					e.lbl_intent_icon.position.x = 0
+			else:
+				var msg = ["Rezando al Vacio...", "Lamentandose...", "Buscando perdon...", "En trance..."][GameManager.total_runs % 4]
+				e.lbl_intent_icon.text = msg
+				e.lbl_intent_icon.modulate = Color(0.6, 0.6, 0.8)
 		else:
 			var action = e.pattern[e.turn_index % e.pattern.size()]
-			var val_txt = str(action.value)
-			if GameManager.sanity < 40:
-				val_txt = "???" if randf() < 0.5 else "▓"
 			
 			if action.type == "attack":
+				var final_dmg = max(0, action.value - e.get("atk_reduction", 0))
+				var val_txt = str(final_dmg)
+				
+				if GameManager.sanity < 40:
+					val_txt = "???" if randf() < 0.5 else "▓"
+				
 				e.lbl_intent_icon.text = "⚔ Atacar " + val_txt
-				e.lbl_intent_icon.modulate = Color(1, 0.5, 0.4)
+				if e.get("atk_reduction", 0) > 0:
+					e.lbl_intent_icon.modulate = Color(0.4, 1.0, 0.4) # Verde si esta debilitado
+				else:
+					e.lbl_intent_icon.modulate = Color(1, 0.5, 0.4)
 			elif action.type == "shield":
+				var val_txt = str(action.value)
+				if GameManager.sanity < 40:
+					val_txt = "???" if randf() < 0.5 else "▓"
 				e.lbl_intent_icon.text = "🛡 Escudo " + val_txt
 				e.lbl_intent_icon.modulate = Color(0.4, 0.7, 1.0)
 
@@ -734,13 +975,54 @@ func update_card_states() -> void:
 	for card in hand_container.get_children():
 		card.set_disabled(not is_player_turn or card.cost > player_energy)
 
-func _trigger_screen_blink() -> void:
-	if not blink_overlay: return
-	blink_overlay.visible = true
-	blink_overlay.modulate.a = 1.0
+# --- Mensajes Míticos de Cordura ---
+var sanity_60_triggered: bool = false
+var sanity_40_triggered: bool = false
+var sanity_20_triggered: bool = false
+
+const MYTH_60 = ["EL QUE OBSERVA TODO", "LAS SOMBRAS SE ALARGAN", "EL TABLERO RESPIRA"]
+const MYTH_40 = ["TUS PENSAMIENTOS NO SON TUYOS", "LA CORDURA ES UNA JAULA", "EL REY TE HA ENCONTRADO"]
+const MYTH_20 = ["EL FINAL DEL JUEGO SE ACERCA", "SOLO QUEDA EL VACIO", "YA NO ERES UNA PIEZA"]
+
+func _check_sanity_myths() -> void:
+	var s = GameManager.sanity
+	if s < 60 and not sanity_60_triggered:
+		sanity_60_triggered = true
+		_show_mythical_text(MYTH_60[randi() % MYTH_60.size()], Color(0.6, 0.4, 0.8))
+	elif s < 40 and not sanity_40_triggered:
+		sanity_40_triggered = true
+		_show_mythical_text(MYTH_40[randi() % MYTH_40.size()], Color(0.8, 0.3, 0.3))
+	elif s < 20 and not sanity_20_triggered:
+		sanity_20_triggered = true
+		_show_mythical_text(MYTH_20[randi() % MYTH_20.size()], Color(1.0, 0.1, 0.1))
+
+func _show_mythical_text(txt: String, col: Color) -> void:
+	_trigger_screen_blink()
+	if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+	
+	var vp = get_viewport_rect().size
+	var myth_lbl = Label.new()
+	myth_lbl.text = txt
+	myth_lbl.add_theme_font_size_override("font_size", 48)
+	myth_lbl.modulate = col
+	myth_lbl.modulate.a = 0.0
+	myth_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	myth_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	myth_lbl.size = Vector2(vp.x, 200)
+	myth_lbl.position = Vector2(0, vp.y / 2 - 100)
+	myth_lbl.z_index = 150
+	add_child(myth_lbl)
+	
 	var tw = create_tween()
-	tw.tween_property(blink_overlay, "modulate:a", 0.0, randf_range(0.15, 0.3))
-	tw.tween_callback(func(): blink_overlay.visible = false)
+	tw.tween_property(myth_lbl, "modulate:a", 1.0, 0.4)
+	tw.tween_interval(1.8)
+	tw.tween_property(myth_lbl, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(myth_lbl.queue_free)
+	
+	# Efecto de sacudida (shake)
+	var stw = create_tween().set_loops(15)
+	stw.tween_property(myth_lbl, "position", myth_lbl.position + Vector2(randf_range(-10, 10), randf_range(-5, 5)), 0.05)
+	stw.tween_property(myth_lbl, "position", Vector2(0, vp.y / 2 - 100), 0.05)
 
 func _start_eye_blink_loop() -> void:
 	while true:
@@ -769,6 +1051,10 @@ func check_combat_end() -> void:
 	if not all_dead: return
 
 	combat_ended = true
+	
+	# Recuperación de Cordura al Ganar
+	GameManager.sanity = min(100, GameManager.sanity + 10)
+	
 	GameManager.player_hp = player_hp
 	
 	if GameManager.is_elite_fight and GameManager.has_relic("caliz_olvido"):
@@ -1119,6 +1405,9 @@ func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void
 
 		var rbtn = Button.new(); rbtn.text = "Tomar"
 		rbtn.position = Vector2(80, 216); rbtn.size = Vector2(100, 34)
+		rbtn.tooltip_text = rdata["name"] + ": " + rdata["desc"]
+		if "maldicion" in rdata["desc"].to_lower() or "pierdes" in rdata["desc"].to_lower() or "cuesta" in rdata["desc"].to_lower():
+			rbtn.tooltip_text += "\n[!] ADVERTENCIA: Esta reliquia conlleva una maldición o coste."
 		rpanel.add_child(rbtn)
 
 		var relic_id = rid
@@ -1230,10 +1519,29 @@ func _on_end_turn_button_pressed() -> void:
 	for e in enemies:
 		if e.hp <= 0: continue
 
+		# RESUMEN: Escudo enemigo se resetea al inicio de su turno
+		e.shield = 0
+		update_ui()
+
 		# El Penitente en modo pacífico: contar turnos
 		if e.peaceful:
 			e.peaceful_turns -= 1
-			_show_enemy_banter(e.panel, "Quedan %d turnos. Escucha." % e.peaceful_turns, Color(0.5, 1.0, 0.5))
+			
+			if e.penitente_mode == "silence":
+				# Efecto Silencio: Glitch y oscuridad
+				_trigger_screen_blink()
+				if is_instance_valid(eye_node):
+					var tw_eye = create_tween()
+					tw_eye.tween_property(eye_node, "modulate", Color(0.2, 0.2, 0.3, 0.9), 0.2)
+					tw_eye.tween_property(eye_node, "modulate", Color(1, 1, 1, 1), 0.2)
+				if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+			else:
+				# Efecto Misericordia: Luz y particulas
+				var tw_glow = create_tween()
+				tw_glow.tween_property(e.panel, "modulate", Color(1.5, 1.5, 2.0), 0.2)
+				tw_glow.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.4)
+				_spawn_death_particles(e.panel.global_position + Vector2(100, 100)) # Reutilizo particulas con otro color si pudiera, pero esto ya es visual
+
 			if e.peaceful_turns <= 0:
 				await _penitente_reward()
 				return
@@ -1248,17 +1556,32 @@ func _on_end_turn_button_pressed() -> void:
 			var banter = _get_enemy_banter(e.name)
 			if not banter.is_empty():
 				_show_enemy_banter(e.panel, banter, _get_banter_color(e.name, banter))
-			var dmg = action.value
+			
+			# Ejecutar animacion de ataque segun el enemigo
+			await _animate_enemy_attack_unique(e)
+			
+			var dmg = max(0, action.value - e.get("atk_reduction", 0))
+			
 			var absorbed = min(player_shield, dmg)
 			if absorbed > 0:
 				player_shield -= absorbed; dmg -= absorbed
 				if get_node_or_null("/root/AudioManager"): AudioManager.play("shield_block")
 				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), absorbed, Color(0.4, 0.7, 1.0))
+			
+			# Mostrar siempre el daño o el fallo si es un ataque
 			if dmg > 0:
 				player_hp -= dmg
 				_animate_player_hit()
 				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), dmg, Color(1, 0.3, 0.3))
 				if get_node_or_null("/root/AudioManager"): AudioManager.play("player_hit")
+			else:
+				# Es un FALLO (daño 0)
+				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 0, Color(1, 0.3, 0.3))
+				
+				# Pasiva Guardian: Furia
+				if GameManager.selected_character == "guardian":
+					furia_points += 1
+					flash_small("¡FURIA! Siguiente ataque duplicado.")
 		elif action.type == "shield":
 			e.shield += action.value
 		elif action.type == "insanity":
@@ -1268,7 +1591,21 @@ func _on_end_turn_button_pressed() -> void:
 
 		await get_tree().create_timer(0.35).timeout
 
+	# ── FIN DEL TURNO ENEMIGO ──
+	# Limpiar debuffs y escudos de TODOS los enemigos antes de que empiece el turno del jugador
+	for e_final in enemies:
+		e_final["atk_reduction"] = 0
+		e_final.shield = 0 
+
 	player_energy = player_max_energy; player_shield = 0
+
+	# Sinergia Reliquia: Velo de la Dama (Negar la muerte una vez)
+	if player_hp <= 0 and GameManager.has_relic("velo_dama") and not velo_used:
+		player_hp = 1
+		velo_used = true
+		flash_small("¡VELO DE LA DAMA! La muerte ha sido negada.")
+		_trigger_screen_blink()
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
 
 	if player_hp <= 0:
 		GameManager.player_hp = 0
@@ -1307,6 +1644,16 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	p.add_child(title_lbl)
 
+	# Contenedor de Scroll
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(10, 30); scroll.size = Vector2(205, 340)
+	p.add_child(scroll)
+	
+	var vbox = VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 5)
+	scroll.add_child(vbox)
+
 	var btns = [
 		["Ganar combate", func(): _dev_force_win()],
 		["+ Fragmentos x3", func():
@@ -1330,6 +1677,14 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 			GameManager.add_secret_item("carta_carcosa")
 			GameManager.is_hastur_fight = true
 			_dev_force_win()],
+		["BOSS: MUNDO I", func():
+			GameManager.is_boss_fight = true
+			GameManager.current_world = 0
+			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")],
+		["ACTIVA FASE 2", func():
+			if not enemies.is_empty(): _trigger_boss_phase_2(enemies[0])],
+		["CURAR TODO", func():
+			player_hp = player_max_hp; update_ui()],
 		["SAN: 100 (Claro)", func(): GameManager.sanity = 100; update_ui()],
 		["SAN: 55 (Viñeta)", func(): GameManager.sanity = 55; update_ui()],
 		["SAN: 35 (Parpadeo)", func(): GameManager.sanity = 35; update_ui()],
@@ -1342,10 +1697,9 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		var b = Button.new()
 		b.text = btns[i][0]
 		b.add_theme_font_size_override("font_size", 11)
-		b.position = Vector2(8, 28 + i * 36)
-		b.size = Vector2(209, 30)
+		b.custom_minimum_size = Vector2(185, 32)
 		b.pressed.connect(btns[i][1])
-		p.add_child(b)
+		vbox.add_child(b)
 
 	return p
 
@@ -1507,7 +1861,88 @@ func _show_death_dialogue(enemy_name: String) -> void:
 	overlay.queue_free()
 
 # ── Reliquias ──────────────────────────────────────────────────────────────────
+func _show_deck_viewer() -> void:
+	var vp = get_viewport_rect().size
+	var overlay = ColorRect.new()
+	overlay.size = vp; overlay.color = Color(0, 0, 0, 0.9); overlay.z_index = 200
+	add_child(overlay)
+	
+	var title = Label.new()
+	title.text = "TU COLECCION DE PIEZAS"; title.add_theme_font_size_override("font_size", 32)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 40); title.size = Vector2(vp.x, 50); overlay.add_child(title)
+	
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(100, 120); scroll.size = Vector2(vp.x - 200, vp.y - 250)
+	overlay.add_child(scroll)
+	
+	var grid = GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 20)
+	grid.add_theme_constant_override("v_separation", 20)
+	scroll.add_child(grid)
+	
+	var card_scene = preload("res://scenes/combat/Card.tscn")
+	for c_data in GameManager.player_deck:
+		var card = card_scene.instantiate()
+		grid.add_child(card)
+		card.setup(c_data)
+		# En el visor las cartas no se juegan
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
+	
+	var close_btn = Button.new()
+	close_btn.text = "CERRAR"; close_btn.position = Vector2(vp.x/2 - 100, vp.y - 100); close_btn.size = Vector2(200, 50)
+	overlay.add_child(close_btn)
+	close_btn.pressed.connect(overlay.queue_free)
+	if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
+
+func _show_enemy_intent_tooltip(idx: int) -> void:
+	if idx >= enemies.size() or enemies[idx].hp <= 0: return
+	var e = enemies[idx]
+	var txt = ""
+	
+	if e.peaceful:
+		txt = "ESTADO: PACIFICO\nNo atacara mientras no sea provocado.\n\n\"" + _get_enemy_banter(e.name) + "\""
+	else:
+		var action = e.pattern[e.turn_index % e.pattern.size()]
+		if action.type == "attack":
+			var reduction = e.get("atk_reduction", 0)
+			var final_dmg = max(0, action.value - reduction)
+			txt = "INTENCION: ATACAR\nInfligira " + str(final_dmg) + " de daño."
+			if reduction > 0:
+				txt += "\n(Debilitado: -" + str(reduction) + " ATK)"
+			txt += "\n\n[El escudo puede absorber este golpe]"
+		elif action.type == "shield":
+			txt = "INTENCION: ESCUDO\nGanara " + str(action.value) + " de proteccion.\n\n[El escudo enemigo se resetea al inicio de su turno]"
+		elif action.type == "insanity":
+			txt = "INTENCION: CORROMPER\nDrenara " + str(action.value) + " de tu Cordura.\n\n[La cordura baja distorsiona la realidad]"
+	
+	# Añadir estado de debuffs si existen
+	if e.get("atk_reduction", 0) > 0:
+		txt += "\n\n--- ESTADO ---\nDEBILIDAD: -" + str(e["atk_reduction"]) + " ATK\n(Dura 1 turno)"
+
+	# Mostrar el tooltip debajo del panel
+	var tip = Label.new()
+	tip.name = "EnemyIntentTooltip"
+	tip.text = txt
+	tip.add_theme_font_size_override("font_size", 12)
+	tip.modulate = Color(0.9, 0.9, 0.6)
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD
+	
+	# Posicion Y=240 para que aparezca debajo del panel (que mide 230)
+	var p = _make_panel(Vector2(-10, 240), Vector2(220, 140), Color(0,0,0,0.95), Color(0.5, 0.5, 0.2))
+	p.name = "TooltipPanel"
+	p.z_index = 100
+	p.add_child(tip); tip.position = Vector2(10, 10); tip.size = Vector2(200, 120)
+	e.panel.add_child(p)
+
+func _hide_enemy_intent_tooltip(idx: int) -> void:
+	if idx < enemies.size() and is_instance_valid(enemies[idx].panel):
+		var p = enemies[idx].panel.get_node_or_null("TooltipPanel")
+		if p: p.queue_free()
+
 func _populate_relics() -> void:
+	if not relics_container: return
 	var relic_scene = load("res://scenes/ui/RelicIcon.tscn")
 	for relic_id in GameManager.relics:
 		if not GameManager.RELIC_DATA.has(relic_id): continue

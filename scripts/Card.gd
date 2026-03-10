@@ -35,6 +35,9 @@ const DESCRIPTIONS = {
 	"Rompetablero":        "EPICA. Aniquila escudos y golpea el alma enemiga.",
 	"Gran Maestro":        "EPICA. La jugada perfecta. Dano, escudo y energia.",
 	"Sacrificio del Rey":  "EPICA. Golpe desesperado. Dano masivo a un alto coste.",
+	"Susurro Debilitante": "NEUTRAL. Reduce el proximo ataque enemigo. Poder x2 si es tu ULTIMA carta.",
+	"Eco del Vacío":       "NEUTRAL. Golpe de ceniza que afecta a TODOS los enemigos simultaneamente.",
+
 }
 
 signal card_played(card)
@@ -87,6 +90,16 @@ func _ready() -> void:
 	label_cost.add_theme_font_size_override("font_size", 13)
 	add_child(label_cost)
 
+	# Icono Central de la Carta
+	var icon_lbl = Label.new()
+	icon_lbl.name = "IconLabel"
+	icon_lbl.add_theme_font_size_override("font_size", 54)
+	icon_lbl.modulate = Color(1, 1, 1, 0.15) # Muy sutil, como una marca de agua
+	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	icon_lbl.position = Vector2(0, 50); icon_lbl.size = Vector2(130, 100)
+	add_child(icon_lbl)
+
 	tooltip_panel = Panel.new()
 	tooltip_panel.size = Vector2(180, 110)
 	tooltip_panel.position = Vector2(135, -5)
@@ -114,38 +127,75 @@ func _ready() -> void:
 	_apply_style(Color(0.08, 0.08, 0.12))
 
 func setup(data: Dictionary) -> void:
-	card_name = data.get("name", "").to_upper()
+	var raw_name = data.get("name", "")
+	card_name = raw_name.to_upper()
 	attack = data.get("attack", 0)
 	defense = data.get("defense", 0)
 	cost = data.get("cost", 1)
-	var real_name = data.get("name", "")
+	
+	# Detectar mejora
+	var is_upgraded = data.get("upgraded", false) or "+" in raw_name
+	
+	var real_name = raw_name.replace("+", "")
 	description = DESCRIPTIONS.get(real_name, "Sin descripcion.")
-	requires_target = attack > 0 or real_name == "Jaque Eterno"
-	update_display()
+	
+	# Pasiva Estratega (Tooltip)
+	if GameManager.selected_character == "estratega" and "INQUISIDOR" in card_name:
+		description += "\n\n[LÓGICA: Coste -1]"
+	
+	requires_target = (attack > 0 or real_name == "Jaque Eterno") and real_name != "Eco del Vacio"
+	update_display(is_upgraded)
 
-func update_display() -> void:
+func update_display(is_upgraded: bool = false) -> void:
 	if not label_name:
 		return
 	label_name.text = card_name
-	label_attack.text = "⚔ ATK: " + str(attack) if attack > 0 else ""
-	label_defense.text = "🛡 DEF: " + str(defense) if defense > 0 else ""
+	
+	if is_upgraded:
+		label_name.modulate = Color(0.2, 1.0, 0.2) # Verde brillante
+		if attack > 0:
+			label_attack.text = "⚔ ATK: " + str(attack)
+			label_attack.modulate = Color(0.3, 0.9, 0.3)
+		if defense > 0:
+			label_defense.text = "🛡 DEF: " + str(defense)
+			label_defense.modulate = Color(0.3, 0.9, 0.3)
+	else:
+		label_name.modulate = Color(0.9, 0.85, 0.6)
+		label_attack.text = "⚔ ATK: " + str(attack) if attack > 0 else ""
+		label_attack.modulate = Color(0.8, 0.3, 0.3)
+		label_defense.text = "🛡 DEF: " + str(defense) if defense > 0 else ""
+		label_defense.modulate = Color(0.4, 0.6, 0.8)
+
 	tooltip_panel.get_node("TooltipLabel").text = description
+	
+	# Actualizar Icono Central
+	var icon_lbl = get_node("IconLabel")
+	match card_name:
+		"SIERVO QUEBRADO":    icon_lbl.text = "♙"
+		"BALUARTE DE HUESO":   icon_lbl.text = "♖"
+		"CABALGANTE DEL VACIO": icon_lbl.text = "♘"
+		"INQUISIDOR CIEGO":    icon_lbl.text = "♗"
+		"DAMA DEL TABLERO":    icon_lbl.text = "♕"
+		"IDOLO INERTE":        icon_lbl.text = "♔"
+		"OFRENDA DE CARNE":    icon_lbl.text = "🥩"
+		_: icon_lbl.text = "✦"
+	
 	_update_cost_label()
 
 func _update_cost_label() -> void:
-	var effective = cost + cost_modifier
-	if cost_modifier > 0:
-		label_cost.text = "COSTO: " + str(effective) + " (!)"
-		label_cost.modulate = Color(1.0, 0.3, 0.3)
-	elif cost_modifier < 0:
-		label_cost.text = "COSTO: " + str(effective) + " (*)"
+	var effective = max(0, cost + cost_modifier)
+	label_cost.text = "COSTO: " + str(effective)
+	
+	if cost_modifier < 0:
 		label_cost.modulate = Color(0.3, 1.0, 0.3)
+	elif cost_modifier > 0:
+		label_cost.modulate = Color(1.0, 0.3, 0.3)
 	else:
-		label_cost.text = "COSTO: " + str(cost)
 		label_cost.modulate = Color(0.85, 0.75, 0.2)
 
 func set_cost_modifier(mod: int) -> void:
 	cost_modifier = mod
+	# No sumamos el coste aqui, se calcula en effective arriba
 	_update_cost_label()
 
 func set_disabled(value: bool) -> void:
@@ -164,7 +214,15 @@ func _apply_style(color: Color) -> void:
 	style.border_width_right = 3
 	style.border_width_top = 3
 	style.border_width_bottom = 3
-	style.border_color = Color(0.45, 0.4, 0.25) # Tono metal oxidado / hueso
+	
+	# Borde segun tipo de carta (detectado por nombre o una nueva flag)
+	if "SUSURRO" in card_name or "ECO" in card_name or cost == 0:
+		style.border_color = Color(0.5, 0.5, 0.5) # Gris neutral
+		if color == Color(0.08, 0.08, 0.12): # Color base
+			style.bg_color = Color(0.15, 0.15, 0.15) # Fondo mas grisaceo
+	else:
+		style.border_color = Color(0.45, 0.4, 0.25) # Hueso/Oxido normal
+		
 	add_theme_stylebox_override("panel", style)
 
 func _animate_hover(entering: bool) -> void:

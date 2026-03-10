@@ -206,6 +206,26 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 	btn.size = Vector2(560, 60)
 	btn.add_theme_font_size_override("font_size", 15)
 	
+	# --- Tooltip Dinamico ---
+	var tt = ""
+	if opt.get("hp", 0) < 0: tt += "Pierdes " + str(abs(opt["hp"])) + " HP.\n"
+	if opt.get("max_hp", 0) < 0: tt += "Pierdes " + str(abs(opt["max_hp"])) + " de Vida Maxima.\n"
+	if opt.get("sanity_loss", 0) > 0: tt += "Pierdes " + str(opt["sanity_loss"]) + " de Cordura.\n"
+	if opt.get("relic", false) and relic_assignments.has(i):
+		var r_id = relic_assignments[i]
+		var r_data = GameManager.RELIC_DATA[r_id]
+		tt += "[RELIQUIA: " + r_data["name"] + "]\n" + r_data["desc"] + "\n"
+	if opt.get("specific_relic", "") != "":
+		var r_id = opt["specific_relic"]
+		var r_data = GameManager.RELIC_DATA.get(r_id, {"name": "???", "desc": "???"})
+		tt += "[RELIQUIA: " + r_data["name"] + "]\n" + r_data["desc"] + "\n"
+	if opt.get("double_curse", false):
+		tt += "[!] MALDICION: Recibes 2 cartas de 'Peso de la Verdad' que dañan tu HP cada vez que las uses.\n"
+	if opt.get("add_curse", false):
+		tt += "[!] MALDICION: Recibes 1 carta de 'Peso de la Verdad'.\n"
+	
+	btn.tooltip_text = tt
+	
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.08, 0.12, 0.9)
 	style.border_width_bottom = 2; style.border_color = Color(0.3, 0.3, 0.4)

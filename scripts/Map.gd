@@ -56,16 +56,29 @@ func _generate_map() -> Array:
 	for f in range(num_floors):
 		var floor_nodes: Array = []
 
-		# Pisos fijos
+		# Pisos fijos finales (de arriba a abajo en el grafo, pero f es el indice de piso)
+		# f == num_floors - 1  --> JEFE FINAL (Rey)
+		# f == num_floors - 2  --> HOGUERA (Descanso Pre-Final)
+		# f == num_floors - 3  --> JEFE DE MUNDO (Carcelero) o ELITE (si el jugador elige otra ruta)
+		
 		if f == num_floors - 1:
 			floor_nodes.append({"type": final_room, "connections": []})
 			graph.append(floor_nodes)
 			continue
 		if f == num_floors - 2:
-			floor_nodes.append({"type": ROOM_BOSS, "connections": []})
+			# Siempre un descanso antes del final
+			floor_nodes.append({"type": ROOM_REST, "connections": []})
 			graph.append(floor_nodes)
 			continue
 		if f == num_floors - 3:
+			# El Jefe de Mundo es una opcion, pero podria haber otros caminos
+			floor_nodes.append({"type": ROOM_BOSS, "connections": []})
+			if randf() < 0.5: # 50% de probabilidad de tener un camino alternativo (Elite o Evento)
+				floor_nodes.append({"type": ROOM_ELITE if randf() < 0.5 else ROOM_EVENT, "connections": []})
+			graph.append(floor_nodes)
+			continue
+		if f == num_floors - 4:
+			# Otro descanso antes del tramo final
 			floor_nodes.append({"type": ROOM_REST, "connections": []})
 			graph.append(floor_nodes)
 			continue
@@ -222,6 +235,7 @@ func build_ui() -> void:
 	var graph = GameManager.map_graph
 	var info = Label.new()
 	info.text = "HP: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + \
+		"   Energia: " + str(GameManager.player_max_energy) + \
 		"   Monedas: " + str(GameManager.coins) + \
 		"   Piso: " + str(GameManager.current_map_floor + 1) + "/" + str(graph.size())
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -244,6 +258,14 @@ func build_ui() -> void:
 			icon.position = Vector2(6 + i * 48, 96)
 			add_child(icon)
 			icon.setup(GameManager.relics[i])
+
+	# Boton Visor de Mazo
+	var deck_btn = Button.new()
+	deck_btn.text = " ▣ VER MAZO "
+	deck_btn.position = Vector2(vp.x - 160, 10); deck_btn.size = Vector2(150, 40)
+	deck_btn.add_theme_font_size_override("font_size", 14)
+	add_child(deck_btn)
+	deck_btn.pressed.connect(_show_deck_viewer)
 
 	# Indicador de objetos misteriosos
 	if GameManager.secret_items.size() > 0 or _map_has_secret_rooms():
@@ -567,3 +589,41 @@ func _show_secret_item_overlay(item_id: String) -> void:
 		GameManager.add_secret_item(item_id)
 		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
 	)
+
+func _show_deck_viewer() -> void:
+	var vp = get_viewport_rect().size
+	var overlay = ColorRect.new()
+	overlay.size = vp; overlay.color = Color(0, 0, 0, 0.94); overlay.z_index = 200
+	add_child(overlay)
+	
+	var title = Label.new()
+	title.text = "TU COLECCION DE PIEZAS"
+	title.add_theme_font_size_override("font_size", 32)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 40); title.size = Vector2(vp.x, 50); overlay.add_child(title)
+	
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(100, 120); scroll.size = Vector2(vp.x - 200, vp.y - 250)
+	overlay.add_child(scroll)
+	
+	var grid = GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 20)
+	grid.add_theme_constant_override("v_separation", 20)
+	scroll.add_child(grid)
+	
+	var card_scene = preload("res://scenes/combat/Card.tscn")
+	for c_data in GameManager.player_deck:
+		var card = card_scene.instantiate()
+		grid.add_child(card)
+		card.setup(c_data)
+		# En el visor las cartas no se juegan
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
+	
+	var close_btn = Button.new()
+	close_btn.text = "CERRAR"
+	close_btn.position = Vector2(vp.x/2 - 100, vp.y - 100); close_btn.size = Vector2(200, 50)
+	overlay.add_child(close_btn)
+	close_btn.pressed.connect(overlay.queue_free)
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("button_click")

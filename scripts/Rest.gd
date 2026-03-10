@@ -32,6 +32,14 @@ func build_ui() -> void:
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.position = Vector2(0, 130); sub.size = Vector2(vp.x, 30)
 	add_child(sub)
+	
+	var info = Label.new()
+	info.text = "HP: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + "   |   Energia: " + str(GameManager.player_max_energy)
+	info.add_theme_font_size_override("font_size", 16)
+	info.modulate = Color(0.8, 0.8, 0.8)
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info.position = Vector2(0, 165); info.size = Vector2(vp.x, 30)
+	add_child(info)
 
 	var btn_container = VBoxContainer.new()
 	btn_container.position = Vector2(vp.x * 0.3, 220)
@@ -41,14 +49,17 @@ func build_ui() -> void:
 
 	# --- BOTONES ---
 	var btn_rest = _make_rest_button("🩹 DESCANSAR (Recupera 30% HP)")
+	btn_rest.tooltip_text = "Tus heridas se cierran con ceniza fría.\nRecuperas vida según tu capacidad máxima."
 	btn_rest.pressed.connect(_on_rest_pressed)
 	btn_container.add_child(btn_rest)
 
 	var btn_forge = _make_rest_button("🔨 FORJAR (Mejora una carta)")
+	btn_forge.tooltip_text = "Refuerzas una de tus piezas del mazo actual.\nAumenta +3 el ATK y DEF de una carta al azar."
 	btn_forge.pressed.connect(_on_forge_pressed)
 	btn_container.add_child(btn_forge)
 
 	var btn_sac = _make_rest_button("🌑 SACRIFICIO OSCURO (+1 Energia Max / -25 HP Max)")
+	btn_sac.tooltip_text = "CAMBIO EQUIVALENTE.\nPierdes vitalidad permanente para ganar el poder de jugar más cartas cada turno."
 	btn_sac.modulate = Color(0.8, 0.4, 0.4)
 	btn_sac.disabled = GameManager.player_max_hp <= 30
 	btn_sac.pressed.connect(_on_sacrifice_pressed)
@@ -67,11 +78,33 @@ func _on_rest_pressed() -> void:
 	_finish_rest()
 
 func _on_forge_pressed() -> void:
-	# Por ahora, una mejora aleatoria simple al primer Siervo Quebrado
-	for i in range(GameManager.player_deck.size()):
-		if GameManager.player_deck[i]["name"] == "Siervo Quebrado":
-			GameManager.player_deck[i]["attack"] += 2
-			break
+	if GameManager.player_deck.is_empty():
+		_finish_rest()
+		return
+	
+	# Seleccionar una carta aleatoria del mazo para mejorar
+	var deck = GameManager.player_deck
+	var idx = randi() % deck.size()
+	var card = deck[idx]
+	
+	if card is Dictionary:
+		# Mejorar estadisticas si existen (+3 segun peticion del usuario)
+		if card.has("attack"): 
+			card["attack"] = int(card["attack"]) + 3
+		if card.has("defense"): 
+			card["defense"] = int(card["defense"]) + 3
+		
+		# Marcar como mejorada para Card.gd
+		card["upgraded"] = true
+		
+		# Añadir un indicador visual al nombre si no lo tiene
+		if card.has("name"):
+			var c_name = str(card["name"])
+			if not "+" in c_name:
+				card["name"] = c_name + "+1" # Título verde +1 (según petición)
+		
+		print("Carta mejorada (+3): ", card.get("name", "Desconocida"))
+	
 	_finish_rest()
 
 func _on_sacrifice_pressed() -> void:

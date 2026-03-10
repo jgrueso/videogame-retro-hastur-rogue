@@ -49,7 +49,7 @@ func build_ui() -> void:
 	# Stats Info
 	var info = Label.new()
 	info.name = "PlayerInfo"
-	info.text = "Tus Monedas: " + str(GameManager.coins) + "   |   Vida: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp)
+	info.text = "Tus Monedas: " + str(GameManager.coins) + "   |   Vida: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + "   |   Energia: " + str(GameManager.player_max_energy)
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info.position = Vector2(0, 120); info.size = Vector2(vp.x, 30)
 	add_child(info)
@@ -67,6 +67,9 @@ func build_ui() -> void:
 		btn.text = item["label"] + " (" + str(item["cost"]) + " monedas)"
 		btn.position = Vector2(176, 190 + i * 65)
 		btn.size = Vector2(500, 50)
+		btn.tooltip_text = item["desc"]
+		if item["action"] == "relic":
+			btn.tooltip_text += "\n[!] Nota: Las reliquias pueden contener maldiciones."
 		btn.disabled = GameManager.coins < item["cost"]
 		btn.pressed.connect(func(): _on_buy_pressed(item))
 		add_child(btn)

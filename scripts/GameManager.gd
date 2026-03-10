@@ -146,8 +146,12 @@ func spend_coins(amount: int) -> bool:
 func heal(amount: int) -> void:
 	player_hp = min(player_hp + amount, player_max_hp)
 
+var siervo_atk_bonus_perm: int = 0 # Bono permanente del Conquistador
+
 func reset_run() -> void:
+	sanity = 100
 	sanity_notified = false
+	siervo_atk_bonus_perm = 0
 	player_deck = [
 		{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
 		{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
