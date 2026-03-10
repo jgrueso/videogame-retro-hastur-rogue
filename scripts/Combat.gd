@@ -44,46 +44,7 @@ var time_since_mouse_move: float = 0.0
 var is_eye_breaking_4th_wall: bool = false
 var last_m_pos: Vector2 = Vector2.ZERO
 
-const CHAR_DATA = {
-	"conquistador": {"symbol": "♜", "color": Color(0.8, 0.3, 0.3)},
-	"estratega":    {"symbol": "♛", "color": Color(0.4, 0.6, 0.9)},
-	"guardian":     {"symbol": "♞", "color": Color(0.4, 0.75, 0.4)},
-}
-
 # ── Pools de encuentros ────────────────────────────────────────────────────────
-const NORMAL_POOLS = [
-	[{"name": "Siervo Rebelde", "hp": 22, "pattern": [{"type": "attack", "value": 5}]}],
-	[{"name": "Peon Maldito",   "hp": 18, "pattern": [{"type": "attack", "value": 7}]}],
-	[{"name": "Susurrador del Vacio", "hp": 25, "pattern": [{"type": "insanity", "value": 6}]}],
-	[{"name": "Idolo Corrupto", "hp": 40, "pattern": [{"type": "attack", "value": 4}, {"type": "insanity", "value": 4}]}],
-	[{"name": "Alfil Caido",    "hp": 30, "pattern": [{"type": "attack", "value": 4}, {"type": "shield", "value": 6}]}],
-	[{"name": "Espectro",       "hp": 14, "pattern": [{"type": "attack", "value": 9}]}],
-	[{"name": "El Penitente",   "hp": 26, "pattern": [{"type": "attack", "value": 5}], "peaceful": true, "peaceful_turns": 3}],
-	[
-		{"name": "Siervo Rebelde", "hp": 14, "pattern": [{"type": "attack", "value": 4}]},
-		{"name": "Siervo Rebelde", "hp": 14, "pattern": [{"type": "attack", "value": 4}]},
-	],
-	[
-		{"name": "Peon Maldito", "hp": 12, "pattern": [{"type": "attack", "value": 5}]},
-		{"name": "Espectro",     "hp": 10, "pattern": [{"type": "attack", "value": 6}]},
-	],
-]
-
-const ELITE_POOLS = [
-	[{"name": "Avatar de Hastur", "hp": 150, "pattern": [{"type": "attack", "value": 15}, {"type": "insanity", "value": 10}, {"type": "shield", "value": 15}]}],
-	[{"name": "Torre Rota",       "hp": 45, "pattern": [{"type": "attack", "value": 8}]}],
-	[{"name": "Caballero Roto",   "hp": 38, "pattern": [{"type": "attack", "value": 6}, {"type": "shield", "value": 8}, {"type": "attack", "value": 10}]}],
-	[{"name": "Inquisidor Ciego", "hp": 50, "pattern": [{"type": "attack", "value": 5}, {"type": "attack", "value": 5}, {"type": "shield", "value": 10}]}],
-	[{"name": "Caballero Caido",  "hp": 55, "pattern": [{"type": "attack", "value": 12}, {"type": "attack", "value": 4}]}],
-	[{"name": "Alfil Hereje",     "hp": 48, "pattern": [{"type": "insanity", "value": 8}, {"type": "attack", "value": 6}]}],
-]
-
-const BOSS_POOLS_W1 = [
-	[{"name": "EL CARCELERO",    "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "shield", "value": 10}]}],
-	[{"name": "LA DAMA DE CENIZA", "hp": 85,  "pattern": [{"type": "attack", "value": 8}, {"type": "attack", "value": 14}]}],
-	[{"name": "EL MARISCAL",     "hp": 110, "pattern": [{"type": "attack", "value": 12}, {"type": "attack", "value": 6}]}],
-]
-
 # ── Setup ──────────────────────────────────────────────────────────────────────
 func _ready() -> void:
 	modulate.a = 0.0
@@ -149,6 +110,12 @@ func _ready() -> void:
 		await _show_avatar_intro()
 		GameManager.sanity = max(0, GameManager.sanity - 30)
 		flash_small("¡PRESENCIA ATERRADORA! -30 Cordura")
+		
+		# Iniciar loop de distorsión dinámica
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play_loop("Glith_distorsion_noised_sound")
+			_update_distortion_by_sanity()
+			
 		update_ui()
 
 	end_turn_btn.disabled = false
@@ -190,7 +157,7 @@ func _show_avatar_intro() -> void:
 	# --- EFECTO ROTOSCOPIA / GLITCH / FLASH ---
 	quote_lbl.visible = false
 	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("menu_glitch")
+		AudioManager.play("Glith_distorsion_noised_sound") # Usar audio externo
 	
 	# Simulamos rotoscopia con destellos
 	for i in range(12):
@@ -211,18 +178,9 @@ func _show_avatar_intro() -> void:
 	await tw.finished
 	layer.queue_free()
 
-var avatar_barks = [
-	"El tablero no tiene bordes... solo caídas infinitas.",
-	"Tus cuerdas son de ceniza. Yo solo soplo.",
-	"La canción ya ha empezado. Tú eres solo una nota desafinada.",
-	"Carcosa no es un lugar. Es lo que queda cuando dejas de ser tú.",
-	"¿Sientes cómo se estira tu realidad? Es el Rey saludando.",
-	"Ninguna pieza vuelve a la caja. Todas se funden en el Tablero Dorado."
-]
-
 func _show_avatar_bark() -> void:
 	if enemies.is_empty() or not "AVATAR" in enemies[0].name.to_upper(): return
-	var msg = avatar_barks[randi() % avatar_barks.size()]
+	var msg = CombatData.ENEMY_COMBAT_BANTER["Avatar de Hastur"][randi() % CombatData.ENEMY_COMBAT_BANTER["Avatar de Hastur"].size()]
 	
 	var bark_lbl = Label.new()
 	bark_lbl.text = msg
@@ -251,7 +209,7 @@ func _setup_encounter() -> void:
 			pool = [{"name": "EL REY SIN CORONA", "hp": 120, "pattern": [{"type": "attack", "value": 12}, {"type": "shield", "value": 8},  {"type": "attack", "value": 15}]}]
 	elif GameManager.is_boss_fight:
 		if GameManager.current_world == 0:
-			pool = BOSS_POOLS_W1[randi() % BOSS_POOLS_W1.size()]
+			pool = CombatData.BOSS_POOLS_W1[randi() % CombatData.BOSS_POOLS_W1.size()]
 		else:
 			pool = [{"name": "EL CARCELERO", "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "shield", "value": 8}]}]
 	elif GameManager.is_elite_fight or GameManager.dev_force_avatar:
@@ -268,19 +226,27 @@ func _setup_encounter() -> void:
 			GameManager.dev_force_avatar = false # Resetear
 		
 		if randf() < spawn_chance:
-			pool = ELITE_POOLS[0] # Avatar de Hastur siempre es el 0 en ELITE_POOLS
+			pool = CombatData.ELITE_POOLS[0] # Avatar de Hastur siempre es el 0 en ELITE_POOLS
 		else:
-			var sub_pool = ELITE_POOLS.duplicate()
+			var sub_pool = CombatData.ELITE_POOLS.duplicate()
 			sub_pool.remove_at(0) # Quitar Avatar de la seleccion normal
 			pool = sub_pool[randi() % sub_pool.size()]
+	elif GameManager.dev_force_penitente:
+		GameManager.dev_force_penitente = false
+		for p in CombatData.NORMAL_POOLS:
+			if p[0]["name"] == "El Penitente":
+				pool = p
+				break
 	else:
-		pool = NORMAL_POOLS[randi() % NORMAL_POOLS.size()]
+		pool = CombatData.NORMAL_POOLS[randi() % CombatData.NORMAL_POOLS.size()]
 
 	enemies.clear()
 	for e_data in pool:
 		var pen_mode = ""
 		if e_data["name"] == "El Penitente":
 			pen_mode = "silence" if randf() < 0.5 else "mercy"
+			if get_node_or_null("/root/AudioManager"):
+				AudioManager.play("Cry_whisper_woman_sound")
 		
 		enemies.append({
 			"name":          e_data["name"],
@@ -311,7 +277,7 @@ func build_ui() -> void:
 	add_child(player_panel)
 
 	var char_id = GameManager.selected_character
-	var char_info = CHAR_DATA.get(char_id, {"symbol": "♟", "color": Color(0.8, 0.8, 0.8)})
+	var char_info = CombatData.CHAR_DATA.get(char_id, {"symbol": "♟", "color": Color(0.8, 0.8, 0.8)})
 	player_sprite_label = Label.new()
 	player_sprite_label.text = char_info["symbol"]
 	player_sprite_label.modulate = char_info["color"]
@@ -1068,6 +1034,9 @@ func update_ui() -> void:
 	
 	if sanity_bar_player:
 		sanity_bar_player.value = GameManager.sanity
+	
+	_update_distortion_by_sanity()
+	
 	lbl_energy.text = "Energia: %d/%d" % [player_energy, player_max_energy]
 	
 	if lbl_furia:
@@ -1192,25 +1161,25 @@ var sanity_60_triggered: bool = false
 var sanity_40_triggered: bool = false
 var sanity_20_triggered: bool = false
 
-const MYTH_60 = ["EL QUE OBSERVA TODO", "LAS SOMBRAS SE ALARGAN", "EL TABLERO RESPIRA"]
-const MYTH_40 = ["TUS PENSAMIENTOS NO SON TUYOS", "LA CORDURA ES UNA JAULA", "EL REY TE HA ENCONTRADO"]
-const MYTH_20 = ["EL FINAL DEL JUEGO SE ACERCA", "SOLO QUEDA EL VACIO", "YA NO ERES UNA PIEZA"]
-
 func _check_sanity_myths() -> void:
 	var s = GameManager.sanity
 	if s < 60 and not sanity_60_triggered:
 		sanity_60_triggered = true
-		_show_mythical_text(MYTH_60[randi() % MYTH_60.size()], Color(0.6, 0.4, 0.8))
+		_show_mythical_text(CombatData.MYTH_60[randi() % CombatData.MYTH_60.size()], Color(0.6, 0.4, 0.8))
 	elif s < 40 and not sanity_40_triggered:
 		sanity_40_triggered = true
-		_show_mythical_text(MYTH_40[randi() % MYTH_40.size()], Color(0.8, 0.3, 0.3))
+		_show_mythical_text(CombatData.MYTH_40[randi() % CombatData.MYTH_40.size()], Color(0.8, 0.3, 0.3))
 	elif s < 20 and not sanity_20_triggered:
 		sanity_20_triggered = true
-		_show_mythical_text(MYTH_20[randi() % MYTH_20.size()], Color(1.0, 0.1, 0.1))
+		_show_mythical_text(CombatData.MYTH_20[randi() % CombatData.MYTH_20.size()], Color(1.0, 0.1, 0.1))
 
 func _show_mythical_text(txt: String, col: Color) -> void:
 	_trigger_screen_blink()
-	if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+	if get_node_or_null("/root/AudioManager"):
+		if GameManager.sanity < 30:
+			AudioManager.play("Glith_distorsion_noised_sound")
+		else:
+			AudioManager.play("menu_glitch")
 	
 	var vp = get_viewport_rect().size
 	var myth_lbl = Label.new()
@@ -1256,6 +1225,18 @@ func _start_eye_blink_loop() -> void:
 
 var _is_ending: bool = false
 
+func _update_distortion_by_sanity() -> void:
+	if not get_node_or_null("/root/AudioManager"): return
+	
+	# Solo si el loop está activo (por ahora solo contra el Avatar)
+	var lost_sanity = 100.0 - GameManager.sanity
+	# Volumen: de -20dB (cordura 100) a 0dB (cordura 0)
+	var vol = -20.0 + (lost_sanity * 0.2)
+	# Pitch: de 1.0 (cordura 100) a 1.8 (cordura 0)
+	var pitch = 1.0 + (lost_sanity * 0.008)
+	
+	AudioManager.update_loop_params("Glith_distorsion_noised_sound", vol, pitch)
+
 # ── Fin de combate ─────────────────────────────────────────────────────────────
 func check_combat_end() -> void:
 	if combat_ended or _is_ending: return
@@ -1266,6 +1247,10 @@ func check_combat_end() -> void:
 
 	_is_ending = true
 	combat_ended = true
+	
+	# Detener distorsión
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.stop_loop("Glith_distorsion_noised_sound")
 	
 	# Recuperación de Cordura al Ganar
 	GameManager.sanity = min(100, GameManager.sanity + 10)
@@ -1281,7 +1266,7 @@ func check_combat_end() -> void:
 	
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("victory")
 	
-	var victory_phrases = ["EL ECO SE DESVANECE", "MOVIMIENTO COMPLETADO", "PIEZA ELIMINADA", "EL REY SONRIE"]
+	var victory_phrases = CombatData.VICTORY_PHRASES
 	show_message(victory_phrases[randi() % victory_phrases.size()], Color(0.85, 0.7, 0.2))
 	await get_tree().create_timer(1.2).timeout
 
@@ -1829,6 +1814,8 @@ func _on_end_turn_button_pressed() -> void:
 				flash_small("¡REFLEJO DE LA LOCURA! Una pieza ha sido corrompida.")
 				target_card.setup({"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 1, "curse": true})
 				target_card.modulate = Color(0.4, 0.1, 0.5) # Color corrupto
+				if get_node_or_null("/root/AudioManager"):
+					AudioManager.play("Cry_whisper_woman_sound")
 		
 		update_ui()
 
@@ -1898,6 +1885,9 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		["Ganar combate", func(): _dev_force_win()],
 		["FORZAR AVATAR", func():
 			GameManager.dev_force_avatar = true
+			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")],
+		["FORZAR PENITENTE", func():
+			GameManager.dev_force_penitente = true
 			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")],
 		["+ Fragmentos x3", func():
 			GameManager.add_secret_item("simbolo_amarillo")

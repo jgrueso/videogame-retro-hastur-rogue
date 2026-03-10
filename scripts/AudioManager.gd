@@ -5,8 +5,10 @@ extends Node
 
 var _players: Array = []
 var _sounds: Dictionary = {}
+var _external_cache: Dictionary = {}
 var _player_index: int = 0
-const POOL_SIZE = 8
+var _active_loops: Dictionary = {} # {sound_name: AudioStreamPlayer}
+const POOL_SIZE = 12
 
 func _ready() -> void:
 	# Pool de AudioStreamPlayers para sonidos simultaneos
@@ -38,16 +40,87 @@ func _ready() -> void:
 	_sounds["agony_shriek"] = _descend(1200.0, 400.0, 0.4, 0.3) # Grito agudo
 
 func play(sound_name: String) -> void:
-	if not _sounds.has(sound_name):
-		return
-	var p = _players[_player_index % POOL_SIZE]
-	_player_index += 1
-	p.stream = _sounds[sound_name]
-	p.play()
+	var stream: AudioStream = null
+	
+	# 1. Buscar en sonidos procedurales
+	if _sounds.has(sound_name):
+		stream = _sounds[sound_name]
+	
+	# 2. Si no es procedural, buscar en archivos externos
+	else:
+		if not _external_cache.has(sound_name):
+			var paths = [
+				"res://assets/audio/" + sound_name,
+				"res://assets/" + sound_name
+			]
+			
+			var found_stream: AudioStream = null
+			for p in paths:
+				for ext in [".wav", ".mp3", ".ogg"]:
+					var full_path = p + ext
+					if FileAccess.file_exists(full_path):
+						found_stream = load(full_path)
+						if found_stream: break
+				if found_stream: break
+			
+			# Guardar (incluso si es null para no re-intentar carga fallida)
+			_external_cache[sound_name] = found_stream
+			
+			if not found_stream:
+				print("AudioManager ERROR: No se pudo cargar o encontrar: ", sound_name)
+				return
+				
+		stream = _external_cache[sound_name]
+
+	if stream:
+		var p = _players[_player_index % POOL_SIZE]
+		_player_index += 1
+		p.stream = stream
+		p.play()
 
 func stop_all() -> void:
 	for p in _players:
 		p.stop()
+	for s_name in _active_loops.keys():
+		stop_loop(s_name)
+
+func play_loop(sound_name: String) -> void:
+	if _active_loops.has(sound_name): return
+	var stream = _get_stream(sound_name)
+	if stream:
+		var p = AudioStreamPlayer.new()
+		p.stream = stream
+		p.volume_db = -20.0 # Empezar suave
+		add_child(p)
+		p.play()
+		if stream is AudioStreamMP3: stream.loop = true
+		_active_loops[sound_name] = p
+
+func update_loop_params(sound_name: String, vol: float, pitch: float) -> void:
+	if _active_loops.has(sound_name):
+		var p = _active_loops[sound_name]
+		p.volume_db = vol
+		p.pitch_scale = pitch
+
+func stop_loop(sound_name: String) -> void:
+	if _active_loops.has(sound_name):
+		var p = _active_loops[sound_name]
+		p.stop()
+		p.queue_free()
+		_active_loops.erase(sound_name)
+
+func _get_stream(sound_name: String) -> AudioStream:
+	if _sounds.has(sound_name): return _sounds[sound_name]
+	if not _external_cache.has(sound_name):
+		var paths = ["res://assets/audio/" + sound_name, "res://assets/" + sound_name]
+		var found: AudioStream = null
+		for p in paths:
+			for ext in [".wav", ".mp3", ".ogg"]:
+				if FileAccess.file_exists(p + ext):
+					found = load(p + ext); break
+			if found: break
+		_external_cache[sound_name] = found
+	return _external_cache.get(sound_name)
 
 # ─── Generadores de onda ──────────────────────────────────────────────────────
 

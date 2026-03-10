@@ -47,6 +47,7 @@ var has_eternal_fragment: bool = false # El objeto misterioso de esta run
 
 # DEBUG
 var dev_force_avatar: bool = false
+var dev_force_penitente: bool = false
 
 const SAVE_PATH = "user://meta_progress.save"
 
