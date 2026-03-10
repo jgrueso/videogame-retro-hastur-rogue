@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/RelicIcon.gd" id="1"]
+
+[node name="RelicIcon" type="Panel"]
+script = ExtResource("1")

@@ -1,0 +1,1198 @@
+extends Node2D
+
+# ── Estado de combate ──────────────────────────────────────────────────────────
+var enemies: Array = []
+var player_hp: int = 40
+var player_max_hp: int = 40
+var player_shield: int = 0
+var player_energy: int = 3
+var player_max_energy: int = 3
+
+var draw_pile: Array = []
+var discard_pile: Array = []
+var hand: Array = []
+var siervo_attack_bonus: int = 0
+var is_player_turn: bool = true
+var combat_ended: bool = false
+var first_card_this_turn: bool = true
+var velo_used: bool = false
+
+# ── UI References ──────────────────────────────────────────────────────────────
+var player_panel: Panel
+var player_sprite_label: Label
+var lbl_player_hp: Label
+var hp_bar_player: ProgressBar
+var lbl_energy: Label
+var hand_container: HBoxContainer
+var lbl_draw_pile: Label
+var lbl_discard_pile: Label
+var end_turn_btn: Button
+var relics_container: HBoxContainer
+var lbl_message: Label
+var targeting_arrow: Line2D
+
+var targeting_active: bool = false
+var targeting_card = null
+
+const CHAR_DATA = {
+	"conquistador": {"symbol": "♜", "color": Color(0.8, 0.3, 0.3)},
+	"estratega":    {"symbol": "♛", "color": Color(0.4, 0.6, 0.9)},
+	"guardian":     {"symbol": "♞", "color": Color(0.4, 0.75, 0.4)},
+}
+
+# ── Pools de encuentros ────────────────────────────────────────────────────────
+const NORMAL_POOLS = [
+	[{"name": "Siervo Rebelde", "hp": 22, "pattern": [{"type": "attack", "value": 5}]}],
+	[{"name": "Peon Maldito",   "hp": 18, "pattern": [{"type": "attack", "value": 7}]}],
+	[{"name": "Alfil Caido",    "hp": 30, "pattern": [{"type": "attack", "value": 4}, {"type": "shield", "value": 6}]}],
+	[{"name": "Espectro",       "hp": 14, "pattern": [{"type": "attack", "value": 9}]}],
+	[{"name": "El Penitente",   "hp": 26, "pattern": [{"type": "attack", "value": 5}], "peaceful": true, "peaceful_turns": 3}],
+	[
+		{"name": "Siervo Rebelde", "hp": 14, "pattern": [{"type": "attack", "value": 4}]},
+		{"name": "Siervo Rebelde", "hp": 14, "pattern": [{"type": "attack", "value": 4}]},
+	],
+	[
+		{"name": "Peon Maldito", "hp": 12, "pattern": [{"type": "attack", "value": 5}]},
+		{"name": "Espectro",     "hp": 10, "pattern": [{"type": "attack", "value": 6}]},
+	],
+]
+
+const ELITE_POOLS = [
+	[{"name": "Torre Rota",       "hp": 45, "pattern": [{"type": "attack", "value": 8}]}],
+	[{"name": "Caballero Roto",   "hp": 38, "pattern": [{"type": "attack", "value": 6}, {"type": "shield", "value": 8}, {"type": "attack", "value": 10}]}],
+	[{"name": "Inquisidor Ciego", "hp": 50, "pattern": [{"type": "attack", "value": 5}, {"type": "attack", "value": 5}, {"type": "shield", "value": 10}]}],
+]
+
+# ── Setup ──────────────────────────────────────────────────────────────────────
+func _ready() -> void:
+	modulate.a = 0.0
+	player_hp = GameManager.player_hp
+	player_max_hp = GameManager.player_max_hp
+	draw_pile = GameManager.player_deck.duplicate()
+	draw_pile.shuffle()
+
+	_setup_encounter()
+	build_ui()
+	update_ui()
+	update_intent_labels()
+	_start_enemy_idle_bobs()
+
+	create_tween().tween_property(self, "modulate:a", 1.0, 0.45)
+
+	if not enemies.is_empty():
+		if GameManager.is_hastur_fight:
+			_start_hastur_madness_loop()
+		else:
+			var thought = LoreData.get_player_thought(enemies[0].name)
+			await get_tree().create_timer(0.9).timeout
+			lbl_message.modulate = Color(0.6, 0.6, 0.6)
+			lbl_message.visible = true
+			await _typewrite(lbl_message, thought, 0.03)
+			await get_tree().create_timer(2.0).timeout
+			var ft = create_tween()
+			ft.tween_property(lbl_message, "modulate:a", 0.0, 0.6)
+			await ft.finished
+			lbl_message.visible = false
+			lbl_message.modulate.a = 1.0
+
+	await draw_hand()
+	is_player_turn = true
+	end_turn_btn.disabled = false
+
+func _setup_encounter() -> void:
+	var pool = []
+	if GameManager.is_hastur_fight:
+		pool = [{"name": "EL VERDADERO HASTUR", "hp": 240, "pattern": [{"type": "attack", "value": 15}, {"type": "shield", "value": 12}]}]
+	elif GameManager.is_final_boss:
+		if GameManager.current_world == 1:
+			pool = [{"name": "EL REY AMARILLO",   "hp": 180, "pattern": [{"type": "attack", "value": 14}, {"type": "shield", "value": 10}, {"type": "attack", "value": 18}]}]
+		else:
+			pool = [{"name": "EL REY SIN CORONA", "hp": 120, "pattern": [{"type": "attack", "value": 12}, {"type": "shield", "value": 8},  {"type": "attack", "value": 15}]}]
+	elif GameManager.is_boss_fight:
+		pool = [{"name": "EL CARCELERO", "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "shield", "value": 8}]}]
+	elif GameManager.is_elite_fight:
+		pool = ELITE_POOLS[randi() % ELITE_POOLS.size()]
+	else:
+		pool = NORMAL_POOLS[randi() % NORMAL_POOLS.size()]
+
+	enemies.clear()
+	for e_data in pool:
+		enemies.append({
+			"name":          e_data["name"],
+			"hp":            e_data["hp"],
+			"max_hp":        e_data["hp"],
+			"shield":        0,
+			"pattern":       e_data["pattern"],
+			"turn_index":    0,
+			"peaceful":      e_data.get("peaceful", false),
+			"peaceful_turns": e_data.get("peaceful_turns", 0),
+			"panel":         null,
+			"hp_bar":        null,
+			"lbl_hp":        null,
+			"lbl_shield":    null,
+			"sprite_label":  null,
+			"lbl_intent_icon": null,
+		})
+
+# ── Build UI ───────────────────────────────────────────────────────────────────
+func build_ui() -> void:
+	var vp = get_viewport_rect().size
+	_build_dynamic_background(vp)
+
+	player_panel = _make_panel(Vector2(20, 280), Vector2(560, 125), Color(0.06, 0.06, 0.1), Color(0.4, 0.4, 0.6))
+	add_child(player_panel)
+
+	var char_id = GameManager.selected_character
+	var char_info = CHAR_DATA.get(char_id, {"symbol": "♟", "color": Color(0.8, 0.8, 0.8)})
+	player_sprite_label = Label.new()
+	player_sprite_label.text = char_info["symbol"]
+	player_sprite_label.modulate = char_info["color"]
+	player_sprite_label.add_theme_font_size_override("font_size", 60)
+	player_sprite_label.position = Vector2(10, 15)
+	player_sprite_label.size = Vector2(80, 90)
+	player_sprite_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	player_panel.add_child(player_sprite_label)
+	_start_player_idle_bob()
+
+	hp_bar_player = _make_hp_bar(player_max_hp, 440)
+	hp_bar_player.position = Vector2(100, 40); player_panel.add_child(hp_bar_player)
+	lbl_player_hp = Label.new(); lbl_player_hp.position = Vector2(100, 15); player_panel.add_child(lbl_player_hp)
+	lbl_energy = Label.new(); lbl_energy.position = Vector2(100, 65); player_panel.add_child(lbl_energy)
+
+	hand_container = HBoxContainer.new()
+	hand_container.position = Vector2(20, 418); hand_container.size = Vector2(700, 195)
+	hand_container.add_theme_constant_override("separation", 10)
+	add_child(hand_container)
+
+	lbl_draw_pile    = _make_pile_label(Vector2(740, 540), Color(0.7, 0.7, 0.9))
+	lbl_discard_pile = _make_pile_label(Vector2(740, 575), Color(0.6, 0.5, 0.4))
+	add_child(lbl_draw_pile); add_child(lbl_discard_pile)
+
+	end_turn_btn = Button.new(); end_turn_btn.text = "TERMINAR TURNO"
+	end_turn_btn.position = Vector2(850, 520); end_turn_btn.size = Vector2(200, 50)
+	end_turn_btn.pressed.connect(_on_end_turn_button_pressed); add_child(end_turn_btn)
+
+	lbl_message = Label.new(); lbl_message.position = Vector2(100, 180); lbl_message.size = Vector2(952, 200)
+	lbl_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_message.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	lbl_message.z_index = 10; lbl_message.visible = false; add_child(lbl_message)
+
+	# Paneles enemigos
+	for i in range(enemies.size()):
+		var is_peaceful = enemies[i].peaceful
+		var border_col = Color(0.2, 0.5, 0.2) if is_peaceful else Color(0.6, 0.2, 0.2)
+		var bg_col     = Color(0.04, 0.1, 0.04) if is_peaceful else Color(0.1, 0.05, 0.05)
+		var ep = _make_panel(Vector2(650 + i*220, 80), Vector2(200, 230), bg_col, border_col)
+		ep.mouse_filter = Control.MOUSE_FILTER_PASS
+		add_child(ep); enemies[i].panel = ep
+
+		var en = Label.new(); en.text = enemies[i].name
+		en.position = Vector2(0, 8); en.size = Vector2(200, 30)
+		en.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		en.add_theme_font_size_override("font_size", 11)
+		en.modulate = Color(0.5, 1.0, 0.5) if is_peaceful else Color.WHITE
+		ep.add_child(en); enemies[i].lbl_name = en
+
+		var esl = Label.new(); esl.text = _get_enemy_symbol(enemies[i].name)
+		esl.add_theme_font_size_override("font_size", 60)
+		esl.position = Vector2(0, 38); esl.size = Vector2(200, 90)
+		esl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ep.add_child(esl); enemies[i].sprite_label = esl
+
+		var elh = Label.new(); elh.position = Vector2(10, 135); elh.size = Vector2(180, 20); ep.add_child(elh); enemies[i].lbl_hp = elh
+		var ebl = Label.new(); ebl.position = Vector2(10, 155); ebl.size = Vector2(180, 20)
+		ebl.modulate = Color(0.4, 0.7, 1.0); ep.add_child(ebl); enemies[i].lbl_shield = ebl
+		var eh = _make_hp_bar(enemies[i].max_hp, 180); eh.position = Vector2(10, 178); ep.add_child(eh); enemies[i].hp_bar = eh
+
+		var lin = Label.new(); lin.position = Vector2(0, 205); lin.size = Vector2(200, 22)
+		lin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lin.add_theme_font_size_override("font_size", 11)
+		ep.add_child(lin); enemies[i].lbl_intent_icon = lin
+
+	targeting_arrow = Line2D.new(); targeting_arrow.width = 4
+	targeting_arrow.default_color = Color(1, 0.8, 0.2); targeting_arrow.visible = false; add_child(targeting_arrow)
+
+	relics_container = HBoxContainer.new()
+	relics_container.position = Vector2(10, 10)
+	relics_container.add_theme_constant_override("separation", 6)
+	add_child(relics_container)
+	_populate_relics()
+
+	var dev_toggle = Button.new(); dev_toggle.text = "[DEV]"
+	dev_toggle.position = Vector2(vp.x - 80, vp.y - 36); dev_toggle.size = Vector2(75, 30)
+	dev_toggle.modulate = Color(0.5, 0.5, 0.5, 0.45)
+	add_child(dev_toggle)
+
+	var dev_panel = _build_dev_panel(vp)
+	dev_panel.visible = false
+	add_child(dev_panel)
+	dev_toggle.pressed.connect(func(): dev_panel.visible = not dev_panel.visible)
+
+func _get_enemy_symbol(name: String) -> String:
+	match name:
+		"EL VERDADERO HASTUR": return "♆"
+		"EL CARCELERO":        return "♔"
+		"EL REY SIN CORONA":   return "♚"
+		"EL REY AMARILLO":     return "♛"
+		"Torre Rota":          return "♖"
+		"Caballero Roto":      return "♘"
+		"Inquisidor Ciego":    return "♗"
+		"Alfil Caido":         return "♝"
+		"Espectro":            return "👁"
+		"Peon Maldito":        return "♟"
+		"El Penitente":        return "✝"
+		_:                     return "☠"
+
+func _build_dynamic_background(vp: Vector2) -> void:
+	var is_w2 = GameManager.current_world == 1
+	var bg = ColorRect.new()
+	bg.color = Color(0.01, 0.01, 0.02) if not is_w2 else Color(0.04, 0.03, 0.01)
+	bg.size = vp; bg.z_index = -10; add_child(bg)
+	var sz = 450.0 if not is_w2 else 650.0
+	var sun = Panel.new(); sun.size = Vector2(sz, sz); sun.position = Vector2(vp.x/2 - sz/2, -100)
+	var sun_st = StyleBoxFlat.new(); sun_st.bg_color = Color(0,0,0)
+	sun_st.set_corner_radius_all(sz/2); sun_st.border_width_left = 4
+	sun_st.border_color = Color(0.9, 0.6, 0.1, 0.3)
+	sun.add_theme_stylebox_override("panel", sun_st); sun.z_index = -9; add_child(sun)
+	for _i in range(60):
+		var p = ColorRect.new(); p.size = Vector2(1, 15)
+		p.color = Color(0.5, 0.5, 0.7, 0.15)
+		p.position = Vector2(randf_range(0, vp.x), randf_range(0, vp.y)); p.z_index = -8; add_child(p)
+		create_tween().set_loops().tween_property(p, "position:y", vp.y + 20, randf_range(0.8, 1.2)).from(-20)
+
+# ── Cartas ─────────────────────────────────────────────────────────────────────
+func draw_hand() -> void:
+	for c in hand_container.get_children(): c.queue_free()
+	for h in hand: discard_pile.append(h)
+	hand.clear()
+	for _i in range(3):
+		if draw_pile.is_empty():
+			draw_pile = discard_pile.duplicate(); discard_pile.clear(); draw_pile.shuffle()
+		if draw_pile.is_empty(): break
+		var c_data = draw_pile.pop_front()
+		hand.append(c_data); _spawn_card_node(c_data)
+	update_card_states()
+	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_draw")
+
+func _spawn_card_node(data: Dictionary) -> void:
+	var card_scene = preload("res://scenes/combat/Card.tscn")
+	var card = card_scene.instantiate()
+	hand_container.add_child(card)
+	card.setup(data)
+	card.connect("card_selected", _on_card_selected)
+	card.connect("card_played",   _on_card_played)
+
+func _on_card_selected(card) -> void:
+	targeting_active = true; targeting_card = card; targeting_arrow.visible = true
+
+func _on_card_played(card) -> void:
+	_resolve_card(card, -1)
+
+# ── Targeting ──────────────────────────────────────────────────────────────────
+func _process(_delta: float) -> void:
+	if targeting_active and targeting_card:
+		targeting_arrow.clear_points()
+		targeting_arrow.add_point(targeting_card.global_position + Vector2(65, 0))
+		targeting_arrow.add_point(get_global_mouse_position())
+
+func _input(event: InputEvent) -> void:
+	if targeting_active and event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			_check_targeting()
+
+func _check_targeting() -> void:
+	var m_pos = get_global_mouse_position()
+	var target = -1
+	for i in range(enemies.size()):
+		if enemies[i].hp > 0 and enemies[i].panel.get_global_rect().has_point(m_pos):
+			target = i; break
+	if target >= 0:
+		_resolve_card(targeting_card, target)
+	else:
+		targeting_card.set_disabled(false)
+	targeting_active = false; targeting_arrow.visible = false; targeting_card = null
+
+# ── Resolver carta ─────────────────────────────────────────────────────────────
+func _resolve_card(card, enemy_idx: int) -> void:
+	if player_energy < card.cost: return
+	player_energy -= card.cost
+
+	for i in range(hand.size()):
+		if hand[i].get("name", "").to_upper() == card.card_name:
+			hand.remove_at(i); break
+	discard_pile.append({"name": card.card_name, "attack": card.attack, "defense": card.defense, "cost": card.cost})
+
+	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_play")
+
+	if enemy_idx >= 0 and card.attack > 0:
+		var e = enemies[enemy_idx]
+
+		# El Penitente: atacarle lo hace agresivo
+		if e.peaceful:
+			e.peaceful = false
+			e.peaceful_turns = 0
+			_show_enemy_banter(e.panel, "...Asi lo quieres. Bien.", Color(0.9, 0.4, 0.4))
+			_set_enemy_aggressive(e)
+
+		var dmg = card.attack
+		if card.card_name == "SIERVO QUEBRADO": dmg += siervo_attack_bonus
+		var absorbed = min(e.shield, dmg)
+		if absorbed > 0:
+			e.shield -= absorbed; dmg -= absorbed
+			_animate_shield_block(e)
+			if get_node_or_null("/root/AudioManager"): AudioManager.play("shield_block")
+		if dmg > 0:
+			e.hp -= dmg
+			_spawn_damage_number(e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
+			_animate_enemy_hit(e)
+			if get_node_or_null("/root/AudioManager"): AudioManager.play("enemy_hit")
+		if e.hp <= 0:
+			e.hp = 0
+			_kill_enemy(e)  # async — maneja check_combat_end internamente
+			# No llamar check_combat_end aquí; _kill_enemy lo hará tras el diálogo
+			if card.defense > 0:
+				player_shield += card.defense
+				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1.0))
+			first_card_this_turn = false
+			card.queue_free()
+			update_ui(); update_intent_labels()
+			return
+
+	if card.defense > 0:
+		player_shield += card.defense
+		_spawn_damage_number(player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1.0))
+
+	first_card_this_turn = false
+	card.queue_free()
+	update_ui(); update_intent_labels(); check_combat_end()
+
+func _set_enemy_aggressive(e: Dictionary) -> void:
+	# Cambiar panel a rojo
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.1, 0.05, 0.05)
+	s.border_width_left = 2; s.border_width_right = 2
+	s.border_width_top = 2; s.border_width_bottom = 2
+	s.border_color = Color(0.6, 0.2, 0.2)
+	e.panel.add_theme_stylebox_override("panel", s)
+	if e.lbl_name: e.lbl_name.modulate = Color.WHITE
+	# Flash rojo
+	create_tween().tween_property(e.panel, "modulate", Color(1.5, 0.3, 0.3), 0.1).chain().tween_property(e.panel, "modulate", Color(1, 1, 1), 0.3)
+
+# ── Animaciones ────────────────────────────────────────────────────────────────
+func _animate_enemy_hit(e: Dictionary) -> void:
+	if not e.panel: return
+	var orig = e.panel.position
+	var t = create_tween()
+	t.tween_property(e.panel, "modulate", Color(1.4, 0.3, 0.3), 0.05)
+	t.tween_property(e.panel, "position", orig + Vector2(-8, 0), 0.04)
+	t.tween_property(e.panel, "position", orig + Vector2(8, 0), 0.04)
+	t.tween_property(e.panel, "position", orig + Vector2(-5, 0), 0.04)
+	t.tween_property(e.panel, "position", orig, 0.04)
+	t.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.1)
+
+func _animate_shield_block(e: Dictionary) -> void:
+	if not e.panel: return
+	var t = create_tween()
+	t.tween_property(e.panel, "modulate", Color(0.4, 0.6, 1.4), 0.06)
+	t.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.2)
+
+func _animate_player_hit() -> void:
+	var orig = player_panel.position
+	var t = create_tween()
+	t.tween_property(player_panel, "modulate", Color(1.4, 0.3, 0.3), 0.05)
+	t.tween_property(player_panel, "position", orig + Vector2(-6, 0), 0.04)
+	t.tween_property(player_panel, "position", orig + Vector2(6, 0), 0.04)
+	t.tween_property(player_panel, "position", orig, 0.05)
+	t.tween_property(player_panel, "modulate", Color(1, 1, 1), 0.15)
+
+func _kill_enemy(e: Dictionary) -> void:
+	_spawn_death_particles(e.panel.global_position + Vector2(100, 110))
+	var t = create_tween()
+	t.tween_property(e.panel, "modulate:a", 0.0, 0.4)
+	t.tween_callback(func(): e.panel.visible = false)
+	await _show_death_dialogue(e.name)  # esperar a que el jugador haga clic
+	check_combat_end()
+
+func _spawn_damage_number(pos: Vector2, amount: int, col: Color) -> void:
+	var lbl = Label.new()
+	lbl.text = "-%d" % amount if col.r > 0.7 else "+%d" % amount
+	lbl.modulate = col
+	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.position = pos; lbl.z_index = 20; add_child(lbl)
+	var t = create_tween().set_parallel(true)
+	t.tween_property(lbl, "position", pos + Vector2(randf_range(-20, 20), -55), 0.7)
+	t.tween_property(lbl, "modulate:a", 0.0, 0.7)
+	t.chain().tween_callback(lbl.queue_free)
+
+func _spawn_death_particles(pos: Vector2) -> void:
+	for _i in range(14):
+		var p = ColorRect.new()
+		p.size = Vector2(randf_range(4, 10), randf_range(4, 10))
+		p.color = Color(randf_range(0.7, 1.0), randf_range(0.1, 0.4), 0.1)
+		p.position = pos; p.z_index = 15; add_child(p)
+		var angle = randf() * TAU
+		var dist  = randf_range(40, 100)
+		var t = create_tween().set_parallel(true)
+		t.tween_property(p, "position", pos + Vector2(cos(angle), sin(angle)) * dist, 0.5)
+		t.tween_property(p, "modulate:a", 0.0, 0.5)
+		t.chain().tween_callback(p.queue_free)
+
+func _start_enemy_idle_bobs() -> void:
+	for e in enemies:
+		if e.sprite_label: _idle_bob(e.sprite_label)
+
+func _idle_bob(lbl: Label) -> void:
+	var base_y = lbl.position.y
+	create_tween().set_loops().tween_property(lbl, "position:y", base_y - 6, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+func _start_player_idle_bob() -> void:
+	var base_y = player_sprite_label.position.y
+	create_tween().set_loops().tween_property(player_sprite_label, "position:y", base_y - 4, 1.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+# ── Update UI ──────────────────────────────────────────────────────────────────
+func update_ui() -> void:
+	lbl_player_hp.text = "HP: %d/%d" % [player_hp, player_max_hp]
+	if player_shield > 0: lbl_player_hp.text += "  [+%d esc]" % player_shield
+	hp_bar_player.value = player_hp
+	lbl_energy.text = "Energia: %d/%d" % [player_energy, player_max_energy]
+	lbl_draw_pile.text    = "Mazo: %d"        % draw_pile.size()
+	lbl_discard_pile.text = "Cementerio: %d"  % discard_pile.size()
+	for e in enemies:
+		if e.lbl_hp:     e.lbl_hp.text = "HP: %d/%d" % [e.hp, e.max_hp]
+		if e.lbl_shield: e.lbl_shield.text = "Escudo: %d" % e.shield if e.shield > 0 else ""
+		if e.hp_bar:     e.hp_bar.value = e.hp
+
+func update_intent_labels() -> void:
+	for e in enemies:
+		if e.hp <= 0 or not e.lbl_intent_icon: continue
+		if e.peaceful:
+			e.lbl_intent_icon.text = "Espera... (%d turnos)" % e.peaceful_turns
+			e.lbl_intent_icon.modulate = Color(0.4, 1.0, 0.5)
+		else:
+			var action = e.pattern[e.turn_index % e.pattern.size()]
+			if action.type == "attack":
+				e.lbl_intent_icon.text = "⚔ Atacar %d" % action.value
+				e.lbl_intent_icon.modulate = Color(1, 0.5, 0.4)
+			elif action.type == "shield":
+				e.lbl_intent_icon.text = "🛡 Escudo %d" % action.value
+				e.lbl_intent_icon.modulate = Color(0.4, 0.7, 1.0)
+
+func update_card_states() -> void:
+	for card in hand_container.get_children():
+		card.set_disabled(not is_player_turn or card.cost > player_energy)
+
+# ── Fin de combate ─────────────────────────────────────────────────────────────
+func check_combat_end() -> void:
+	if combat_ended: return
+	var all_dead = true
+	for e in enemies:
+		if e.hp > 0: all_dead = false
+	if not all_dead: return
+
+	combat_ended = true
+	GameManager.player_hp = player_hp
+	GameManager.combat_count += 1
+	GameManager.lore_progress += 1
+	if get_node_or_null("/root/AudioManager"): AudioManager.play("victory")
+	show_message("VICTORIA", Color.GREEN)
+	await get_tree().create_timer(1.2).timeout
+
+	if GameManager.is_hastur_fight:
+		# Final secreto — Hastur derrotado: victoria real
+		GameManager.player_won = true
+		await _show_victory_cinematic(true)
+		get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
+	elif GameManager.is_final_boss:
+		if GameManager.current_world == 0:
+			# REY SIN CORONA caído → Mundo 2 (con reliquia, aún hay juego)
+			_show_relic_reward("__world2__")
+		else:
+			# REY AMARILLO caído
+			if GameManager.has_all_secret_items():
+				# Los 3 fragmentos reunidos → Carcosa se abre → Hastur
+				await _show_carcosa_transition()
+				GameManager.is_final_boss = false
+				GameManager.is_hastur_fight = true
+				get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
+			else:
+				# Victoria normal sin secreto
+				GameManager.player_won = true
+				await _show_victory_cinematic(false)
+				get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
+	elif GameManager.is_boss_fight:
+		# EL CARCELERO → reliquia → mapa
+		_show_relic_reward("res://scenes/ui/Map.tscn")
+	else:
+		get_tree().change_scene_to_file("res://scenes/ui/CardDraft.tscn")
+
+# ── Transición a Carcosa (secreto) ─────────────────────────────────────────────
+func _show_carcosa_transition() -> void:
+	var vp = get_viewport_rect().size
+
+	# Overlay que toma la pantalla
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.0)
+	overlay.position = Vector2.ZERO
+	overlay.size = vp
+	overlay.z_index = 55
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+
+	var t = create_tween()
+	t.tween_property(overlay, "color:a", 1.0, 1.2)
+	await t.finished
+
+	# Lineas — sugieren sin revelar
+	var lines = [
+		["...", Color(0.5, 0.5, 0.5), 20, false],
+		["Los fragmentos vibran.", Color(0.75, 0.68, 0.3), 22, false],
+		["Algo al otro lado\nreconoce el signo.", Color(0.7, 0.6, 0.25), 22, false],
+		["No es un lugar.\nEs una promesa rota.", Color(0.65, 0.55, 0.2), 20, false],
+		["C̴̡A̵̢R̴C̷O̴S̸A̷", Color(0.82, 0.72, 0.05), 42, true],
+		["Él recuerda tu nombre.", Color(0.45, 0.15, 0.65), 22, false],
+	]
+
+	for pair in lines:
+		var full_text: String = pair[0]
+		var col: Color = pair[1]
+		var fsize: int = pair[2]
+		var do_shake: bool = pair[3]
+
+		var lbl = Label.new()
+		lbl.text = ""
+		lbl.modulate = col
+		lbl.add_theme_font_size_override("font_size", fsize)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.position = Vector2(0, vp.y * 0.38)
+		lbl.size = Vector2(vp.x, 110)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.z_index = 56
+		add_child(lbl)
+
+		var char_delay = 0.09 if do_shake else 0.05
+		for i in range(full_text.length()):
+			lbl.text = full_text.substr(0, i + 1)
+			await get_tree().create_timer(char_delay).timeout
+
+		if do_shake:
+			# La ciudad sacude la realidad
+			var base_pos = lbl.position
+			for _s in range(35):
+				lbl.position = base_pos + Vector2(randf_range(-7, 7), randf_range(-4, 4))
+				overlay.color = Color(
+					randf_range(0.0, 0.08),
+					randf_range(0.0, 0.04),
+					randf_range(0.0, 0.12),
+					1.0
+				)
+				await get_tree().create_timer(0.04).timeout
+			lbl.position = base_pos
+			overlay.color = Color(0, 0, 0, 1.0)
+
+		await get_tree().create_timer(1.8).timeout
+
+		var t3 = create_tween()
+		t3.tween_property(lbl, "modulate:a", 0.0, 0.5)
+		await t3.finished
+		lbl.queue_free()
+
+	# Destello purpura antes del combate
+	var flash = ColorRect.new()
+	flash.color = Color(0.35, 0.05, 0.55, 0.0)
+	flash.position = Vector2.ZERO
+	flash.size = vp
+	flash.z_index = 57
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(flash)
+	var tf = create_tween()
+	tf.tween_property(flash, "color:a", 0.9, 0.3)
+	await tf.finished
+	# El overlay se queda negro para la transición de escena
+
+# ── Cinemática de victoria final ───────────────────────────────────────────────
+func _show_victory_cinematic(is_hastur: bool) -> void:
+	var vp = get_viewport_rect().size
+	var runs = str(GameManager.total_runs + 1)
+
+	# Lines: [text, color, font_size, shake]
+	var lines: Array
+	if is_hastur:
+		lines = [
+			["H̷A̵S̷T̷U̵R̷  H̷A̵  C̷A̵I̷D̵O̷", Color(0.65, 0.1, 0.95), 38, true],
+			["Pero el tablero sigue moviendose.", Color(0.6, 0.5, 0.85), 24, false],
+			["¿Que clase de pieza puede matar al jugador?\nUna que ya no cree en el juego.", Color(0.55, 0.45, 0.78), 22, false],
+			["El silencio pesa mas que antes.\nEres libre. Quizas.", Color(0.45, 0.38, 0.65), 20, false],
+		]
+	else:
+		lines = [
+			["EL REY AMARILLO HA CAIDO", Color(0.98, 0.88, 0.05), 38, true],
+			["El tablero se congela.\nNinguna pieza se mueve.", Color(0.82, 0.74, 0.42), 24, false],
+			["Llevas " + runs + " intentos llegando aqui.\nEsta vez, recuerdas cada uno.", Color(0.72, 0.65, 0.48), 22, false],
+			["¿Ganar era la trampa?\n¿O era el tablero entero?", Color(0.58, 0.52, 0.42), 20, false],
+		]
+
+	# Flash de impacto inicial
+	var flash = ColorRect.new()
+	flash.color = Color(0.9, 0.8, 0.05, 0.9) if not is_hastur else Color(0.5, 0.05, 0.9, 0.9)
+	flash.position = Vector2.ZERO
+	flash.size = vp
+	flash.z_index = 55
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(flash)
+	var tf = create_tween()
+	tf.tween_property(flash, "color:a", 0.0, 0.55)
+	await tf.finished
+	flash.queue_free()
+
+	# Overlay oscuro
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.0)
+	overlay.position = Vector2.ZERO
+	overlay.size = vp
+	overlay.z_index = 50
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+	var t = create_tween()
+	t.tween_property(overlay, "color:a", 0.95, 0.65)
+	await t.finished
+
+	for pair in lines:
+		var full_text: String = pair[0]
+		var col: Color = pair[1]
+		var fsize: int = pair[2]
+		var do_shake: bool = pair[3]
+
+		var lbl = Label.new()
+		lbl.text = ""
+		lbl.modulate = col
+		lbl.add_theme_font_size_override("font_size", fsize)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.position = Vector2(0, vp.y * 0.37)
+		lbl.size = Vector2(vp.x, 110)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.z_index = 52
+		add_child(lbl)
+
+		# Typewriter letra por letra
+		var char_delay = 0.07 if do_shake else 0.04
+		for i in range(full_text.length()):
+			lbl.text = full_text.substr(0, i + 1)
+			await get_tree().create_timer(char_delay).timeout
+
+		# Sacudida en lineas dramaticas
+		if do_shake:
+			var base_pos = lbl.position
+			for _s in range(28):
+				lbl.position = base_pos + Vector2(randf_range(-5, 5), randf_range(-3, 3))
+				await get_tree().create_timer(0.04).timeout
+			lbl.position = base_pos
+
+		await get_tree().create_timer(2.2).timeout
+
+		var t3 = create_tween()
+		t3.tween_property(lbl, "modulate:a", 0.0, 0.55)
+		await t3.finished
+		lbl.queue_free()
+
+	# Boton continuar
+	var cont_btn = Button.new()
+	cont_btn.text = "Continuar"
+	cont_btn.add_theme_font_size_override("font_size", 16)
+	cont_btn.modulate = Color(1, 1, 1, 0.0)
+	cont_btn.position = Vector2(vp.x / 2.0 - 100, vp.y * 0.65)
+	cont_btn.size = Vector2(200, 44)
+	cont_btn.z_index = 52
+	add_child(cont_btn)
+
+	var t4 = create_tween()
+	t4.tween_property(cont_btn, "modulate:a", 1.0, 0.5)
+	await t4.finished
+
+	await cont_btn.pressed
+
+	cont_btn.queue_free()
+	var t5 = create_tween()
+	t5.tween_property(overlay, "color:a", 0.0, 0.5)
+	await t5.finished
+	overlay.queue_free()
+
+# ── Recompensa de reliquia (boss / jefe final) ─────────────────────────────────
+func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void:
+	var vp = get_viewport_rect().size
+
+	var available = []
+	for rid in GameManager.RELIC_DATA.keys():
+		if not GameManager.has_relic(rid):
+			available.append(rid)
+	available.shuffle()
+	var choices = available.slice(0, min(3, available.size()))
+	if choices.is_empty(): return
+
+	# Fondo oscuro bloqueante
+	var dim = ColorRect.new(); dim.color = Color(0, 0, 0, 0.88)
+	dim.position = Vector2.ZERO; dim.size = vp
+	dim.z_index = 25; dim.mouse_filter = Control.MOUSE_FILTER_STOP; add_child(dim)
+
+	var title = Label.new(); title.text = "RELIQUIA DE RECOMPENSA"
+	title.add_theme_font_size_override("font_size", 28)
+	title.modulate = Color(0.9, 0.75, 0.1)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 60); title.size = Vector2(vp.x, 44); title.z_index = 26
+	add_child(title)
+
+	var picked = false  # evita doble clic
+	var panel_w = 260; var panel_h = 260; var gap = 24
+	var total_w = choices.size() * panel_w + (choices.size() - 1) * gap
+	var start_x = (vp.x - total_w) / 2.0
+	var relic_icon_scene = load("res://scenes/ui/RelicIcon.tscn")
+	var panels_root = Node2D.new(); panels_root.z_index = 26; add_child(panels_root)
+
+	for i in range(choices.size()):
+		var rid = choices[i]
+		var rdata = GameManager.RELIC_DATA[rid]
+		var px = start_x + i * (panel_w + gap)
+		var rpanel = _make_panel(Vector2(px, 100), Vector2(panel_w, panel_h),
+			Color(0.08, 0.07, 0.04), Color(0.7, 0.55, 0.1))
+		panels_root.add_child(rpanel)
+
+		# Icono de reliquia centrado en la parte superior
+		if relic_icon_scene:
+			var icon = relic_icon_scene.instantiate()
+			icon.position = Vector2(panel_w / 2.0 - 22, 10)
+			rpanel.add_child(icon)
+			icon.setup(rid)
+
+		var rname = Label.new(); rname.text = rdata["name"]
+		rname.add_theme_font_size_override("font_size", 15)
+		rname.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		rname.modulate = Color(0.95, 0.85, 0.3)
+		rname.position = Vector2(8, 62); rname.size = Vector2(panel_w - 16, 36)
+		rname.autowrap_mode = TextServer.AUTOWRAP_WORD; rpanel.add_child(rname)
+
+		var rdesc = Label.new(); rdesc.text = rdata["desc"]
+		rdesc.add_theme_font_size_override("font_size", 12)
+		rdesc.modulate = Color(0.75, 0.75, 0.8)
+		rdesc.position = Vector2(8, 104); rdesc.size = Vector2(panel_w - 16, 100)
+		rdesc.autowrap_mode = TextServer.AUTOWRAP_WORD; rpanel.add_child(rdesc)
+
+		var rbtn = Button.new(); rbtn.text = "Tomar"
+		rbtn.position = Vector2(80, 216); rbtn.size = Vector2(100, 34)
+		rpanel.add_child(rbtn)
+
+		var relic_id = rid
+		rbtn.pressed.connect(func():
+			if picked: return
+			picked = true
+			GameManager.add_relic(relic_id)
+			dim.queue_free(); title.queue_free(); panels_root.queue_free()
+			if next_scene == "__world2__":
+				GameManager.current_world = 1
+				GameManager.map_graph = []
+				GameManager.current_map_floor = 0
+				GameManager.current_map_col = -1
+				get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+			else:
+				get_tree().change_scene_to_file(next_scene)
+		)
+
+# ── Recompensa del Penitente ───────────────────────────────────────────────────
+func _penitente_reward() -> void:
+	combat_ended = true
+	GameManager.player_hp = player_hp
+	GameManager.combat_count += 1
+	GameManager.lore_progress += 1
+
+	var vp = get_viewport_rect().size
+	show_message("El Penitente asiente y desaparece.", Color(0.5, 1.0, 0.5))
+	if get_node_or_null("/root/AudioManager"): AudioManager.play("relic_get")
+	await get_tree().create_timer(1.5).timeout
+	lbl_message.visible = false
+
+	# Recompensa: curar + un fragmento de lore
+	var heal_amount = int(player_max_hp * 0.25)
+	player_hp = min(player_hp + heal_amount, player_max_hp)
+	GameManager.player_hp = player_hp
+	update_ui()
+	show_message("Te curas %d HP y recibes una vision." % heal_amount, Color(0.4, 1.0, 0.6))
+	await get_tree().create_timer(2.0).timeout
+
+	# Mostrar fragmento de lore del Penitente
+	var texts = [
+		"'Llevas mas tiempo en el tablero de lo que crees.\nCada run es un turno. El Rey lleva siglos jugando.'",
+		"'El idioma que no entiendes... es el tuyo propio.\nDe hace muchas vidas.'",
+		"'Hay tres fragmentos dispersos. Si los juntas todos...\ntal vez puedas ver al jugador detras del tablero.'",
+	]
+	var lore_text = texts[GameManager.lore_progress % texts.size()]
+	await _show_lore_panel(lore_text)
+	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+
+func _show_lore_panel(text: String) -> void:
+	var vp = get_viewport_rect().size
+
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.0)
+	overlay.position = Vector2.ZERO; overlay.size = vp
+	overlay.z_index = 20; overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+	var ot = create_tween()
+	ot.tween_property(overlay, "color:a", 0.84, 0.4)
+	await ot.finished
+
+	var lbl = Label.new()
+	lbl.text = ""
+	lbl.modulate = Color(0.62, 0.96, 0.62)
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.position = Vector2(vp.x * 0.12, vp.y * 0.34)
+	lbl.size = Vector2(vp.x * 0.76, 160)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.z_index = 21
+	add_child(lbl)
+
+	await _typewrite(lbl, text, 0.032)
+
+	var btn = Button.new()
+	btn.text = "Continuar"
+	btn.modulate = Color(1, 1, 1, 0.0)
+	btn.position = Vector2(vp.x / 2.0 - 60, vp.y * 0.34 + 175)
+	btn.size = Vector2(120, 32)
+	btn.z_index = 22
+	add_child(btn)
+	var bt = create_tween()
+	bt.tween_property(btn, "modulate:a", 1.0, 0.4)
+	await bt.finished
+
+	await btn.pressed
+
+	btn.queue_free(); lbl.queue_free()
+	var ot2 = create_tween()
+	ot2.tween_property(overlay, "color:a", 0.0, 0.3)
+	await ot2.finished
+	overlay.queue_free()
+
+# ── Turno enemigo ──────────────────────────────────────────────────────────────
+func _on_end_turn_button_pressed() -> void:
+	is_player_turn = false; end_turn_btn.disabled = true
+	first_card_this_turn = true
+	update_card_states()
+	await get_tree().create_timer(0.4).timeout
+
+	for e in enemies:
+		if e.hp <= 0: continue
+
+		# El Penitente en modo pacífico: contar turnos
+		if e.peaceful:
+			e.peaceful_turns -= 1
+			_show_enemy_banter(e.panel, "Quedan %d turnos. Escucha." % e.peaceful_turns, Color(0.5, 1.0, 0.5))
+			if e.peaceful_turns <= 0:
+				await _penitente_reward()
+				return
+			update_intent_labels()
+			continue
+
+		# Enemigo agresivo: ejecutar acción
+		var action = e.pattern[e.turn_index % e.pattern.size()]
+		e.turn_index += 1
+
+		if action.type == "attack":
+			var banter = _get_enemy_banter(e.name)
+			if not banter.is_empty():
+				_show_enemy_banter(e.panel, banter, _get_banter_color(e.name, banter))
+			var dmg = action.value
+			var absorbed = min(player_shield, dmg)
+			if absorbed > 0:
+				player_shield -= absorbed; dmg -= absorbed
+				if get_node_or_null("/root/AudioManager"): AudioManager.play("shield_block")
+				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), absorbed, Color(0.4, 0.7, 1.0))
+			if dmg > 0:
+				player_hp -= dmg
+				_animate_player_hit()
+				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), dmg, Color(1, 0.3, 0.3))
+				if get_node_or_null("/root/AudioManager"): AudioManager.play("player_hit")
+		elif action.type == "shield":
+			e.shield += action.value
+
+		await get_tree().create_timer(0.35).timeout
+
+	player_energy = player_max_energy; player_shield = 0
+
+	if player_hp <= 0:
+		GameManager.player_hp = 0
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("defeat")
+		get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
+		return
+
+	GameManager.player_hp = player_hp
+	update_ui(); update_intent_labels()
+	await draw_hand()
+	is_player_turn = true; end_turn_btn.disabled = false
+	update_card_states()
+
+# ── Dev ────────────────────────────────────────────────────────────────────────
+func _build_dev_panel(vp: Vector2) -> Panel:
+	var p = Panel.new()
+	p.position = Vector2(vp.x - 230, vp.y - 230)
+	p.size = Vector2(225, 222)
+	p.z_index = 60
+	var st = StyleBoxFlat.new()
+	st.bg_color = Color(0.08, 0.08, 0.1, 0.95)
+	st.set_corner_radius_all(6)
+	st.border_width_left = 1; st.border_width_right = 1
+	st.border_width_top = 1; st.border_width_bottom = 1
+	st.border_color = Color(0.4, 0.4, 0.1)
+	p.add_theme_stylebox_override("panel", st)
+
+	var title_lbl = Label.new(); title_lbl.text = "DEV PANEL"
+	title_lbl.add_theme_font_size_override("font_size", 12)
+	title_lbl.modulate = Color(0.7, 0.7, 0.3)
+	title_lbl.position = Vector2(8, 6); title_lbl.size = Vector2(209, 20)
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	p.add_child(title_lbl)
+
+	var btns = [
+		["Ganar combate", func(): _dev_force_win()],
+		["+ Fragmentos x3", func():
+			GameManager.add_secret_item("simbolo_amarillo")
+			GameManager.add_secret_item("cancion_amarilla")
+			GameManager.add_secret_item("carta_carcosa")
+			show_message("Fragmentos: 3/3 — Hastur activado", Color(0.7, 0.3, 0.9))],
+		["Final: REY SIN CORONA", func():
+			GameManager.is_hastur_fight = false
+			GameManager.is_final_boss = true
+			GameManager.current_world = 0
+			_dev_force_win()],
+		["Final: REY AMARILLO", func():
+			GameManager.is_hastur_fight = false
+			GameManager.is_final_boss = true
+			GameManager.current_world = 1
+			_dev_force_win()],
+		["Final: HASTUR", func():
+			GameManager.add_secret_item("simbolo_amarillo")
+			GameManager.add_secret_item("cancion_amarilla")
+			GameManager.add_secret_item("carta_carcosa")
+			GameManager.is_hastur_fight = false
+			GameManager.is_final_boss = true
+			GameManager.current_world = 1
+			_dev_force_win()],
+	]
+
+	for i in range(btns.size()):
+		var b = Button.new()
+		b.text = btns[i][0]
+		b.add_theme_font_size_override("font_size", 11)
+		b.position = Vector2(8, 28 + i * 36)
+		b.size = Vector2(209, 30)
+		b.pressed.connect(btns[i][1])
+		p.add_child(b)
+
+	return p
+
+func _dev_force_win() -> void:
+	for e in enemies:
+		if e.hp > 0:
+			e.hp = 0
+			await _kill_enemy(e)
+
+# ── Diálogos y banter ─────────────────────────────────────────────────────────
+const ENEMY_COMBAT_BANTER = {
+	"Siervo Rebelde":   ["...muere...", "no... escapes...", "el tablero... te reclama..."],
+	"Peon Maldito":     ["maldito seas...", "nadie sale...", "somos todos lo mismo..."],
+	"Alfil Caido":      ["hereje...", "tu fe es falsa...", "el Rey te vera caer..."],
+	"Espectro":         ["sientes... el frio...", "ya... eres... uno de nosotros..."],
+	"Torre Rota":       ["resistire... siglos...", "soy... lo que queda..."],
+	"Caballero Roto":   ["falle... una vez... no... dos..."],
+	"Inquisidor Ciego": ["la verdad... duele...", "no... puedes... saberlo..."],
+	"EL CARCELERO":     ["NADIE ESCAPA DEL TABLERO.", "ERES UNA PIEZA. NADA MAS.", "EL REY... TE ESPERA."],
+	"EL REY SIN CORONA":["campeon... mio...", "el tablero... te reclama...", "esto es... necesario..."],
+	"EL REY AMARILLO":  ["JUEGA BIEN.", "SIEMPRE VUELVES.", "SOY EL TABLERO. SOY EL JUEGO."],
+	"El Penitente": [
+		"Escucha. Solo escucha un momento.",
+		"No eres el heroe. Nunca lo fuiste.",
+		"El tablero nos mueve a los dos.",
+		"Ya estuviste aqui. No lo recuerdas, pero yo si.",
+	],
+}
+
+func _get_enemy_banter(enemy_name: String) -> String:
+	var stage = LoreData.get_lore_stage()
+	var has_translator = GameManager.has_relic("lengua_tablero")
+
+	# Enemigos que hablan en idioma garbled (sin traductor en etapas tempranas)
+	if enemy_name in LoreData.GARBLED and not has_translator and stage <= 1:
+		if randf() < 0.55:
+			return LoreData.GARBLED[enemy_name]
+
+	var threshold = 0.7 if enemy_name == "El Penitente" else 0.35
+	if randf() > threshold: return ""
+	var pool = ENEMY_COMBAT_BANTER.get(enemy_name, [])
+	if pool.is_empty(): return ""
+	return pool[randi() % pool.size()]
+
+func _get_banter_color(enemy_name: String, text: String) -> Color:
+	if LoreData.is_garbled(text):
+		return Color(0.3, 0.9, 0.9)  # cian para texto garbled
+	if enemy_name == "El Penitente":
+		return Color(0.5, 1.0, 0.5)
+	if enemy_name in ["EL CARCELERO", "EL REY AMARILLO", "EL REY SIN CORONA"]:
+		return Color(0.95, 0.7, 0.1)
+	return Color(0.9, 0.8, 0.5)
+
+func _show_enemy_banter(enemy_panel: Panel, text: String, col: Color = Color(0.9, 0.8, 0.5)) -> void:
+	if text.is_empty(): return
+	var lbl = Label.new()
+	lbl.text = "\"%s\"" % text
+	lbl.modulate = col; lbl.modulate.a = 0.0
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.size = Vector2(220, 65)
+	lbl.position = enemy_panel.global_position + Vector2(-10, -70)
+	lbl.z_index = 12; add_child(lbl)
+	var t = create_tween()
+	t.tween_property(lbl, "modulate:a", 1.0, 0.3)
+	t.tween_interval(2.8)
+	t.tween_property(lbl, "modulate:a", 0.0, 0.5)
+	t.tween_callback(lbl.queue_free)
+
+func _typewrite(lbl: Label, text: String, base_delay: float = 0.04) -> void:
+	lbl.text = ""
+	for i in range(text.length()):
+		lbl.text = text.substr(0, i + 1)
+		var c = text[i]
+		var wait = base_delay
+		if c in [".", "!", "?"]:  wait = base_delay * 7.0
+		elif c in [",", ";"]:     wait = base_delay * 3.0
+		elif c == "\n":           wait = base_delay * 5.0
+		await get_tree().create_timer(wait).timeout
+
+func _show_death_dialogue(enemy_name: String) -> void:
+	var text = LoreData.get_death_dialogue(enemy_name)
+	if text.is_empty(): return
+
+	var vp = get_viewport_rect().size
+	var is_boss = enemy_name.begins_with("EL ") or enemy_name == "El Penitente"
+	var is_cipher = LoreData.is_garbled(text)
+
+	var text_color: Color
+	if is_boss:           text_color = Color(0.92, 0.80, 0.28)
+	elif is_cipher:       text_color = Color(0.35, 0.85, 0.85)
+	elif enemy_name == "El Penitente": text_color = Color(0.55, 0.95, 0.55)
+	else:                 text_color = Color(0.82, 0.78, 0.70)
+
+	# Overlay
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.0)
+	overlay.position = Vector2.ZERO; overlay.size = vp
+	overlay.z_index = 15; overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+	var ot = create_tween()
+	ot.tween_property(overlay, "color:a", 0.78, 0.35)
+	await ot.finished
+
+	# Nombre del enemigo como pie pequeño
+	var caption = Label.new()
+	caption.text = enemy_name if not is_cipher else "???"
+	caption.add_theme_font_size_override("font_size", 11)
+	caption.modulate = Color(0.45, 0.45, 0.45)
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caption.position = Vector2(0, vp.y * 0.36 - 22)
+	caption.size = Vector2(vp.x, 20)
+	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caption.z_index = 16
+	add_child(caption)
+
+	# Texto
+	var lbl = Label.new()
+	lbl.text = ""
+	lbl.modulate = text_color
+	lbl.add_theme_font_size_override("font_size", 17 if is_boss else 14)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.position = Vector2(vp.x * 0.15, vp.y * 0.36)
+	lbl.size = Vector2(vp.x * 0.70, 130)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.z_index = 16
+	add_child(lbl)
+
+	if is_cipher:
+		# Texto cifrado: aparece de golpe con parpadeo
+		lbl.text = text
+		for _f in range(6):
+			lbl.modulate.a = randf_range(0.3, 1.0)
+			await get_tree().create_timer(0.07).timeout
+		lbl.modulate.a = 1.0
+	else:
+		await _typewrite(lbl, text, 0.055 if is_boss else 0.038)
+
+	# Boton aparece después del texto
+	var btn = Button.new()
+	btn.text = "Continuar"
+	btn.modulate = Color(1, 1, 1, 0.0)
+	btn.position = Vector2(vp.x / 2.0 - 60, vp.y * 0.36 + 148)
+	btn.size = Vector2(120, 32)
+	btn.z_index = 17
+	add_child(btn)
+	var bt = create_tween()
+	bt.tween_property(btn, "modulate:a", 1.0, 0.4)
+	await bt.finished
+
+	await btn.pressed
+
+	btn.queue_free(); lbl.queue_free(); caption.queue_free()
+	var ot2 = create_tween()
+	ot2.tween_property(overlay, "color:a", 0.0, 0.3)
+	await ot2.finished
+	overlay.queue_free()
+
+# ── Reliquias ──────────────────────────────────────────────────────────────────
+func _populate_relics() -> void:
+	var relic_scene = load("res://scenes/ui/RelicIcon.tscn")
+	for relic_id in GameManager.relics:
+		if not GameManager.RELIC_DATA.has(relic_id): continue
+		if relic_scene:
+			var icon = relic_scene.instantiate()
+			relics_container.add_child(icon)
+			icon.setup(relic_id)
+		else:
+			var lbl = Label.new()
+			lbl.text = GameManager.RELIC_DATA[relic_id].get("name", relic_id)
+			lbl.add_theme_font_size_override("font_size", 11)
+			relics_container.add_child(lbl)
+
+# ── Helpers UI ─────────────────────────────────────────────────────────────────
+func _make_panel(pos, sz, bg, border) -> Panel:
+	var p = Panel.new(); p.position = pos; p.size = sz
+	var s = StyleBoxFlat.new(); s.bg_color = bg
+	s.border_width_left = 2; s.border_width_right = 2
+	s.border_width_top = 2; s.border_width_bottom = 2
+	s.border_color = border
+	p.add_theme_stylebox_override("panel", s); return p
+
+func _make_hp_bar(max_v, w) -> ProgressBar:
+	var b = ProgressBar.new(); b.max_value = max_v; b.value = max_v
+	b.custom_minimum_size = Vector2(w, 12); b.show_percentage = false; return b
+
+func _make_pile_label(pos: Vector2, col: Color) -> Label:
+	var lbl = Label.new(); lbl.position = pos; lbl.size = Vector2(140, 28)
+	lbl.add_theme_font_size_override("font_size", 13); lbl.modulate = col; return lbl
+
+func show_message(txt, col: Color) -> void:
+	lbl_message.text = txt; lbl_message.modulate = col
+	lbl_message.visible = true
+	create_tween().tween_property(lbl_message, "modulate:a", 1.0, 0.5).from(0.0)
+
+# ── Hastur ─────────────────────────────────────────────────────────────────────
+func _start_hastur_madness_loop() -> void:
+	while not combat_ended:
+		await get_tree().create_timer(randf_range(3, 6)).timeout
+		if combat_ended: break
+		var f = Label.new(); f.text = "H A S T U R"
+		f.add_theme_font_size_override("font_size", 100)
+		f.modulate = Color(0.8, 0.1, 0.1, 0.5)
+		f.position = Vector2(0, 200); f.size = Vector2(1152, 200)
+		f.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; f.z_index = 5; add_child(f)
+		await get_tree().create_timer(0.12).timeout; f.queue_free()
