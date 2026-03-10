@@ -26,7 +26,8 @@ var lbl_player_hp: Label
 var hp_bar_player: ProgressBar
 var sanity_bar_player: ProgressBar
 var lbl_energy: Label
-var hand_container: HBoxContainer
+var lbl_furia: Label
+var hand_container: Control
 var lbl_draw_pile: Label
 var lbl_discard_pile: Label
 var end_turn_btn: Button
@@ -69,6 +70,7 @@ const NORMAL_POOLS = [
 ]
 
 const ELITE_POOLS = [
+	[{"name": "Avatar de Hastur", "hp": 150, "pattern": [{"type": "attack", "value": 15}, {"type": "insanity", "value": 10}, {"type": "shield", "value": 15}]}],
 	[{"name": "Torre Rota",       "hp": 45, "pattern": [{"type": "attack", "value": 8}]}],
 	[{"name": "Caballero Roto",   "hp": 38, "pattern": [{"type": "attack", "value": 6}, {"type": "shield", "value": 8}, {"type": "attack", "value": 10}]}],
 	[{"name": "Inquisidor Ciego", "hp": 50, "pattern": [{"type": "attack", "value": 5}, {"type": "attack", "value": 5}, {"type": "shield", "value": 10}]}],
@@ -122,9 +124,11 @@ func _ready() -> void:
 		lbl_message.visible = false
 
 	if not enemies.is_empty():
+		var is_avatar = "AVATAR" in enemies[0].name.to_upper()
+		
 		if GameManager.is_hastur_fight:
 			_start_hastur_madness_loop()
-		else:
+		elif not is_avatar:
 			var thought = LoreData.get_player_thought(enemies[0].name)
 			await get_tree().create_timer(0.9).timeout
 			lbl_message.modulate = Color(0.6, 0.6, 0.6)
@@ -137,9 +141,104 @@ func _ready() -> void:
 			lbl_message.visible = false
 			lbl_message.modulate.a = 1.0
 
-	await draw_hand()
 	is_player_turn = true
+	await draw_hand()
+	
+	# --- LÓGICA ESPECIAL AVATAR DE HASTUR ---
+	if not enemies.is_empty() and "AVATAR" in enemies[0].name.to_upper():
+		await _show_avatar_intro()
+		GameManager.sanity = max(0, GameManager.sanity - 30)
+		flash_small("¡PRESENCIA ATERRADORA! -30 Cordura")
+		update_ui()
+
 	end_turn_btn.disabled = false
+
+func _show_avatar_intro() -> void:
+	var vp = get_viewport_rect().size
+	
+	# Silencio absoluto inicial
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.stop_all()
+	
+	# Usar CanvasLayer para asegurar que está por encima de todo el HUD y efectos
+	var layer = CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	
+	# Telón de oscuridad total
+	var curtain = ColorRect.new()
+	curtain.color = Color.BLACK
+	curtain.size = vp # Forzar tamaño manual
+	layer.add_child(curtain)
+	
+	var quote_lbl = Label.new()
+	quote_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	quote_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	quote_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	quote_lbl.position = Vector2(vp.x * 0.2, vp.y * 0.3)
+	quote_lbl.size = Vector2(vp.x * 0.6, vp.y * 0.4)
+	quote_lbl.add_theme_font_size_override("font_size", 22)
+	quote_lbl.modulate = Color(0.9, 0.8, 0.3)
+	layer.add_child(quote_lbl)
+	
+	var chambers_quote = "Canto de mi alma, se me ha muerto la voz. Muere, sin ser cantada, como las lágrimas no derramadas se secan y mueren en la Perdida Carcosa..."
+	
+	# Typewriter mucho más lento y solemne
+	await _typewrite(quote_lbl, chambers_quote, 0.08)
+	await get_tree().create_timer(2.0).timeout
+	
+	# --- EFECTO ROTOSCOPIA / GLITCH / FLASH ---
+	quote_lbl.visible = false
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("menu_glitch")
+	
+	# Simulamos rotoscopia con destellos
+	for i in range(12):
+		curtain.color = [Color.WHITE, Color.BLACK, Color.YELLOW, Color.RED][randi() % 4]
+		_trigger_screen_blink()
+		await get_tree().create_timer(0.05).timeout
+	
+	curtain.color = Color.BLACK
+	
+	# Desvanecer oscuridad con un último flash
+	var tw = create_tween()
+	tw.tween_property(layer, "offset:y", -vp.y, 1.5).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(curtain, "modulate:a", 0.0, 1.5)
+	
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("player_hit")
+	
+	await tw.finished
+	layer.queue_free()
+
+var avatar_barks = [
+	"El tablero no tiene bordes... solo caídas infinitas.",
+	"Tus cuerdas son de ceniza. Yo solo soplo.",
+	"La canción ya ha empezado. Tú eres solo una nota desafinada.",
+	"Carcosa no es un lugar. Es lo que queda cuando dejas de ser tú.",
+	"¿Sientes cómo se estira tu realidad? Es el Rey saludando.",
+	"Ninguna pieza vuelve a la caja. Todas se funden en el Tablero Dorado."
+]
+
+func _show_avatar_bark() -> void:
+	if enemies.is_empty() or not "AVATAR" in enemies[0].name.to_upper(): return
+	var msg = avatar_barks[randi() % avatar_barks.size()]
+	
+	var bark_lbl = Label.new()
+	bark_lbl.text = msg
+	bark_lbl.add_theme_font_size_override("font_size", 14)
+	bark_lbl.modulate = Color(0.8, 0.7, 0.9, 0.0)
+	bark_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Posición sobre el avatar
+	bark_lbl.position = enemies[0].panel.global_position + Vector2(0, -40)
+	bark_lbl.size = Vector2(200, 40)
+	add_child(bark_lbl)
+	
+	var tw = create_tween()
+	tw.tween_property(bark_lbl, "modulate:a", 1.0, 0.5)
+	tw.tween_property(bark_lbl, "position:y", bark_lbl.position.y - 30, 3.0)
+	tw.parallel().tween_property(bark_lbl, "modulate:a", 0.0, 2.0).set_delay(1.5)
+	tw.chain().tween_callback(bark_lbl.queue_free)
 
 func _setup_encounter() -> void:
 	var pool = []
@@ -155,8 +254,25 @@ func _setup_encounter() -> void:
 			pool = BOSS_POOLS_W1[randi() % BOSS_POOLS_W1.size()]
 		else:
 			pool = [{"name": "EL CARCELERO", "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "shield", "value": 8}]}]
-	elif GameManager.is_elite_fight:
-		pool = ELITE_POOLS[randi() % ELITE_POOLS.size()]
+	elif GameManager.is_elite_fight or GameManager.dev_force_avatar:
+		# --- PROBABILIDAD ESCALADA DEL AVATAR ---
+		var items_count = GameManager.secret_items.size()
+		var spawn_chance = 0.0
+		if items_count == 1: spawn_chance = 0.15
+		elif items_count == 2: spawn_chance = 0.30
+		elif items_count >= 3: spawn_chance = 0.50
+		
+		# Forzar si viene del menu dev
+		if GameManager.dev_force_avatar:
+			spawn_chance = 1.1
+			GameManager.dev_force_avatar = false # Resetear
+		
+		if randf() < spawn_chance:
+			pool = ELITE_POOLS[0] # Avatar de Hastur siempre es el 0 en ELITE_POOLS
+		else:
+			var sub_pool = ELITE_POOLS.duplicate()
+			sub_pool.remove_at(0) # Quitar Avatar de la seleccion normal
+			pool = sub_pool[randi() % sub_pool.size()]
 	else:
 		pool = NORMAL_POOLS[randi() % NORMAL_POOLS.size()]
 
@@ -218,18 +334,24 @@ func build_ui() -> void:
 
 	lbl_energy = Label.new(); lbl_energy.position = Vector2(100, 78); player_panel.add_child(lbl_energy)
 
+	if char_id == "guardian":
+		lbl_furia = Label.new()
+		lbl_furia.position = Vector2(300, 78)
+		lbl_furia.add_theme_font_size_override("font_size", 14)
+		lbl_furia.modulate = Color(0.4, 0.9, 0.4)
+		player_panel.add_child(lbl_furia)
 
-	hand_container = HBoxContainer.new()
-	hand_container.position = Vector2(20, 418); hand_container.size = Vector2(700, 195)
-	hand_container.add_theme_constant_override("separation", 10)
+
+	hand_container = Control.new()
+	hand_container.position = Vector2(20, 418); hand_container.size = Vector2(1112, 195)
 	add_child(hand_container)
 
-	lbl_draw_pile    = _make_pile_label(Vector2(740, 540), Color(0.7, 0.7, 0.9))
-	lbl_discard_pile = _make_pile_label(Vector2(740, 575), Color(0.6, 0.5, 0.4))
+	lbl_draw_pile    = _make_pile_label(Vector2(950, 540), Color(0.7, 0.7, 0.9))
+	lbl_discard_pile = _make_pile_label(Vector2(950, 575), Color(0.6, 0.5, 0.4))
 	add_child(lbl_draw_pile); add_child(lbl_discard_pile)
 
 	end_turn_btn = Button.new(); end_turn_btn.text = "TERMINAR TURNO"
-	end_turn_btn.position = Vector2(850, 520); end_turn_btn.size = Vector2(200, 50)
+	end_turn_btn.position = Vector2(900, 480); end_turn_btn.size = Vector2(230, 50)
 	end_turn_btn.pressed.connect(_on_end_turn_button_pressed); add_child(end_turn_btn)
 
 	lbl_message = Label.new(); lbl_message.position = Vector2(100, 180); lbl_message.size = Vector2(952, 200)
@@ -385,10 +507,13 @@ func _build_dynamic_background(vp: Vector2) -> void:
 	eye_node.add_child(lid_bot); lid_bot.name = "LidBot"
 
 	_start_eye_blink_loop()
+	# Lluvia de fondo
+	var is_avatar = not enemies.is_empty() and "AVATAR" in enemies[0].name.to_upper()
+	
 	for i in range(60):
-
 		var p = ColorRect.new(); p.size = Vector2(1, 15)
-		p.color = Color(0.5, 0.5, 0.7, 0.15)
+		# Si es el Avatar, la lluvia es ROJA (Sangre)
+		p.color = Color(0.8, 0.1, 0.1, 0.4) if is_avatar else Color(0.5, 0.5, 0.7, 0.15)
 		p.position = Vector2(randf_range(0, vp.x), randf_range(0, vp.y)); p.z_index = -8; add_child(p)
 		create_tween().set_loops().tween_property(p, "position:y", vp.y + 20, randf_range(0.8, 1.2)).from(-20)
 
@@ -404,22 +529,53 @@ func draw_hand() -> void:
 	# Pasiva Estratega: Mayor robo
 	if GameManager.selected_character == "estratega": to_draw += 1
 	
-	for _i in range(to_draw):
+	var deck_pos = lbl_draw_pile.global_position
+	for i in range(to_draw):
 		if draw_pile.is_empty():
 			draw_pile = discard_pile.duplicate(); discard_pile.clear(); draw_pile.shuffle()
 		if draw_pile.is_empty(): break
 		var c_data = draw_pile.pop_front()
-		hand.append(c_data); _spawn_card_node(c_data)
+		hand.append(c_data)
+		_spawn_card_node(c_data, deck_pos, i * 0.1)
+		
 	update_card_states()
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_draw")
+	
+	reorganize_hand()
 
-func _spawn_card_node(data_in: Dictionary) -> void:
+func reorganize_hand() -> void:
+	# Filtrar solo las cartas que no se están borrando
+	var all_children = hand_container.get_children()
+	var cards = []
+	for c in all_children:
+		if not c.is_queued_for_deletion():
+			cards.append(c)
+			
+	var n = cards.size()
+	if n == 0: return
+	
+	var sep = 10 # Un poco menos de separación para que quepan bien a la izquierda
+	var card_w = 130
+	var start_x = 10 # Margen izquierdo fijo
+	
+	for i in range(n):
+		var card = cards[i]
+		var target_x = start_x + i * (card_w + sep)
+		var target_pos = Vector2(target_x, 0)
+		
+		var tw = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(card, "position", target_pos, 0.3)
+
+func _spawn_card_node(data_in: Dictionary, start_pos: Vector2 = Vector2.ZERO, delay: float = 0.0) -> void:
 	var data = data_in.duplicate(true)
 	var card_scene = preload("res://scenes/combat/Card.tscn")
 	var card = card_scene.instantiate()
 	
 	hand_container.add_child(card)
 	card.setup(data)
+	
+	if start_pos != Vector2.ZERO:
+		card.animate_draw(start_pos, delay)
 	
 	# Pasiva Estratega: Inquisidores mas baratos (Visual y Logica)
 	if GameManager.selected_character == "estratega" and "INQUISIDOR" in data.get("name", "").to_upper():
@@ -552,12 +708,12 @@ func _resolve_card(card, enemy_idx: int) -> void:
 		_is_resolving_extra_mirror_card = false
 		flash_small("¡ESPEJO FRAGMENTADO! Movimiento duplicado.")
 
-	var effective_cost = max(0, card.cost + card.cost_modifier)
+	var effective_cost = card.get_effective_cost()
 	if player_energy < effective_cost: return
 	player_energy -= effective_cost
 	
 	# Efecto Cordura Baja: Desobediencia
-	if GameManager.sanity < 40 and card.card_name == "SIERVO QUEBRADO" and randf() < 0.20:
+	if GameManager.sanity < 40 and "SIERVO QUEBRADO" in card.card_name and randf() < 0.20:
 		flash_small("Tus manos no te obedecen...")
 		card.queue_free()
 		update_ui(); update_card_states(); check_combat_end()
@@ -573,20 +729,23 @@ func _resolve_card(card, enemy_idx: int) -> void:
 	# ── LÓGICA DE CARTAS ESPECIALES (Independientes de ataque base) ──
 	
 	# ECO DEL VACIO (AOE)
-	if card.card_name == "ECO DEL VACIO":
+	if "ECO DEL VACIO" in card.card_name or "ECO DEL VACÍO" in card.card_name:
 		flash_small("¡ECO DEL VACIO! Todos los enemigos sufren.")
 		for e_aoe in enemies:
 			if e_aoe.hp > 0:
-				var a_dmg = 4 + (GameManager.siervo_atk_bonus_perm if GameManager.selected_character == "conquistador" else 0)
+				# Daño base 4 + bono de mejora (guardado en attack)
+				var a_dmg = 4 + card.attack + (GameManager.siervo_atk_bonus_perm if GameManager.selected_character == "conquistador" else 0)
 				e_aoe.hp -= a_dmg
 				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), a_dmg, Color(0.7, 0.7, 1.0))
 				_animate_enemy_hit(e_aoe)
-		check_combat_end(); update_ui(); update_intent_labels(); card.queue_free(); return
+		check_combat_end(); update_ui(); update_intent_labels()
 
 	# SUSURRO DEBILITANTE (Debuff AOE)
-	if card.card_name == "SUSURRO DEBILITANTE":
+	elif "SUSURRO DEBILITANTE" in card.card_name:
 		var is_last = hand.is_empty()
-		var reduction = 12 if is_last else 6
+		# Debilitamiento base 6 + bono de mejora (guardado en attack)
+		var base_red = 6 + card.attack
+		var reduction = base_red * 2 if is_last else base_red
 		
 		for e_deb in enemies:
 			if e_deb.hp > 0:
@@ -598,10 +757,10 @@ func _resolve_card(card, enemy_idx: int) -> void:
 		else:
 			flash_small("Susurro: Todos -" + str(reduction) + " ATK")
 			
-		update_intent_labels(); update_ui(); card.queue_free(); return
+		update_intent_labels(); update_ui()
 
 	# ── LÓGICA DE CARTAS CON OBJETIVO Y ATAQUE ──
-	if enemy_idx >= 0:
+	elif enemy_idx >= 0:
 		var e = enemies[enemy_idx]
 		
 		# El Penitente: atacarle lo hace agresivo
@@ -612,8 +771,18 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			_set_enemy_aggressive(e)
 
 		var dmg = card.attack
+		
+		# --- VULNERABILIDAD A LA LOCURA (Solo contra Avatar) ---
+		if "AVATAR" in e.name.to_upper():
+			var lost_sanity = 100 - GameManager.sanity
+			var multiplier = 1.0 + (lost_sanity * 0.015) # +1.5% por punto perdido
+			var old_dmg = dmg
+			dmg = int(dmg * multiplier)
+			if dmg > old_dmg:
+				flash_small("¡CONEXIÓN ABISAL! Daño aumentado por tu locura.")
+
 		# Lógica especial para JAQUE ETERNO (Canaliza tu dolor)
-		if card.card_name == "JAQUE ETERNO":
+		if "JAQUE ETERNO" in card.card_name:
 			dmg = player_max_hp - player_hp
 			flash_small("¡JAQUE ETERNO! Dolor canalizado: " + str(dmg))
 			_trigger_screen_blink()
@@ -624,11 +793,12 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			dmg += GameManager.siervo_atk_bonus_perm
 		
 		# Pasiva Guardian: Furia (Daño x2)
-		if GameManager.selected_character == "guardian" and furia_points > 0:
+		if GameManager.selected_character == "guardian" and furia_points >= 3:
 			dmg = dmg * 2
 			furia_points = 0 # Furia consumida
 			flash_small("¡RESILIENCIA! Daño duplicado.")
 			_trigger_screen_blink()
+			update_ui()
 
 		var absorbed = min(e.shield, dmg)
 		if absorbed > 0:
@@ -645,9 +815,18 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			if e.has_phase_2 and not e.in_phase_2 and e.hp > 0 and e.hp <= (e.max_hp * 0.5):
 				_trigger_boss_phase_2(e)
 		
-		# Muerte de enemigo: Bono permanente para el Conquistador y Recuperación de Cordura
+		# Muerte de enemigo
 		if e.hp <= 0:
 			e.hp = 0
+			
+			# BOTÓN MISTERIOSO (15%): Fragmento Eterno
+			if "AVATAR" in e.name.to_upper():
+				if randf() < 0.15:
+					GameManager.has_eternal_fragment = true
+					flash_small("✦ ¡HAS OBTENIDO UN FRAGMENTO DE ETERNIDAD! ✦")
+					flash_small("Tus cartas ahora pueden trascender el tiempo.")
+					GameManager.save_meta_progress()
+					if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
 			
 			# Recuperación de Cordura al matar (Alivio en peligro)
 			if GameManager.sanity < 30:
@@ -659,11 +838,13 @@ func _resolve_card(card, enemy_idx: int) -> void:
 				GameManager.heal(3)
 				player_hp = GameManager.player_hp # Sincronizar vida local
 				flash_small("¡CONQUISTA! Siervos: +1 ATK | +3 HP")
+				refresh_hand_visuals()
 			
 			# Sinergia Reliquia: Sangre del Caido
 			if GameManager.has_relic("sangre_caido"):
 				GameManager.siervo_atk_bonus_perm += 1
 				flash_small("Sangre del Caido: +1 ATK extra!")
+				refresh_hand_visuals()
 				
 			_kill_enemy(e) # async
 
@@ -671,8 +852,18 @@ func _resolve_card(card, enemy_idx: int) -> void:
 		player_shield += card.defense
 		_spawn_damage_number(player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1.0))
 
+	# Animación de gasto/ataque
+	var target_pos = Vector2.ZERO
+	if enemy_idx >= 0:
+		target_pos = enemies[enemy_idx].panel.global_position + Vector2(100, 100)
+	
+	await card.play_attack_animation(target_pos)
+
 	first_card_this_turn = false
 	card.queue_free()
+	
+	# Reorganizar la mano inmediatamente después de eliminar la carta
+	reorganize_hand()
 	# Logica Reloj de Arena Negra
 	cards_played_this_turn += 1
 	if GameManager.has_relic("reloj_negro") and cards_played_this_turn % 3 == 0:
@@ -878,6 +1069,16 @@ func update_ui() -> void:
 	if sanity_bar_player:
 		sanity_bar_player.value = GameManager.sanity
 	lbl_energy.text = "Energia: %d/%d" % [player_energy, player_max_energy]
+	
+	if lbl_furia:
+		lbl_furia.text = "FURIA: %d/3" % furia_points
+		lbl_furia.visible = GameManager.selected_character == "guardian"
+		if furia_points >= 3:
+			lbl_furia.modulate = Color(1, 0.2, 0.2) # Rojo cuando esta listo
+			lbl_furia.text += " [LISTO]"
+		else:
+			lbl_furia.modulate = Color(0.4, 0.9, 0.4)
+	
 	lbl_draw_pile.text    = "Mazo: %d"        % draw_pile.size()
 	lbl_discard_pile.text = "Cementerio: %d"  % discard_pile.size()
 	for e in enemies:
@@ -946,6 +1147,12 @@ func update_intent_labels() -> void:
 					val_txt = "???" if randf() < 0.5 else "▓"
 				e.lbl_intent_icon.text = "🛡 Escudo " + val_txt
 				e.lbl_intent_icon.modulate = Color(0.4, 0.7, 1.0)
+			elif action.type == "insanity":
+				var val_txt = str(action.value)
+				if GameManager.sanity < 40:
+					val_txt = "???" if randf() < 0.5 else "▓"
+				e.lbl_intent_icon.text = "👁 Corromper " + val_txt
+				e.lbl_intent_icon.modulate = Color(0.7, 0.4, 0.9) # Purpura
 
 func _trigger_boss_phase_2(e: Dictionary) -> void:
 	e.in_phase_2 = true
@@ -973,7 +1180,12 @@ func _trigger_boss_phase_2(e: Dictionary) -> void:
 
 func update_card_states() -> void:
 	for card in hand_container.get_children():
-		card.set_disabled(not is_player_turn or card.cost > player_energy)
+		card.set_disabled(not is_player_turn or card.get_effective_cost() > player_energy)
+
+func refresh_hand_visuals() -> void:
+	for card in hand_container.get_children():
+		if card.has_method("update_display"):
+			card.update_display("+" in card.card_name or card.is_upgraded if "is_upgraded" in card else "+" in card.card_name)
 
 # --- Mensajes Míticos de Cordura ---
 var sanity_60_triggered: bool = false
@@ -1042,14 +1254,17 @@ func _start_eye_blink_loop() -> void:
 		tw2.tween_property(top, "position:y", -180, 0.18) # abrir mas arriba
 		tw2.tween_property(bot, "position:y", 90, 0.18) # abrir mas abajo
 
+var _is_ending: bool = false
+
 # ── Fin de combate ─────────────────────────────────────────────────────────────
 func check_combat_end() -> void:
-	if combat_ended: return
+	if combat_ended or _is_ending: return
 	var all_dead = true
 	for e in enemies:
 		if e.hp > 0: all_dead = false
 	if not all_dead: return
 
+	_is_ending = true
 	combat_ended = true
 	
 	# Recuperación de Cordura al Ganar
@@ -1518,6 +1733,10 @@ func _on_end_turn_button_pressed() -> void:
 
 	for e in enemies:
 		if e.hp <= 0: continue
+		
+		# Probabilidad de soltar un diálogo de lore (bark) al iniciar turno
+		if "AVATAR" in e.name.to_upper() and randf() < 0.4:
+			_show_avatar_bark()
 
 		# RESUMEN: Escudo enemigo se resetea al inicio de su turno
 		e.shield = 0
@@ -1574,24 +1793,45 @@ func _on_end_turn_button_pressed() -> void:
 				_animate_player_hit()
 				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), dmg, Color(1, 0.3, 0.3))
 				if get_node_or_null("/root/AudioManager"): AudioManager.play("player_hit")
+				
+				# Pasiva Guardian: Furia (1 por cada 5 de daño)
+				if GameManager.selected_character == "guardian":
+					var gained = int(dmg / 5.0)
+					if gained > 0:
+						furia_points = min(3, furia_points + gained)
+						flash_small("¡RESILIENCIA! Furia acumulada: " + str(furia_points) + "/3")
+						update_ui()
 			else:
 				# Es un FALLO (daño 0)
 				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 0, Color(1, 0.3, 0.3))
-				
-				# Pasiva Guardian: Furia
-				if GameManager.selected_character == "guardian":
-					furia_points += 1
-					flash_small("¡FURIA! Siguiente ataque duplicado.")
 		elif action.type == "shield":
 			e.shield += action.value
 		elif action.type == "insanity":
 			GameManager.sanity = max(0, GameManager.sanity - action.value)
+			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), action.value, Color(0.7, 0.3, 1.0))
 			flash_small(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
 			update_ui()
 
 		await get_tree().create_timer(0.35).timeout
 
 	# ── FIN DEL TURNO ENEMIGO ──
+	# Drenaje de cordura por turno si el Avatar está presente
+	if not enemies.is_empty() and "AVATAR" in enemies[0].name.to_upper():
+		GameManager.sanity = max(0, GameManager.sanity - 5)
+		_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 5, Color(0.7, 0.3, 1.0))
+		flash_small("LA PRESENCIA DEL AVATAR TE CORROMPE (-5)")
+		
+		# --- REFLEJO DE LA LOCURA ---
+		if GameManager.sanity < 20:
+			var cards_in_hand = hand_container.get_children()
+			if not cards_in_hand.is_empty():
+				var target_card = cards_in_hand[randi() % cards_in_hand.size()]
+				flash_small("¡REFLEJO DE LA LOCURA! Una pieza ha sido corrompida.")
+				target_card.setup({"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 1, "curse": true})
+				target_card.modulate = Color(0.4, 0.1, 0.5) # Color corrupto
+		
+		update_ui()
+
 	# Limpiar debuffs y escudos de TODOS los enemigos antes de que empiece el turno del jugador
 	for e_final in enemies:
 		e_final["atk_reduction"] = 0
@@ -1656,6 +1896,9 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 
 	var btns = [
 		["Ganar combate", func(): _dev_force_win()],
+		["FORZAR AVATAR", func():
+			GameManager.dev_force_avatar = true
+			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")],
 		["+ Fragmentos x3", func():
 			GameManager.add_secret_item("simbolo_amarillo")
 			GameManager.add_secret_item("cancion_amarilla")
@@ -1986,14 +2229,34 @@ func show_message(txt, col: Color) -> void:
 	
 	create_tween().tween_property(lbl_message, "modulate:a", 1.0, 0.5).from(0.0)
 
+var active_flashes: Array = []
+
 func flash_small(text: String) -> void:
-	var f = Label.new(); f.text = text
-	f.add_theme_font_size_override("font_size", 16); f.modulate = Color(1, 0.8, 0.3)
-	f.position = Vector2(300, 250); f.z_index = 100; add_child(f)
+	var f = Label.new()
+	f.text = text
+	f.add_theme_font_size_override("font_size", 17)
+	f.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	f.modulate = Color(1.0, 0.85, 0.2) # Amarillo dorado
+	f.add_theme_constant_override("outline_size", 4)
+	f.add_theme_color_override("font_outline_color", Color(0,0,0,0.8))
+	
+	# Posición base con desplazamiento según cuántos hay activos
+	var offset = active_flashes.size() * 25
+	f.position = Vector2(300, 250 + offset)
+	f.size = Vector2(552, 30) # Centrado relativo al panel
+	f.z_index = 100
+	add_child(f)
+	
+	active_flashes.append(f)
+	
 	var t = create_tween()
-	t.tween_property(f, "position:y", 180, 1.5).set_trans(Tween.TRANS_SINE)
-	t.parallel().tween_property(f, "modulate:a", 0.0, 1.5)
-	t.chain().tween_callback(f.queue_free)
+	# Subir mientras desaparece
+	t.tween_property(f, "position:y", f.position.y - 60, 2.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(f, "modulate:a", 0.0, 2.0)
+	t.chain().tween_callback(func(): 
+		active_flashes.erase(f)
+		f.queue_free()
+	)
 
 # ── Hastur ─────────────────────────────────────────────────────────────────────
 func _start_hastur_madness_loop() -> void:

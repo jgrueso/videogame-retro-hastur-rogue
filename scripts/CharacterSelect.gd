@@ -147,8 +147,26 @@ func _change_selection(dir: int) -> void:
 
 func _on_select_pressed() -> void:
 	var c_data = CHARACTERS[selected_idx]
-	GameManager.selected_character = c_data["id"]; GameManager.player_hp = c_data["hp"]; GameManager.player_max_hp = c_data["hp"]; GameManager.player_deck = c_data["deck"].duplicate()
-	if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
+	var char_id = c_data["id"]
+	GameManager.selected_character = char_id
+	GameManager.player_hp = c_data["hp"]
+	GameManager.player_max_hp = c_data["hp"]
+	GameManager.has_eternal_fragment = false # Se reinicia el objeto en cada run
+	
+	# Copia profunda del mazo base
+	var new_deck = []
+	for card in c_data["deck"]:
+		new_deck.append(card.duplicate())
+	
+	# --- AÑADIR MEJORAS PERMANENTES ---
+	if GameManager.permanent_deck_upgrades.has(char_id):
+		for perm_card in GameManager.permanent_deck_upgrades[char_id]:
+			new_deck.append(perm_card.duplicate())
+	
+	GameManager.player_deck = new_deck
+	
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("button_click")
 	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
 
 func _style_main_button(btn: Button) -> void:

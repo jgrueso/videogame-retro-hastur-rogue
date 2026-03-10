@@ -16,6 +16,10 @@ var sanity_notified: bool = false
 var coins: int = 0
 var combat_count: int = 0
 var current_map_floor: int = 0
+var map_path: Dictionary = {}    # {floor_idx: col_idx} guarda el camino recorrido
+
+func save_path_node(floor_idx: int, col_idx: int) -> void:
+	map_path[floor_idx] = col_idx
 var is_boss_fight: bool = false
 var is_miniboss_fight: bool = false
 var is_final_boss: bool = false
@@ -31,6 +35,46 @@ var relics: Array = []           # lista de nombres de reliquias activas
 var secret_items: Array = []     # objetos misteriosos recogidos en esta run
 var is_hastur_fight: bool = false
 var player_won: bool = false
+
+# --- PROGRESO PERMANENTE ---
+# Estructura: {"conquistador": [{"name": "Siervo Quebrado+1", ...}], "estratega": [], ...}
+var permanent_deck_upgrades: Dictionary = {
+	"conquistador": [],
+	"estratega": [],
+	"guardian": []
+}
+var has_eternal_fragment: bool = false # El objeto misterioso de esta run
+
+# DEBUG
+var dev_force_avatar: bool = false
+
+const SAVE_PATH = "user://meta_progress.save"
+
+func save_meta_progress() -> void:
+	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if file:
+		var data = {
+			"upgrades": permanent_deck_upgrades,
+			"lore": lore_progress,
+			"runs": total_runs
+		}
+		file.store_var(data)
+		file.close()
+
+func load_meta_progress() -> void:
+	if not FileAccess.file_exists(SAVE_PATH): return
+	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
+	if file:
+		var data = file.get_var()
+		if data.has("upgrades"): permanent_deck_upgrades = data["upgrades"]
+		if data.has("lore"): lore_progress = data["lore"]
+		if data.has("runs"): total_runs = data["runs"]
+		file.close()
+
+func _ready() -> void:
+	load_meta_progress()
+
+# --- Fin Progreso Permanente ---
 
 const SECRET_ITEM_DATA = {
 	"simbolo_amarillo": {
@@ -164,6 +208,7 @@ func reset_run() -> void:
 	coins = 0
 	combat_count = 0
 	current_map_floor = 0
+	map_path = {}
 	is_boss_fight = false
 	is_miniboss_fight = false
 	is_final_boss = false

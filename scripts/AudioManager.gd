@@ -45,6 +45,10 @@ func play(sound_name: String) -> void:
 	p.stream = _sounds[sound_name]
 	p.play()
 
+func stop_all() -> void:
+	for p in _players:
+		p.stop()
+
 # ─── Generadores de onda ──────────────────────────────────────────────────────
 
 func _make_stream(data: PackedByteArray, sample_rate: int = 22050) -> AudioStreamWAV:

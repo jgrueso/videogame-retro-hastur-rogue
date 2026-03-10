@@ -6,6 +6,7 @@ var defense: int = 0
 var cost: int = 1
 var description: String = ""
 var is_disabled: bool = false
+var is_upgraded: bool = false
 var cost_modifier: int = 0
 
 var label_name: Label
@@ -36,7 +37,11 @@ const DESCRIPTIONS = {
 	"Gran Maestro":        "EPICA. La jugada perfecta. Dano, escudo y energia.",
 	"Sacrificio del Rey":  "EPICA. Golpe desesperado. Dano masivo a un alto coste.",
 	"Susurro Debilitante": "NEUTRAL. Reduce el proximo ataque enemigo. Poder x2 si es tu ULTIMA carta.",
+	"Maldición de Ceniza": "MALDICIÓN. Una pieza corrompida por el Avatar. No tiene efecto, solo ocupa espacio.",
 	"Eco del Vacío":       "NEUTRAL. Golpe de ceniza que afecta a TODOS los enemigos simultaneamente.",
+	"Eco del Vacio":       "NEUTRAL. Golpe de ceniza que afecta a TODOS los enemigos simultaneamente.",
+	"Ecos del Vacío":      "NEUTRAL. Golpe de ceniza que afecta a TODOS los enemigos simultaneamente.",
+	"Ecos del Vacio":      "NEUTRAL. Golpe de ceniza que afecta a TODOS los enemigos simultaneamente.",
 
 }
 
@@ -47,6 +52,7 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(130, 195)
 	mouse_filter = MOUSE_FILTER_STOP
 	pivot_offset = Vector2(65, 97)
+	z_index = 5 # Siempre sobre el fondo
 
 	# Nombre (header)
 	label_name = Label.new()
@@ -133,38 +139,68 @@ func setup(data: Dictionary) -> void:
 	defense = data.get("defense", 0)
 	cost = data.get("cost", 1)
 	
-	# Detectar mejora
-	var is_upgraded = data.get("upgraded", false) or "+" in raw_name
+	# Detectar y guardar mejora
+	is_upgraded = data.get("upgraded", false) or "+" in raw_name
 	
-	var real_name = raw_name.replace("+", "")
+	# Limpiar el nombre base para buscar la descripcion (ej: "Siervo Quebrado+1" -> "Siervo Quebrado")
+	var real_name = raw_name
+	if "+" in real_name:
+		real_name = real_name.split("+")[0].strip_edges()
+	
 	description = DESCRIPTIONS.get(real_name, "Sin descripcion.")
 	
 	# Pasiva Estratega (Tooltip)
 	if GameManager.selected_character == "estratega" and "INQUISIDOR" in card_name:
 		description += "\n\n[LÓGICA: Coste -1]"
 	
-	requires_target = (attack > 0 or real_name == "Jaque Eterno") and real_name != "Eco del Vacio"
-	update_display(is_upgraded)
+	requires_target = (attack > 0 or real_name == "Jaque Eterno") and real_name != "Eco del Vacio" and real_name != "Eco del Vacío"
+	update_display()
 
-func update_display(is_upgraded: bool = false) -> void:
+func update_display(force_upgrade_style: bool = false) -> void:
 	if not label_name:
 		return
 	label_name.text = card_name
 	
-	if is_upgraded:
+	var active_upgraded = is_upgraded or force_upgrade_style
+	
+	if active_upgraded:
 		label_name.modulate = Color(0.2, 1.0, 0.2) # Verde brillante
-		if attack > 0:
-			label_attack.text = "⚔ ATK: " + str(attack)
+		
+		# Mostrar mejora segun tipo de carta
+		if "SUSURRO" in card_name:
+			label_attack.text = "✖ DEB: " + str(6 + attack)
 			label_attack.modulate = Color(0.3, 0.9, 0.3)
-		if defense > 0:
-			label_defense.text = "🛡 DEF: " + str(defense)
-			label_defense.modulate = Color(0.3, 0.9, 0.3)
+		elif "ECO" in card_name:
+			label_attack.text = "⚔ ATK: " + str(4 + attack)
+			label_attack.modulate = Color(0.3, 0.9, 0.3)
+		else:
+			if attack > 0:
+				var total_atk = attack
+				if GameManager.selected_character == "conquistador" and "SIERVO" in card_name:
+					total_atk += GameManager.siervo_atk_bonus_perm
+				label_attack.text = "⚔ ATK: " + str(total_atk)
+				label_attack.modulate = Color(0.3, 0.9, 0.3)
+			if defense > 0:
+				label_defense.text = "🛡 DEF: " + str(defense)
+				label_defense.modulate = Color(0.3, 0.9, 0.3)
 	else:
 		label_name.modulate = Color(0.9, 0.85, 0.6)
-		label_attack.text = "⚔ ATK: " + str(attack) if attack > 0 else ""
-		label_attack.modulate = Color(0.8, 0.3, 0.3)
-		label_defense.text = "🛡 DEF: " + str(defense) if defense > 0 else ""
-		label_defense.modulate = Color(0.4, 0.6, 0.8)
+		
+		if "SUSURRO" in card_name:
+			label_attack.text = "✖ DEB: 6"
+			label_attack.modulate = Color(0.6, 0.4, 0.7)
+		elif "ECO" in card_name:
+			label_attack.text = "⚔ ATK: 4"
+			label_attack.modulate = Color(0.8, 0.3, 0.3)
+		else:
+			var total_atk = attack
+			if GameManager.selected_character == "conquistador" and "SIERVO" in card_name:
+				total_atk += GameManager.siervo_atk_bonus_perm
+			
+			label_attack.text = "⚔ ATK: " + str(total_atk) if total_atk > 0 else ""
+			label_attack.modulate = Color(0.8, 0.3, 0.3)
+			label_defense.text = "🛡 DEF: " + str(defense) if defense > 0 else ""
+			label_defense.modulate = Color(0.4, 0.6, 0.8)
 
 	tooltip_panel.get_node("TooltipLabel").text = description
 	
@@ -181,6 +217,9 @@ func update_display(is_upgraded: bool = false) -> void:
 		_: icon_lbl.text = "✦"
 	
 	_update_cost_label()
+
+func get_effective_cost() -> int:
+	return max(0, cost + cost_modifier)
 
 func _update_cost_label() -> void:
 	var effective = max(0, cost + cost_modifier)
@@ -200,11 +239,13 @@ func set_cost_modifier(mod: int) -> void:
 
 func set_disabled(value: bool) -> void:
 	is_disabled = value
-	_apply_style(Color(0.04, 0.04, 0.06) if value else Color(0.08, 0.08, 0.12))
 	if value:
+		_apply_style(Color(0.04, 0.04, 0.06)) # Muy oscuro (desactivado)
 		tooltip_panel.visible = false
 		if is_hovered:
 			_animate_hover(false)
+	else:
+		_apply_style(Color(0.12, 0.12, 0.15)) # Color base (activado)
 
 func _apply_style(color: Color) -> void:
 	var style = StyleBoxFlat.new()
@@ -215,11 +256,11 @@ func _apply_style(color: Color) -> void:
 	style.border_width_top = 3
 	style.border_width_bottom = 3
 	
-	# Borde segun tipo de carta (detectado por nombre o una nueva flag)
-	if "SUSURRO" in card_name or "ECO" in card_name or cost == 0:
-		style.border_color = Color(0.5, 0.5, 0.5) # Gris neutral
-		if color == Color(0.08, 0.08, 0.12): # Color base
-			style.bg_color = Color(0.15, 0.15, 0.15) # Fondo mas grisaceo
+	# Borde segun tipo de carta
+	if "SUSURRO" in card_name or "ECO" in card_name:
+		style.border_color = Color(0.5, 0.4, 0.6) # Purpura místico para especiales
+	elif cost == 0:
+		style.border_color = Color(0.5, 0.5, 0.5) # Gris para coste 0
 	else:
 		style.border_color = Color(0.45, 0.4, 0.25) # Hueso/Oxido normal
 		
@@ -243,7 +284,7 @@ func _on_mouse_entered() -> void:
 
 func _on_mouse_exited() -> void:
 	if not is_disabled:
-		_apply_style(Color(0.2, 0.2, 0.3))
+		_apply_style(Color(0.12, 0.12, 0.15))
 		_animate_hover(false)
 	tooltip_panel.visible = false
 
@@ -260,12 +301,37 @@ func _on_gui_input(event: InputEvent) -> void:
 				await play_attack_animation()
 				card_played.emit(self)
 
-func play_attack_animation() -> void:
+func animate_draw(start_pos: Vector2, delay: float) -> void:
+	# Convertir start_pos (global mazo) a local del contenedor
+	var parent_node = get_parent()
+	var local_start = start_pos - parent_node.global_position
+	
+	# Colocar inicialmente en el mazo (coordenadas locales)
+	position = local_start
+	modulate.a = 0.0
+	scale = Vector2(0.1, 0.1)
+	rotation = randf_range(-0.4, 0.4)
+	
+	var tw = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+	# No animamos 'position' aqui porque reorganize_hand lo hará simultáneamente
+	tw.tween_property(self, "modulate:a", 1.0, 0.3).set_delay(delay)
+	tw.tween_property(self, "scale", Vector2(1.0, 1.0), 0.6).set_delay(delay)
+	tw.tween_property(self, "rotation", 0.0, 0.6).set_delay(delay)
+func play_attack_animation(target_pos: Vector2 = Vector2.ZERO) -> void:
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.play("card_play")
-	# Lanzarse hacia arriba (hacia el enemigo) y volver
-	var tween = create_tween().set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "scale", Vector2(1.15, 1.15), 0.08)
-	tween.tween_property(self, "scale", Vector2(0.9, 0.9), 0.06)
-	tween.tween_property(self, "modulate:a", 0.0, 0.15)
-	await tween.finished
+	
+	var tw = create_tween().set_parallel(true).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_BACK)
+	
+	if target_pos != Vector2.ZERO:
+		# Volar hacia el enemigo
+		tw.tween_property(self, "global_position", target_pos, 0.2)
+		tw.tween_property(self, "scale", Vector2(0.4, 0.4), 0.2)
+	else:
+		# Efecto de "gasto" hacia el centro/arriba
+		tw.tween_property(self, "position:y", position.y - 150, 0.25)
+		tw.tween_property(self, "scale", Vector2(1.2, 1.2), 0.15)
+		tw.chain().tween_property(self, "scale", Vector2(0.0, 0.0), 0.1)
+	
+	tw.tween_property(self, "modulate:a", 0.0, 0.2)
+	await tw.finished

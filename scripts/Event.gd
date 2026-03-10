@@ -208,23 +208,28 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 	
 	# --- Tooltip Dinamico ---
 	var tt = ""
+	var has_relic_info = false
+	var r_data_final = {}
+	
 	if opt.get("hp", 0) < 0: tt += "Pierdes " + str(abs(opt["hp"])) + " HP.\n"
 	if opt.get("max_hp", 0) < 0: tt += "Pierdes " + str(abs(opt["max_hp"])) + " de Vida Maxima.\n"
 	if opt.get("sanity_loss", 0) > 0: tt += "Pierdes " + str(opt["sanity_loss"]) + " de Cordura.\n"
+	
 	if opt.get("relic", false) and relic_assignments.has(i):
 		var r_id = relic_assignments[i]
-		var r_data = GameManager.RELIC_DATA[r_id]
-		tt += "[RELIQUIA: " + r_data["name"] + "]\n" + r_data["desc"] + "\n"
-	if opt.get("specific_relic", "") != "":
+		r_data_final = GameManager.RELIC_DATA[r_id]
+		has_relic_info = true
+	elif opt.get("specific_relic", "") != "":
 		var r_id = opt["specific_relic"]
-		var r_data = GameManager.RELIC_DATA.get(r_id, {"name": "???", "desc": "???"})
-		tt += "[RELIQUIA: " + r_data["name"] + "]\n" + r_data["desc"] + "\n"
+		r_data_final = GameManager.RELIC_DATA.get(r_id, {"name": "???", "desc": "???"})
+		has_relic_info = true
+		
 	if opt.get("double_curse", false):
-		tt += "[!] MALDICION: Recibes 2 cartas de 'Peso de la Verdad' que dañan tu HP cada vez que las uses.\n"
+		tt += "[!] MALDICION: Recibes 2 cartas de 'Peso de la Verdad'.\n"
 	if opt.get("add_curse", false):
 		tt += "[!] MALDICION: Recibes 1 carta de 'Peso de la Verdad'.\n"
 	
-	btn.tooltip_text = tt
+	btn.tooltip_text = tt # Mantener solo lo basico en el nativo
 	
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.08, 0.12, 0.9)
@@ -234,7 +239,57 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 	
 	var idx = i
 	btn.pressed.connect(func(): _on_option_selected(idx))
+	
+	if has_relic_info:
+		btn.mouse_entered.connect(func(): _show_relic_preview(btn, r_data_final))
+		btn.mouse_exited.connect(_hide_relic_preview)
+		
 	row.add_child(btn)
+
+var _relic_preview: Panel
+
+func _show_relic_preview(target: Button, data: Dictionary) -> void:
+	if _relic_preview: _relic_preview.queue_free()
+	
+	_relic_preview = Panel.new()
+	_relic_preview.size = Vector2(280, 100)
+	_relic_preview.z_index = 100
+	
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.05, 0.05, 0.1, 0.98)
+	s.border_width_left = 3; s.border_color = Color(0.9, 0.7, 0.2)
+	s.set_corner_radius_all(6)
+	_relic_preview.add_theme_stylebox_override("panel", s)
+	
+	var title = Label.new()
+	title.text = "💍 " + data["name"].to_upper()
+	title.add_theme_font_size_override("font_size", 14)
+	title.modulate = Color(1, 0.9, 0.4)
+	title.position = Vector2(12, 10)
+	_relic_preview.add_child(title)
+	
+	var desc = Label.new()
+	desc.text = data["desc"]
+	desc.add_theme_font_size_override("font_size", 12)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	desc.position = Vector2(12, 35); desc.size = Vector2(250, 60)
+	_relic_preview.add_child(desc)
+	
+	# Posicionar a la derecha o izquierda del boton
+	_relic_preview.global_position = target.global_position + Vector2(target.size.x + 15, -20)
+	add_child(_relic_preview)
+	
+	# Animacion Rapida
+	_relic_preview.modulate.a = 0
+	_relic_preview.scale = Vector2(0.9, 0.9)
+	var tw = create_tween().set_parallel(true)
+	tw.tween_property(_relic_preview, "modulate:a", 1.0, 0.15)
+	tw.tween_property(_relic_preview, "scale", Vector2(1.0, 1.0), 0.15).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+func _hide_relic_preview() -> void:
+	if _relic_preview:
+		_relic_preview.queue_free()
+		_relic_preview = null
 
 func _on_option_selected(idx: int) -> void:
 	var opt = current_event["options"][idx]

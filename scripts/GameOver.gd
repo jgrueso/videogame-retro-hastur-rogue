@@ -69,7 +69,7 @@ func build_ui() -> void:
 		cause_lbl.text = "TU MENTE HA SIDO RECLAMADA POR EL TABLERO.\nERES UNA PIEZA SIN MEMORIA."
 		cause_lbl.modulate = Color(0.8, 0.4, 1.0) # Purpura locura
 	else:
-		cause_lbl.text = "TU CARNE HA FALLADO. EL REY AMARILLO TE RECICLARA."
+		cause_lbl.text = "TU CARNE HA FALLADO...."
 		cause_lbl.modulate = Color(0.8, 0.2, 0.2) # Rojo daño
 	cause_lbl.add_theme_font_size_override("font_size", 18)
 	cause_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

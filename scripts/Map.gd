@@ -256,6 +256,7 @@ func build_ui() -> void:
 		for i in range(GameManager.relics.size()):
 			var icon = relic_scene.instantiate()
 			icon.position = Vector2(6 + i * 48, 96)
+			icon.z_index = 50 # Asegurar que esté sobre el mapa
 			add_child(icon)
 			icon.setup(GameManager.relics[i])
 
@@ -269,30 +270,111 @@ func build_ui() -> void:
 
 	# Indicador de objetos misteriosos
 	if GameManager.secret_items.size() > 0 or _map_has_secret_rooms():
-		var si_lbl = Label.new()
+		var si_container = Panel.new()
 		var count = GameManager.secret_items.size()
+		si_container.position = Vector2(vp.x - 100, 56)
+		si_container.size = Vector2(90, 30)
+		var s_style = StyleBoxFlat.new()
+		s_style.bg_color = Color(0,0,0,0)
+		si_container.add_theme_stylebox_override("panel", s_style)
+		add_child(si_container)
+
+		var si_lbl = Label.new()
 		si_lbl.text = "✦ " + str(count) + " / 3"
-		si_lbl.add_theme_font_size_override("font_size", 12)
+		si_lbl.add_theme_font_size_override("font_size", 14)
 		si_lbl.modulate = Color(0.85, 0.72, 0.1) if count > 0 else Color(0.45, 0.42, 0.15)
-		si_lbl.position = Vector2(vp.x - 70, 56)
-		si_lbl.size = Vector2(64, 24)
-		add_child(si_lbl)
+		si_lbl.size = si_container.size
+		si_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		si_container.add_child(si_lbl)
+
+		# Tooltip logic
+		si_container.mouse_entered.connect(func(): _show_secret_items_tooltip(si_container))
+		si_container.mouse_exited.connect(_hide_secret_items_tooltip)
 
 	draw_map()
+
+var _si_tooltip: Panel
+
+func _show_secret_items_tooltip(target: Control) -> void:
+	if _si_tooltip: _si_tooltip.queue_free()
+	
+	_si_tooltip = Panel.new()
+	var ts = StyleBoxFlat.new()
+	ts.bg_color = Color(0.05, 0.04, 0.02, 0.95)
+	ts.border_width_left = 2; ts.border_color = Color(0.8, 0.7, 0.2)
+	ts.set_corner_radius_all(4)
+	_si_tooltip.add_theme_stylebox_override("panel", ts)
+	
+	var vbox = VBoxContainer.new()
+	vbox.position = Vector2(10, 10)
+	_si_tooltip.add_child(vbox)
+	
+	var title = Label.new()
+	title.text = "FRAGMENTOS DE REALIDAD"
+	title.add_theme_font_size_override("font_size", 13)
+	title.modulate = Color(0.9, 0.8, 0.3)
+	vbox.add_child(title)
+	
+	if GameManager.secret_items.is_empty():
+		var empty = Label.new()
+		empty.text = "No has recolectado fragmentos aún."
+		empty.add_theme_font_size_override("font_size", 11)
+		vbox.add_child(empty)
+	else:
+		for item_id in GameManager.secret_items:
+			var data = GameManager.SECRET_ITEM_DATA[item_id]
+			var il = Label.new()
+			il.text = "• " + data["name"]
+			il.add_theme_font_size_override("font_size", 12)
+			il.modulate = data["color"]
+			vbox.add_child(il)
+			
+			var dl = Label.new()
+			dl.text = data["desc"]
+			dl.add_theme_font_size_override("font_size", 10)
+			dl.modulate = Color(0.7, 0.7, 0.7)
+			dl.autowrap_mode = TextServer.AUTOWRAP_WORD
+			dl.custom_minimum_size.x = 200
+			vbox.add_child(dl)
+	
+	_si_tooltip.size = Vector2(220, vbox.get_child_count() * 35 + 20)
+	_si_tooltip.position = target.global_position + Vector2(-230, 0)
+	add_child(_si_tooltip)
+	
+	_si_tooltip.modulate.a = 0
+	create_tween().tween_property(_si_tooltip, "modulate:a", 1.0, 0.2)
+
+func _hide_secret_items_tooltip() -> void:
+	if _si_tooltip:
+		_si_tooltip.queue_free()
+		_si_tooltip = null
 
 func draw_map() -> void:
 	var vp = get_viewport_rect().size
 	var graph = GameManager.map_graph
 	var num_floors = graph.size()
 
-	var top_margin: float  = 118.0   # espacio para header
-	var bot_margin: float  = 14.0
-	var map_height: float  = vp.y - top_margin - bot_margin
-	var floor_height: float = map_height / num_floors
+	# --- SCROLL CONTAINER ---
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(0, 85) # Debajo del header
+	scroll.size = Vector2(vp.x, vp.y - 85)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	add_child(scroll)
+	
+	var map_content = Control.new()
+	# Espaciado expandido: 120px por piso + margen extra
+	var floor_h: float = 140.0
+	var total_h: float = num_floors * floor_h + 100.0
+	map_content.custom_minimum_size = Vector2(vp.x, total_h)
+	scroll.add_child(map_content)
 
-	var map_w: float    = vp.x * 0.78
+	# --- ELEMENTOS DECORATIVOS DE FONDO ---
+	_add_map_decorations(map_content, total_h, vp.x)
+
+	var map_w: float    = vp.x * 0.85
 	var map_start_x: float = (vp.x - map_w) / 2.0
-	var map_start_y: float = vp.y - bot_margin - floor_height / 2.0
+	var map_start_y: float = total_h - 100.0
 
 	# Pre-calcular posiciones X de cada nodo
 	var positions: Array = []   # positions[f][c] = Vector2
@@ -301,30 +383,45 @@ func draw_map() -> void:
 		var nc = floor_nodes.size()
 		var row_pos: Array = []
 		for c in range(nc):
-			var x = map_start_x + (map_w / (nc + 1)) * (c + 1)
-			var y = map_start_y - f * floor_height
+			# Variación lateral aleatoria para que no sea una rejilla perfecta
+			var jitter = randf_range(-15, 15)
+			var x = map_start_x + (map_w / (nc + 1)) * (c + 1) + jitter
+			var y = map_start_y - f * floor_h
 			row_pos.append(Vector2(x, y))
 		positions.append(row_pos)
 
-	# Dibujar lineas de conexion
+	# Dibujar lineas de conexion (Abismo entre nodos)
 	for f in range(num_floors - 1):
 		var floor_nodes: Array = graph[f]
 		for c in range(floor_nodes.size()):
 			for nc in floor_nodes[c].connections:
 				var p0 = positions[f][c]
 				var p1 = positions[f + 1][nc]
-				var on_path = _is_on_chosen_path(f, c)
+				
+				# Una linea es del camino recorrido si ambos nodos están en map_path
+				var is_taken_path = GameManager.map_path.get(f) == c and GameManager.map_path.get(f+1) == nc
+				
+				# Una linea es reachable si sale del nodo actual del jugador
+				var is_player_node = (f == GameManager.current_map_floor - 1 and c == GameManager.current_map_col)
+				if f == 0 and GameManager.current_map_col == -1: is_player_node = true
+				
+				var reachable = is_player_node and _is_node_reachable(f + 1, nc)
+				
 				var line = Line2D.new()
 				line.add_point(p0)
 				line.add_point(p1)
-				if on_path:
-					line.default_color = Color(0.6, 0.6, 0.9, 0.55)
-					line.width = 2.0
+				
+				if is_taken_path:
+					line.width = 3.5
+					line.default_color = Color(0.9, 0.8, 0.2, 0.9) # Amarillo brillante (camino hecho)
+					map_content.add_child(line)
+				elif reachable:
+					# Usar linea punteada para caminos disponibles
+					_add_dashed_line(map_content, p0, p1, Color(0.8, 0.7, 0.2, 0.6), 2.5)
 				else:
-					line.default_color = Color(0.22, 0.22, 0.28, 0.6)
-					line.width = 1.2
-				add_child(line)
-				move_child(line, 1)
+					line.width = 1.0
+					line.default_color = Color(0.3, 0.3, 0.4, 0.2) # Oscuro
+					map_content.add_child(line)
 
 	# Dibujar nodos
 	for f in range(num_floors):
@@ -334,39 +431,134 @@ func draw_map() -> void:
 			var pos = positions[f][c]
 			var reachable = _is_node_reachable(f, c)
 			var already_done = f < GameManager.current_map_floor
+			var is_current = (f == GameManager.current_map_floor - 1 and c == GameManager.current_map_col)
+			if f == 0 and GameManager.current_map_col == -1: is_current = false
+			
+			var was_visited = GameManager.map_path.get(f) == c
 
 			var btn = Button.new()
 			btn.text = ROOM_LABELS[room_type]
-			btn.position = Vector2(pos.x - 46, pos.y - 17)
-			btn.size = Vector2(92, 34)
+			btn.position = Vector2(pos.x - 55, pos.y - 20)
+			btn.size = Vector2(110, 40)
 			btn.disabled = not reachable or already_done
+			btn.add_theme_font_size_override("font_size", 11)
 
 			var style = StyleBoxFlat.new()
-			style.set_corner_radius_all(7)
-			if already_done:
-				style.bg_color = Color(0.10, 0.10, 0.12)
-				style.border_color = Color(0.18, 0.18, 0.20)
+			style.set_corner_radius_all(4)
+			
+			if is_current:
+				style.bg_color = ROOM_COLORS[room_type].lightened(0.2)
+				style.border_width_left = 2; style.border_width_right = 2
+				style.border_width_top = 2; style.border_width_bottom = 2
+				style.border_color = Color(1, 0.9, 0.3)
+				btn.text = "● " + btn.text + " ●"
+				var tw = btn.create_tween().set_loops()
+				tw.tween_property(btn, "scale", Vector2(1.05, 1.05), 0.5)
+				tw.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.5)
+			elif was_visited:
+				style.bg_color = Color(0.1, 0.08, 0.02)
+				style.border_width_left = 2; style.border_width_right = 2
+				style.border_width_top = 2; style.border_width_bottom = 2
+				style.border_color = Color(0.9, 0.8, 0.2, 0.8) # Amarillo camino hecho
+				btn.modulate.a = 0.8
+			elif already_done:
+				style.bg_color = Color(0.02, 0.02, 0.04, 0.6)
+				btn.modulate.a = 0.4
 			elif reachable:
 				style.bg_color = ROOM_COLORS[room_type]
-				style.border_color = ROOM_COLORS[room_type].lightened(0.35)
-				style.border_width_left   = 2
-				style.border_width_right  = 2
-				style.border_width_top    = 2
-				style.border_width_bottom = 2
+				# Borde punteado manual para salas alcanzables
+				_add_dashed_rect(btn, Color(1, 1, 1, 0.8), 2.0)
 			else:
-				style.bg_color = ROOM_COLORS[room_type].darkened(0.70)
-				style.border_color = Color(0.14, 0.14, 0.17)
-			btn.add_theme_stylebox_override("normal", style)
+				style.bg_color = Color(0.05, 0.05, 0.07)
+				btn.modulate.a = 0.7
 
-			if reachable and not already_done:
-				var hover = style.duplicate()
-				hover.bg_color = ROOM_COLORS[room_type].lightened(0.18)
-				btn.add_theme_stylebox_override("hover", hover)
+			btn.add_theme_stylebox_override("normal", style)
+			btn.add_theme_stylebox_override("disabled", style)
 
 			var fi = f
 			var ci = c
 			btn.pressed.connect(func(): _on_room_selected(fi, ci))
-			add_child(btn)
+			map_content.add_child(btn)
+	
+	# Auto-scroll al piso actual
+	await get_tree().process_frame
+	var scroll_target = total_h - (GameManager.current_map_floor * floor_h) - (vp.y / 2.0)
+	scroll.set_v_scroll(clamp(scroll_target, 0, total_h))
+
+func _add_dashed_line(container: Control, p0: Vector2, p1: Vector2, color: Color, width: float) -> void:
+	var dist = p0.distance_to(p1)
+	var dir = (p1 - p0).normalized()
+	var dash_len = 6.0
+	var gap_len = 4.0
+	var current_dist = 0.0
+	
+	while current_dist < dist:
+		var segment_end = min(current_dist + dash_len, dist)
+		var line = Line2D.new()
+		line.add_point(p0 + dir * current_dist)
+		line.add_point(p0 + dir * segment_end)
+		line.width = width
+		line.default_color = color
+		container.add_child(line)
+		current_dist += dash_len + gap_len
+
+func _add_dashed_rect(btn: Button, color: Color, width: float) -> void:
+	var sz = btn.size
+	var points = [
+		Vector2(0,0), Vector2(sz.x, 0),
+		Vector2(sz.x, 0), Vector2(sz.x, sz.y),
+		Vector2(sz.x, sz.y), Vector2(0, sz.y),
+		Vector2(0, sz.y), Vector2(0, 0)
+	]
+	
+	var container = Control.new()
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(container)
+	
+	for i in range(0, points.size(), 2):
+		_add_dashed_line(container, points[i], points[i+1], color, width)
+	
+	# Efecto de animacion para el borde punteado
+	var tw = container.create_tween().set_loops()
+	tw.tween_property(container, "modulate:a", 0.3, 0.8)
+	tw.tween_property(container, "modulate:a", 1.0, 0.8)
+
+func _add_map_decorations(container: Control, total_h: float, vp_x: float) -> void:
+	var is_w2 = GameManager.current_world == 1
+	var decor_color = Color(0.9, 0.7, 0.1, 0.05) if is_w2 else Color(0.4, 0.4, 0.6, 0.05)
+	
+	# Ojos del Vacio esporadicos
+	for i in range(15):
+		var eye = Label.new()
+		eye.text = "⦿"
+		eye.add_theme_font_size_override("font_size", randi_range(20, 60))
+		eye.modulate = decor_color
+		eye.position = Vector2(randf_range(0, vp_x), randf_range(100, total_h - 100))
+		container.add_child(eye)
+		
+		# Animacion de parpadeo muy lenta
+		var tw = eye.create_tween().set_loops()
+		tw.tween_property(eye, "modulate:a", 0.15, randf_range(2.0, 5.0))
+		tw.tween_property(eye, "modulate:a", 0.02, randf_range(2.0, 5.0))
+
+	# Runas y susurros visuales
+	var runes = ["᚛", "ᚙ", " Holden", " King", " Yellow", "⟁", "⌬"]
+	for i in range(30):
+		var r = Label.new()
+		r.text = runes[randi() % runes.size()]
+		r.add_theme_font_size_override("font_size", 14)
+		r.modulate = decor_color
+		r.position = Vector2(randf_range(0, vp_x), randf_range(0, total_h))
+		r.rotation = randf_range(-0.5, 0.5)
+		container.add_child(r)
+
+	# Particulas de ceniza (estaticas pero muchas)
+	for i in range(100):
+		var p = ColorRect.new()
+		p.size = Vector2(2, 2)
+		p.color = decor_color
+		p.position = Vector2(randf_range(0, vp_x), randf_range(0, total_h))
+		container.add_child(p)
 
 # ─── Logica de rutas ─────────────────────────────────────────────────────────
 func _is_node_reachable(floor_idx: int, col_idx: int) -> bool:
@@ -391,6 +583,10 @@ func _is_on_chosen_path(floor_idx: int, _col_idx: int) -> bool:
 
 func _on_room_selected(floor_idx: int, col_idx: int) -> void:
 	var room_type = GameManager.map_graph[floor_idx][col_idx].type
+	
+	# Guardar el camino recorrido ANTES de avanzar el piso
+	GameManager.save_path_node(floor_idx, col_idx)
+	
 	GameManager.current_map_floor = floor_idx + 1
 	GameManager.current_map_col   = col_idx
 

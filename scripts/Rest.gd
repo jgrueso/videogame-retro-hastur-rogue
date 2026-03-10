@@ -53,8 +53,15 @@ func build_ui() -> void:
 	btn_rest.pressed.connect(_on_rest_pressed)
 	btn_container.add_child(btn_rest)
 
+	var upgradeables = _get_upgradeable_cards()
 	var btn_forge = _make_rest_button("🔨 FORJAR (Mejora una carta)")
-	btn_forge.tooltip_text = "Refuerzas una de tus piezas del mazo actual.\nAumenta +3 el ATK y DEF de una carta al azar."
+	if upgradeables.is_empty():
+		btn_forge.disabled = true
+		btn_forge.text = "🔨 FORJA AGOTADA"
+		btn_forge.tooltip_text = "No quedan más piezas en tu mazo que puedan ser reforzadas."
+		btn_forge.modulate = Color(0.5, 0.5, 0.5)
+	else:
+		btn_forge.tooltip_text = "Refuerzas una de tus piezas que aún no ha sido mejorada.\nEfectos especiales según la carta elegida."
 	btn_forge.pressed.connect(_on_forge_pressed)
 	btn_container.add_child(btn_forge)
 
@@ -78,34 +85,61 @@ func _on_rest_pressed() -> void:
 	_finish_rest()
 
 func _on_forge_pressed() -> void:
-	if GameManager.player_deck.is_empty():
+	var upgradeables = _get_upgradeable_cards()
+	if upgradeables.is_empty():
 		_finish_rest()
 		return
 	
-	# Seleccionar una carta aleatoria del mazo para mejorar
-	var deck = GameManager.player_deck
-	var idx = randi() % deck.size()
-	var card = deck[idx]
+	# Seleccionar una carta aleatoria de las que NO están mejoradas
+	upgradeables.shuffle()
+	var card = upgradeables[0]
 	
 	if card is Dictionary:
-		# Mejorar estadisticas si existen (+3 segun peticion del usuario)
-		if card.has("attack"): 
-			card["attack"] = int(card["attack"]) + 3
-		if card.has("defense"): 
-			card["defense"] = int(card["defense"]) + 3
+		var c_name = str(card.get("name", "")).to_upper()
 		
-		# Marcar como mejorada para Card.gd
+		# Marcar como mejorada
 		card["upgraded"] = true
 		
-		# Añadir un indicador visual al nombre si no lo tiene
-		if card.has("name"):
-			var c_name = str(card["name"])
-			if not "+" in c_name:
-				card["name"] = c_name + "+1" # Título verde +1 (según petición)
+		# --- LÓGICA DE MEJORA INTELIGENTE ---
+		if "SUSURRO" in c_name:
+			card["attack"] = int(card.get("attack", 0)) + 4
+		elif "ECO" in c_name:
+			card["attack"] = int(card.get("attack", 0)) + 4
+		elif int(card.get("cost", 0)) >= 3:
+			if randf() < 0.5:
+				card["cost"] = max(1, int(card["cost"]) - 1)
+			else:
+				if card.has("attack"): card["attack"] = int(card["attack"]) + 4
+				if card.has("defense"): card["defense"] = int(card["defense"]) + 4
+		else:
+			if card.has("attack"): card["attack"] = int(card["attack"]) + 3
+			if card.has("defense"): card["defense"] = int(card["defense"]) + 3
 		
-		print("Carta mejorada (+3): ", card.get("name", "Desconocida"))
+		if card.has("name"):
+			var raw_name = str(card["name"])
+			if not "+" in raw_name:
+				card["name"] = raw_name + "+1"
+		
+		# --- META PROGRESO: FRAGMENTO ETERNO ---
+		if GameManager.has_eternal_fragment:
+			# Guardar en el mazo permanente del personaje seleccionado
+			var char_id = GameManager.selected_character
+			GameManager.permanent_deck_upgrades[char_id].append(card.duplicate())
+			GameManager.save_meta_progress()
+			print("Carta trascendida (permanente): ", card.get("name"))
+		
+		print("Carta reforzada: ", card.get("name"))
 	
 	_finish_rest()
+
+func _get_upgradeable_cards() -> Array:
+	var list = []
+	for card in GameManager.player_deck:
+		# Una carta es mejorable si no tiene el flag 'upgraded' y no tiene '+' en el nombre
+		var already_upgraded = card.get("upgraded", false) or "+" in str(card.get("name", ""))
+		if not already_upgraded:
+			list.append(card)
+	return list
 
 func _on_sacrifice_pressed() -> void:
 	GameManager.player_max_energy += 1
