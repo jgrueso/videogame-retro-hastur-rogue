@@ -523,7 +523,59 @@ func check_combat_end() -> void:
 		# EL CARCELERO → reliquia → mapa
 		_show_relic_reward("res://scenes/ui/Map.tscn")
 	else:
+		_show_loot_screen()
+
+func _show_loot_screen() -> void:
+	var vp = get_viewport_rect().size
+	# Panel de despojos con estetica Carcosa
+	var loot_panel = _make_panel(Vector2(vp.x/2 - 300, 120), Vector2(600, 380), Color(0.04, 0.04, 0.06, 0.96), Color(0.85, 0.75, 0.2))
+	add_child(loot_panel)
+	loot_panel.z_index = 100
+
+	var title = Label.new()
+	title.text = "DESPOJOS DEL ECO"
+	title.add_theme_font_size_override("font_size", 32)
+	title.modulate = Color(0.9, 0.8, 0.3)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 25); title.size = Vector2(600, 40)
+	loot_panel.add_child(title)
+
+	var reward_vbox = VBoxContainer.new()
+	reward_vbox.position = Vector2(60, 90); reward_vbox.size = Vector2(480, 220)
+	reward_vbox.add_theme_constant_override("separation", 15)
+	loot_panel.add_child(reward_vbox)
+
+	# Recompensas
+	var frag_count = randi_range(12, 22)
+	_add_loot_button(reward_vbox, "Tomar " + str(frag_count) + " Fragmentos de Tablero", func():
+		GameManager.add_coins(frag_count)
+	)
+
+	_add_loot_button(reward_vbox, "Recolectar Ecos de los Caidos (Nueva Carta)", func():
 		get_tree().change_scene_to_file("res://scenes/ui/CardDraft.tscn")
+	)
+
+	if randf() < 0.35:
+		_add_loot_button(reward_vbox, "Beber Esencia de Olvido (+15 Cordura)", func():
+			GameManager.sanity = min(100, GameManager.sanity + 15)
+		)
+
+	var cont_btn = Button.new()
+	cont_btn.text = "CONTINUAR EL VIAJE"
+	cont_btn.position = Vector2(200, 315); cont_btn.size = Vector2(200, 45)
+	cont_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
+	loot_panel.add_child(cont_btn)
+
+func _add_loot_button(container: Control, txt: String, action: Callable) -> void:
+	var btn = Button.new()
+	btn.text = txt; btn.custom_minimum_size = Vector2(0, 50)
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.pressed.connect(func():
+		action.call()
+		btn.disabled = true; btn.modulate = Color(0.5, 0.5, 0.5, 0.6)
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
+	)
+	container.add_child(btn)
 
 # ── Transición a Carcosa (secreto) ─────────────────────────────────────────────
 func _show_carcosa_transition() -> void:
