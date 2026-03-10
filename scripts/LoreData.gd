@@ -71,6 +71,10 @@ static func get_death_dialogue(enemy_name: String) -> String:
 			return "¿Crees que esto termina aqui?\nSiempre vuelves. Siempre pierdes.\nY aun asi... vuelves. Eso me divierte."
 		"EL VERDADERO HASTUR":
 			return "H A S T U R   N O   M U E R E\nH A S T U R   E S P E R A\nH A S T U R   R E C U E R D A"
+		"LA DAMA DE CENIZA":
+			return "Mi fuego... era lo unico real... en este mundo de madera..."
+		"El Penitente":
+			return "Gracias... por darme... el castigo que merecia..."
 
 	# Enemigos normales: pueden hablar garbled sin traductor
 	const GARBLED_ENEMIES = ["Siervo Rebelde", "Peon Maldito", "Espectro", "Alfil Caido"]
@@ -179,6 +183,19 @@ static func get_post_combat_fragment() -> String:
 
 static func get_random_thought(_type: String = "general") -> String:
 	var stage = get_lore_stage()
+	var sanity = GameManager.sanity
+	
+	if sanity < 25:
+		var critical = [
+			"¡SÁCAME DE AQUÍ! ¡SÁCAME DE AQUÍ!",
+			"Mis ojos... no son mis ojos...",
+			"El Rey... me esta tallando la cara...",
+			"¿Donde estan mis manos? No las veo...",
+			"La cancion... no para... me duele el alma...",
+			"Todo es madera. Todo es madera y sangre.",
+		]
+		return critical[randi() % critical.size()]
+
 	if stage == 0:
 		return "Debo seguir. Por el Rey. Por Valdris."
 	var pool = [

@@ -8,6 +8,7 @@ const ROOM_BOSS     = "boss"
 const ROOM_FINAL    = "final"
 const ROOM_FINAL_W2 = "final_w2"
 const ROOM_SECRET   = "secret"
+const ROOM_REST     = "rest"
 
 const ROOM_COLORS = {
 	ROOM_COMBAT:   Color(0.3, 0.3, 0.7),
@@ -18,6 +19,7 @@ const ROOM_COLORS = {
 	ROOM_FINAL:    Color(0.5, 0.4, 0.0),
 	ROOM_FINAL_W2: Color(0.55, 0.4, 0.0),
 	ROOM_SECRET:   Color(0.45, 0.38, 0.04),
+	ROOM_REST:     Color(0.4, 0.7, 0.8),
 }
 
 const ROOM_LABELS = {
@@ -29,6 +31,7 @@ const ROOM_LABELS = {
 	ROOM_FINAL:    "♔ EL REY SIN CORONA",
 	ROOM_FINAL_W2: "♔ EL REY AMARILLO",
 	ROOM_SECRET:   "✦ Fragmento de Realidad",
+	ROOM_REST:     "🕯 Hoguera de Ceniza",
 }
 
 func _ready() -> void:
@@ -41,7 +44,7 @@ func _ready() -> void:
 # ─── Generacion procedural del mapa ──────────────────────────────────────────
 func _generate_map() -> Array:
 	var graph: Array = []
-	var num_floors = randi_range(12, 15)
+	var num_floors = randi_range(11, 15)
 	var is_w2 = GameManager.current_world == 1
 	var final_room = ROOM_FINAL_W2 if is_w2 else ROOM_FINAL
 
@@ -60,6 +63,10 @@ func _generate_map() -> Array:
 			continue
 		if f == num_floors - 2:
 			floor_nodes.append({"type": ROOM_BOSS, "connections": []})
+			graph.append(floor_nodes)
+			continue
+		if f == num_floors - 3:
+			floor_nodes.append({"type": ROOM_REST, "connections": []})
 			graph.append(floor_nodes)
 			continue
 		if f in shop_floors:
@@ -381,6 +388,8 @@ func _on_room_selected(floor_idx: int, col_idx: int) -> void:
 			get_tree().change_scene_to_file("res://scenes/ui/Event.tscn")
 		ROOM_SHOP:
 			get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")
+		ROOM_REST:
+			get_tree().change_scene_to_file("res://scenes/ui/Rest.tscn")
 		ROOM_BOSS:
 			GameManager.is_boss_fight = true
 			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")

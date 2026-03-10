@@ -10,7 +10,9 @@ var player_deck: Array = [
 
 var player_hp: int = 40
 var player_max_hp: int = 40
+var player_max_energy: int = 3
 var sanity: int = 100
+var sanity_notified: bool = false
 var coins: int = 0
 var combat_count: int = 0
 var current_map_floor: int = 0
@@ -81,6 +83,18 @@ const RELIC_DATA = {
 		"name": "Sangre del Caido",
 		"desc": "Al matar un enemigo, +1 ATK a todos los Siervos Quebrados permanentemente.",
 	},
+	"corona_dorada": {
+		"name": "Corona de Espinas Doradas",
+		"desc": "+1 Energia maxima. Pierdes 5 de Cordura al iniciar combate.",
+	},
+	"reloj_negro": {
+		"name": "Reloj de Arena Negra",
+		"desc": "Cada 3 cartas jugadas, recuperas 1 de Energia.",
+	},
+	"caliz_olvido": {
+		"name": "Caliz del Olvido",
+		"desc": "Al vencer un Elite, +1 Energia maxima permanentemente.",
+	},
 	"velo_dama": {
 		"name": "Velo de la Dama",
 		"desc": "Una vez por combate, niegas la muerte (quedas en 1 HP).",
@@ -133,6 +147,7 @@ func heal(amount: int) -> void:
 	player_hp = min(player_hp + amount, player_max_hp)
 
 func reset_run() -> void:
+	sanity_notified = false
 	player_deck = [
 		{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
 		{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},

@@ -192,8 +192,17 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 	row.z_index = 10
 	add_child(row)
 
+	var label_text = opt["label"]
+	if opt.get("hp", 0) < 0 or opt.get("max_hp", 0) < 0: label_text = "🩸 " + label_text
+	elif opt.get("heal", 0) > 0: label_text = "🩹 " + label_text
+	if opt.get("sanity_loss", 0) > 0: label_text = "🧠 " + label_text
+	elif opt.get("sanity_gain", 0) > 0: label_text = "🕯 " + label_text
+	if opt.get("relic", false): label_text = "💍 " + label_text
+	if opt.get("add_curse", false) or opt.get("double_curse", false): label_text = "💀 " + label_text
+	if opt.get("remove_card_event", false): label_text = "✂ " + label_text
+
 	var btn = Button.new()
-	btn.text = opt["label"]
+	btn.text = label_text
 	btn.size = Vector2(560, 60)
 	btn.add_theme_font_size_override("font_size", 15)
 	

@@ -15,6 +15,7 @@ var siervo_attack_bonus: int = 0
 var is_player_turn: bool = true
 var combat_ended: bool = false
 var first_card_this_turn: bool = true
+var cards_played_this_turn: int = 0
 var velo_used: bool = false
 
 # ── UI References ──────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ var player_panel: Panel
 var player_sprite_label: Label
 var lbl_player_hp: Label
 var hp_bar_player: ProgressBar
+var sanity_bar_player: ProgressBar
 var lbl_energy: Label
 var hand_container: HBoxContainer
 var lbl_draw_pile: Label
@@ -29,10 +31,16 @@ var lbl_discard_pile: Label
 var end_turn_btn: Button
 var relics_container: HBoxContainer
 var lbl_message: Label
+var vignette: ColorRect
+var eye_node: Control
+var blink_overlay: ColorRect
 var targeting_arrow: Line2D
 
 var targeting_active: bool = false
 var targeting_card = null
+var time_since_mouse_move: float = 0.0
+var is_eye_breaking_4th_wall: bool = false
+var last_m_pos: Vector2 = Vector2.ZERO
 
 const CHAR_DATA = {
 	"conquistador": {"symbol": "♜", "color": Color(0.8, 0.3, 0.3)},
@@ -44,6 +52,8 @@ const CHAR_DATA = {
 const NORMAL_POOLS = [
 	[{"name": "Siervo Rebelde", "hp": 22, "pattern": [{"type": "attack", "value": 5}]}],
 	[{"name": "Peon Maldito",   "hp": 18, "pattern": [{"type": "attack", "value": 7}]}],
+	[{"name": "Susurrador del Vacio", "hp": 25, "pattern": [{"type": "insanity", "value": 6}]}],
+	[{"name": "Idolo Corrupto", "hp": 40, "pattern": [{"type": "attack", "value": 4}, {"type": "insanity", "value": 4}]}],
 	[{"name": "Alfil Caido",    "hp": 30, "pattern": [{"type": "attack", "value": 4}, {"type": "shield", "value": 6}]}],
 	[{"name": "Espectro",       "hp": 14, "pattern": [{"type": "attack", "value": 9}]}],
 	[{"name": "El Penitente",   "hp": 26, "pattern": [{"type": "attack", "value": 5}], "peaceful": true, "peaceful_turns": 3}],
@@ -61,6 +71,14 @@ const ELITE_POOLS = [
 	[{"name": "Torre Rota",       "hp": 45, "pattern": [{"type": "attack", "value": 8}]}],
 	[{"name": "Caballero Roto",   "hp": 38, "pattern": [{"type": "attack", "value": 6}, {"type": "shield", "value": 8}, {"type": "attack", "value": 10}]}],
 	[{"name": "Inquisidor Ciego", "hp": 50, "pattern": [{"type": "attack", "value": 5}, {"type": "attack", "value": 5}, {"type": "shield", "value": 10}]}],
+	[{"name": "Caballero Caido",  "hp": 55, "pattern": [{"type": "attack", "value": 12}, {"type": "attack", "value": 4}]}],
+	[{"name": "Alfil Hereje",     "hp": 48, "pattern": [{"type": "insanity", "value": 8}, {"type": "attack", "value": 6}]}],
+]
+
+const BOSS_POOLS_W1 = [
+	[{"name": "EL CARCELERO",    "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "shield", "value": 10}]}],
+	[{"name": "LA DAMA DE CENIZA", "hp": 85,  "pattern": [{"type": "attack", "value": 8}, {"type": "attack", "value": 14}]}],
+	[{"name": "EL MARISCAL",     "hp": 110, "pattern": [{"type": "attack", "value": 12}, {"type": "attack", "value": 6}]}],
 ]
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
@@ -68,6 +86,14 @@ func _ready() -> void:
 	modulate.a = 0.0
 	player_hp = GameManager.player_hp
 	player_max_hp = GameManager.player_max_hp
+	
+	# Reliquias de energia inicial
+	player_max_energy = 3
+	if GameManager.has_relic("corona_dorada"):
+		player_max_energy += 1
+		GameManager.sanity = max(0, GameManager.sanity - 5)
+	player_energy = player_max_energy
+	
 	draw_pile = GameManager.player_deck.duplicate()
 	draw_pile.shuffle()
 
@@ -78,6 +104,16 @@ func _ready() -> void:
 	_start_enemy_idle_bobs()
 
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.45)
+
+	# Despertar del Ojo (si es la primera vez con baja cordura)
+	if GameManager.sanity < 55 and not GameManager.sanity_notified:
+		GameManager.sanity_notified = true
+		await get_tree().create_timer(0.5).timeout
+		_trigger_screen_blink()
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+		show_message("EL TABLERO TE OBSERVA", Color(0.8, 0.4, 1.0))
+		await get_tree().create_timer(1.5).timeout
+		lbl_message.visible = false
 
 	if not enemies.is_empty():
 		if GameManager.is_hastur_fight:
@@ -109,7 +145,10 @@ func _setup_encounter() -> void:
 		else:
 			pool = [{"name": "EL REY SIN CORONA", "hp": 120, "pattern": [{"type": "attack", "value": 12}, {"type": "shield", "value": 8},  {"type": "attack", "value": 15}]}]
 	elif GameManager.is_boss_fight:
-		pool = [{"name": "EL CARCELERO", "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "shield", "value": 8}]}]
+		if GameManager.current_world == 0:
+			pool = BOSS_POOLS_W1[randi() % BOSS_POOLS_W1.size()]
+		else:
+			pool = [{"name": "EL CARCELERO", "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "shield", "value": 8}]}]
 	elif GameManager.is_elite_fight:
 		pool = ELITE_POOLS[randi() % ELITE_POOLS.size()]
 	else:
@@ -126,6 +165,8 @@ func _setup_encounter() -> void:
 			"turn_index":    0,
 			"peaceful":      e_data.get("peaceful", false),
 			"peaceful_turns": e_data.get("peaceful_turns", 0),
+			"has_phase_2":   true if (GameManager.is_boss_fight or GameManager.is_final_boss or GameManager.is_hastur_fight) else false,
+			"in_phase_2":    false,
 			"panel":         null,
 			"hp_bar":        null,
 			"lbl_hp":        null,
@@ -154,10 +195,18 @@ func build_ui() -> void:
 	player_panel.add_child(player_sprite_label)
 	_start_player_idle_bob()
 
-	hp_bar_player = _make_hp_bar(player_max_hp, 440)
-	hp_bar_player.position = Vector2(100, 40); player_panel.add_child(hp_bar_player)
+	hp_bar_player = _make_hp_bar(player_max_hp, 440); hp_bar_player.position = Vector2(100, 40); player_panel.add_child(hp_bar_player)
+
+	sanity_bar_player = _make_hp_bar(100, 440); sanity_bar_player.position = Vector2(100, 58); player_panel.add_child(sanity_bar_player)
+	var sb_style = StyleBoxFlat.new(); sb_style.bg_color = Color(0.1, 0.05, 0.2); sb_style.set_corner_radius_all(4)
+	var sb_fill = StyleBoxFlat.new(); sb_fill.bg_color = Color(0.5, 0.3, 0.8)
+	sanity_bar_player.add_theme_stylebox_override("background", sb_style)
+	sanity_bar_player.add_theme_stylebox_override("fill", sb_fill)
+
 	lbl_player_hp = Label.new(); lbl_player_hp.position = Vector2(100, 15); player_panel.add_child(lbl_player_hp)
-	lbl_energy = Label.new(); lbl_energy.position = Vector2(100, 65); player_panel.add_child(lbl_energy)
+
+	lbl_energy = Label.new(); lbl_energy.position = Vector2(100, 78); player_panel.add_child(lbl_energy)
+
 
 	hand_container = HBoxContainer.new()
 	hand_container.position = Vector2(20, 418); hand_container.size = Vector2(700, 195)
@@ -218,6 +267,21 @@ func build_ui() -> void:
 	add_child(relics_container)
 	_populate_relics()
 
+	# Viñeta de Cordura
+	vignette = ColorRect.new()
+	vignette.size = vp
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vignette.color = Color(0, 0, 0, 0) # Empieza invisible
+	vignette.z_index = 40 # Encima de todo menos mensajes criticos
+	add_child(vignette)
+
+	blink_overlay = ColorRect.new()
+	blink_overlay.size = vp
+	blink_overlay.color = Color.BLACK
+	blink_overlay.visible = false
+	blink_overlay.z_index = 60 # El parpadeo tapa todo
+	add_child(blink_overlay)
+
 	var dev_toggle = Button.new(); dev_toggle.text = "[DEV]"
 	dev_toggle.position = Vector2(vp.x - 80, vp.y - 36); dev_toggle.size = Vector2(75, 30)
 	dev_toggle.modulate = Color(0.5, 0.5, 0.5, 0.45)
@@ -228,8 +292,8 @@ func build_ui() -> void:
 	add_child(dev_panel)
 	dev_toggle.pressed.connect(func(): dev_panel.visible = not dev_panel.visible)
 
-func _get_enemy_symbol(name: String) -> String:
-	match name:
+func _get_enemy_symbol(e_name: String) -> String:
+	match e_name:
 		"EL VERDADERO HASTUR": return "♆"
 		"EL CARCELERO":        return "♔"
 		"EL REY SIN CORONA":   return "♚"
@@ -254,7 +318,51 @@ func _build_dynamic_background(vp: Vector2) -> void:
 	sun_st.set_corner_radius_all(sz/2); sun_st.border_width_left = 4
 	sun_st.border_color = Color(0.9, 0.6, 0.1, 0.3)
 	sun.add_theme_stylebox_override("panel", sun_st); sun.z_index = -9; add_child(sun)
-	for _i in range(60):
+
+	# El Ojo del Vacio (REDISEÑO GIGANTE)
+	eye_node = Control.new()
+	eye_node.position = sun.position + sun.size/2
+	eye_node.z_index = -8; eye_node.modulate.a = 0.0 
+	add_child(eye_node)
+
+	var eye_w = 320.0
+	var eye_h = 160.0
+
+	var eye_bg = Panel.new() # Esclerotica (Almendra simetrica)
+	eye_bg.size = Vector2(eye_w, eye_h); eye_bg.position = -eye_bg.size/2
+	var es = StyleBoxFlat.new(); es.bg_color = Color(0.85, 0.8, 0.6)
+	# Forma de almendra: esquinas superior e inferior redondeadas, laterales afilados
+	es.set_corner_radius(CORNER_TOP_LEFT, 160)
+	es.set_corner_radius(CORNER_TOP_RIGHT, 160)
+	es.set_corner_radius(CORNER_BOTTOM_RIGHT, 160)
+	es.set_corner_radius(CORNER_BOTTOM_LEFT, 160)
+	# Para afilar los lados en Godot Panel, lo mejor es usar un radio que no llegue a ser un circulo perfecto
+	es.border_width_left = 2; es.border_width_right = 2
+	es.border_color = Color(0.2, 0.1, 0.0)
+	eye_bg.add_theme_stylebox_override("panel", es); eye_node.add_child(eye_bg)
+
+	var iris = Panel.new() # Iris Ambar
+	iris.size = Vector2(140, 140); iris.position = -iris.size/2
+	var is_style = StyleBoxFlat.new(); is_style.bg_color = Color(0.7, 0.4, 0.1); is_style.set_corner_radius_all(70)
+	is_style.border_width_left = 10; is_style.border_color = Color(0.4, 0.2, 0.0)
+	iris.add_theme_stylebox_override("panel", is_style); eye_node.add_child(iris); iris.name = "Iris"
+
+	var pupil = Panel.new() # Pupila Rasgada (como gato/reptil)
+	pupil.size = Vector2(45, 110); pupil.position = -pupil.size/2
+	var ps = StyleBoxFlat.new(); ps.bg_color = Color(0,0,0); ps.set_corner_radius_all(22)
+	pupil.add_theme_stylebox_override("panel", ps); iris.add_child(pupil); pupil.name = "Pupil"
+
+	var lid_top = ColorRect.new() # Parpado superior mas grueso
+	lid_top.size = Vector2(eye_w + 40, eye_h); lid_top.position = Vector2(-eye_w/2 - 20, -eye_h - 20); lid_top.color = Color.BLACK
+	eye_node.add_child(lid_top); lid_top.name = "LidTop"
+
+	var lid_bot = ColorRect.new() # Parpado inferior mas grueso
+	lid_bot.size = Vector2(eye_w + 40, eye_h); lid_bot.position = Vector2(-eye_w/2 - 20, eye_h/2 + 10); lid_bot.color = Color.BLACK
+	eye_node.add_child(lid_bot); lid_bot.name = "LidBot"
+
+	_start_eye_blink_loop()
+	for i in range(60):
+
 		var p = ColorRect.new(); p.size = Vector2(1, 15)
 		p.color = Color(0.5, 0.5, 0.7, 0.15)
 		p.position = Vector2(randf_range(0, vp.x), randf_range(0, vp.y)); p.z_index = -8; add_child(p)
@@ -265,7 +373,12 @@ func draw_hand() -> void:
 	for c in hand_container.get_children(): c.queue_free()
 	for h in hand: discard_pile.append(h)
 	hand.clear()
-	for _i in range(3):
+	
+	# Efecto Cordura Alta: Claridad (+1 carta)
+	var to_draw = 3
+	if GameManager.sanity >= 80: to_draw += 1
+	
+	for _i in range(to_draw):
 		if draw_pile.is_empty():
 			draw_pile = discard_pile.duplicate(); discard_pile.clear(); draw_pile.shuffle()
 		if draw_pile.is_empty(): break
@@ -290,6 +403,89 @@ func _on_card_played(card) -> void:
 
 # ── Targeting ──────────────────────────────────────────────────────────────────
 func _process(_delta: float) -> void:
+	# Deteccion de movimiento de raton para inactividad
+	var m_pos = get_global_mouse_position()
+	if m_pos.distance_to(last_m_pos) > 1.0:
+		time_since_mouse_move = 0.0
+		is_eye_breaking_4th_wall = false
+	else:
+		time_since_mouse_move += _delta
+		if time_since_mouse_move > 8.0:
+			is_eye_breaking_4th_wall = true
+	last_m_pos = m_pos
+
+	# Actualizar Vignette y Tinte de Locura
+	var sanity_factor = clamp((60.0 - GameManager.sanity) / 60.0, 0.0, 1.0)
+	if vignette:
+		if GameManager.sanity < 60:
+			vignette.visible = true
+			if not vignette.material:
+				var sh = Shader.new()
+				sh.code = "shader_type canvas_item; uniform float intensity; uniform vec3 tint; void fragment() { float d = distance(UV, vec2(0.5)); vec4 color = vec4(tint, smoothstep(0.2, 0.6, d) * intensity); COLOR = color; }"
+				var mat = ShaderMaterial.new(); mat.shader = sh
+				vignette.material = mat
+			
+			var t_col = Vector3(0, 0, 0)
+			if GameManager.sanity < 30: t_col = Vector3(0.2, 0.15, 0.0)
+			
+			vignette.material.set_shader_parameter("intensity", sanity_factor * 0.8)
+			vignette.material.set_shader_parameter("tint", t_col)
+		else:
+			vignette.visible = false
+
+	# Actualizar Ojo del Vacio
+	if is_instance_valid(eye_node):
+		var eye_intensity = clamp((55.0 - GameManager.sanity) / 55.0, 0.0, 1.0)
+		eye_node.modulate.a = eye_intensity * 0.95
+		eye_node.scale = Vector2(1, 1) * (0.6 + eye_intensity * 0.4)
+		
+		# Movimiento de pupila e iris
+		var iris_node = eye_node.get_node("Iris")
+		var pupil_node = iris_node.get_node("Pupil")
+		var m_dir = (get_global_mouse_position() - iris_node.global_position).normalized()
+		
+		if is_eye_breaking_4th_wall:
+			m_dir = Vector2.ZERO # Mirar directo al frente (al jugador)
+			iris_node.modulate = Color(1.5, 1.2, 1.2) # Brillo sutil de interes
+		else:
+			iris_node.modulate = Color.WHITE
+			
+		iris_node.position = (m_dir * 25.0) - iris_node.size/2
+		
+		# Temblor de pupila en baja cordura
+		var p_pos = (m_dir * 10.0) - pupil_node.size/2
+		if GameManager.sanity < 30:
+			var p_shake = (30.0 - GameManager.sanity) * 0.4
+			p_pos += Vector2(randf_range(-p_shake, p_shake), randf_range(-p_shake, p_shake))
+			# Dilatacion erratica
+			pupil_node.scale.x = 1.0 + randf_range(-0.2, 0.5)
+		else:
+			pupil_node.scale.x = 1.0
+			
+		pupil_node.position = p_pos
+
+	# Efecto de temblor sutil (solo en baja cordura)
+	if not combat_ended and GameManager.sanity < 40:
+		var shake = (40.0 - GameManager.sanity) * 0.08
+		position = Vector2(randf_range(-shake, shake), randf_range(-shake, shake))
+	else:
+		position = Vector2.ZERO
+
+	# Logica de Parpadeo (Blinks)
+	if not combat_ended and GameManager.sanity < 35:
+		if randf() < 0.005: 
+			_trigger_screen_blink()
+			if GameManager.sanity < 25 and randf() < 0.3:
+				if get_node_or_null("/root/AudioManager"): AudioManager.play("agony_shriek")
+
+	# Oscilacion suave de nombres (Efecto de agua/eco)
+	if not combat_ended and GameManager.sanity < 50:
+		var t = Time.get_ticks_msec() / 1000.0
+		for e in enemies:
+			if e.hp > 0 and e.lbl_name:
+				e.lbl_name.position.x = sin(t * 2.0 + e.hp) * 5.0
+				e.lbl_name.modulate.a = 0.6 + sin(t * 3.0) * 0.4
+
 	if targeting_active and targeting_card:
 		targeting_arrow.clear_points()
 		targeting_arrow.add_point(targeting_card.global_position + Vector2(65, 0))
@@ -316,6 +512,13 @@ func _check_targeting() -> void:
 func _resolve_card(card, enemy_idx: int) -> void:
 	if player_energy < card.cost: return
 	player_energy -= card.cost
+	
+	# Efecto Cordura Baja: Desobediencia
+	if GameManager.sanity < 40 and card.card_name == "SIERVO QUEBRADO" and randf() < 0.20:
+		flash_small("Tus manos no te obedecen...")
+		card.queue_free()
+		update_ui(); update_card_states(); check_combat_end()
+		return
 
 	for i in range(hand.size()):
 		if hand[i].get("name", "").to_upper() == card.card_name:
@@ -346,6 +549,10 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			_spawn_damage_number(e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
 			_animate_enemy_hit(e)
 			if get_node_or_null("/root/AudioManager"): AudioManager.play("enemy_hit")
+			
+			# Lógica de Fase 2
+			if e.has_phase_2 and not e.in_phase_2 and e.hp > 0 and e.hp <= (e.max_hp * 0.5):
+				_trigger_boss_phase_2(e)
 		if e.hp <= 0:
 			e.hp = 0
 			_kill_enemy(e)  # async — maneja check_combat_end internamente
@@ -364,6 +571,12 @@ func _resolve_card(card, enemy_idx: int) -> void:
 
 	first_card_this_turn = false
 	card.queue_free()
+	# Logica Reloj de Arena Negra
+	cards_played_this_turn += 1
+	if GameManager.has_relic("reloj_negro") and cards_played_this_turn % 3 == 0:
+		player_energy = min(player_energy + 1, player_max_energy)
+		flash_small("Reloj: +1 Energia!")
+
 	update_ui(); update_intent_labels(); check_combat_end()
 
 func _set_enemy_aggressive(e: Dictionary) -> void:
@@ -451,9 +664,12 @@ func _start_player_idle_bob() -> void:
 
 # ── Update UI ──────────────────────────────────────────────────────────────────
 func update_ui() -> void:
-	lbl_player_hp.text = "HP: %d/%d" % [player_hp, player_max_hp]
+	lbl_player_hp.text = "HP: %d/%d  |  CORDURA: %d%%" % [player_hp, player_max_hp, GameManager.sanity]
 	if player_shield > 0: lbl_player_hp.text += "  [+%d esc]" % player_shield
 	hp_bar_player.value = player_hp
+	
+	if sanity_bar_player:
+		sanity_bar_player.value = GameManager.sanity
 	lbl_energy.text = "Energia: %d/%d" % [player_energy, player_max_energy]
 	lbl_draw_pile.text    = "Mazo: %d"        % draw_pile.size()
 	lbl_discard_pile.text = "Cementerio: %d"  % discard_pile.size()
@@ -465,21 +681,84 @@ func update_ui() -> void:
 func update_intent_labels() -> void:
 	for e in enemies:
 		if e.hp <= 0 or not e.lbl_intent_icon: continue
+		
+		# Logica de Intenciones Corruptas por Locura
+		if GameManager.sanity < 20:
+			var creepy = ["TE OBSERVA", "ACECHANDO", "...", "INEVITABLE"]
+			e.lbl_intent_icon.text = creepy[randi() % creepy.size()]
+			e.lbl_intent_icon.modulate = Color(0.8, 0.2, 0.2)
+			continue
+		
 		if e.peaceful:
-			e.lbl_intent_icon.text = "Espera... (%d turnos)" % e.peaceful_turns
-			e.lbl_intent_icon.modulate = Color(0.4, 1.0, 0.5)
+			var phrases = ["Rezando al Vacio...", "Lamentandose...", "Buscando perdon...", "En trance..."]
+			e.lbl_intent_icon.text = phrases[GameManager.total_runs % phrases.size()]
+			e.lbl_intent_icon.modulate = Color(0.6, 0.6, 0.8)
 		else:
 			var action = e.pattern[e.turn_index % e.pattern.size()]
+			var val_txt = str(action.value)
+			if GameManager.sanity < 40:
+				val_txt = "???" if randf() < 0.5 else "▓"
+			
 			if action.type == "attack":
-				e.lbl_intent_icon.text = "⚔ Atacar %d" % action.value
+				e.lbl_intent_icon.text = "⚔ Atacar " + val_txt
 				e.lbl_intent_icon.modulate = Color(1, 0.5, 0.4)
 			elif action.type == "shield":
-				e.lbl_intent_icon.text = "🛡 Escudo %d" % action.value
+				e.lbl_intent_icon.text = "🛡 Escudo " + val_txt
 				e.lbl_intent_icon.modulate = Color(0.4, 0.7, 1.0)
+
+func _trigger_boss_phase_2(e: Dictionary) -> void:
+	e.in_phase_2 = true
+	var heal = int(e.max_hp * 0.25)
+	e.hp = min(e.hp + heal, e.max_hp)
+	
+	# Potenciar patron
+	for action in e.pattern:
+		action["value"] = int(action["value"] * 1.4) + 2
+	
+	if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+	show_message(e.name + ": SEGUNDA FASE", Color(1.0, 0.2, 0.2))
+	
+	# Flash visual
+	var flash = ColorRect.new()
+	flash.size = get_viewport_rect().size; flash.color = Color(0.8, 0.1, 0.1, 0.3); flash.z_index = 45
+	add_child(flash)
+	var tw = create_tween()
+	tw.tween_property(flash, "color:a", 0.0, 0.6)
+	tw.tween_callback(flash.queue_free)
+	
+	await get_tree().create_timer(1.5).timeout
+	lbl_message.visible = false
+	update_ui(); update_intent_labels()
 
 func update_card_states() -> void:
 	for card in hand_container.get_children():
 		card.set_disabled(not is_player_turn or card.cost > player_energy)
+
+func _trigger_screen_blink() -> void:
+	if not blink_overlay: return
+	blink_overlay.visible = true
+	blink_overlay.modulate.a = 1.0
+	var tw = create_tween()
+	tw.tween_property(blink_overlay, "modulate:a", 0.0, randf_range(0.15, 0.3))
+	tw.tween_callback(func(): blink_overlay.visible = false)
+
+func _start_eye_blink_loop() -> void:
+	while true:
+		if not is_instance_valid(eye_node) or combat_ended: break
+		var wait = randf_range(2.0, 6.0)
+		if GameManager.sanity < 30: wait = randf_range(0.5, 2.5)
+		await get_tree().create_timer(wait).timeout
+		if not is_instance_valid(eye_node): break
+		var top = eye_node.get_node("LidTop")
+		var bot = eye_node.get_node("LidBot")
+		var tw = create_tween().set_parallel(true)
+		tw.tween_property(top, "position:y", -80, 0.12) # cerrar mas abajo
+		tw.tween_property(bot, "position:y", -10, 0.12) # cerrar mas arriba
+		await tw.finished
+		await get_tree().create_timer(0.08).timeout
+		var tw2 = create_tween().set_parallel(true)
+		tw2.tween_property(top, "position:y", -180, 0.18) # abrir mas arriba
+		tw2.tween_property(bot, "position:y", 90, 0.18) # abrir mas abajo
 
 # ── Fin de combate ─────────────────────────────────────────────────────────────
 func check_combat_end() -> void:
@@ -491,16 +770,24 @@ func check_combat_end() -> void:
 
 	combat_ended = true
 	GameManager.player_hp = player_hp
+	
+	if GameManager.is_elite_fight and GameManager.has_relic("caliz_olvido"):
+		GameManager.player_max_energy += 1
+		flash_small("Caliz: +1 Energia Max!")
+
 	GameManager.combat_count += 1
 	GameManager.lore_progress += 1
+	
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("victory")
-	show_message("VICTORIA", Color.GREEN)
+	
+	var victory_phrases = ["EL ECO SE DESVANECE", "MOVIMIENTO COMPLETADO", "PIEZA ELIMINADA", "EL REY SONRIE"]
+	show_message(victory_phrases[randi() % victory_phrases.size()], Color(0.85, 0.7, 0.2))
 	await get_tree().create_timer(1.2).timeout
 
 	if GameManager.is_hastur_fight:
 		# Final secreto — Hastur derrotado: victoria real
 		GameManager.player_won = true
-		await _show_victory_cinematic(true)
+		_show_victory_cinematic(true)
 		get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
 	elif GameManager.is_final_boss:
 		if GameManager.current_world == 0:
@@ -533,9 +820,9 @@ func _show_loot_screen() -> void:
 	loot_panel.z_index = 100
 
 	var title = Label.new()
-	title.text = "DESPOJOS DEL ECO"
+	title.text = "RECOLECTAR RESTOS"
 	title.add_theme_font_size_override("font_size", 32)
-	title.modulate = Color(0.9, 0.8, 0.3)
+	title.modulate = Color(0.7, 0.65, 0.4)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, 25); title.size = Vector2(600, 40)
 	loot_panel.add_child(title)
@@ -547,16 +834,16 @@ func _show_loot_screen() -> void:
 
 	# Recompensas
 	var frag_count = randi_range(12, 22)
-	_add_loot_button(reward_vbox, "Tomar " + str(frag_count) + " Fragmentos de Tablero", func():
+	_add_loot_button(reward_vbox, "◈ Tomar " + str(frag_count) + " Fragmentos de Tablero", func():
 		GameManager.add_coins(frag_count)
 	)
 
-	_add_loot_button(reward_vbox, "Recolectar Ecos de los Caidos (Nueva Carta)", func():
+	_add_loot_button(reward_vbox, "✦ Recolectar Ecos de los Caidos (Carta)", func():
 		get_tree().change_scene_to_file("res://scenes/ui/CardDraft.tscn")
 	)
 
 	if randf() < 0.35:
-		_add_loot_button(reward_vbox, "Beber Esencia de Olvido (+15 Cordura)", func():
+		_add_loot_button(reward_vbox, "☤ Beber Esencia de Olvido (+15 SAN)", func():
 			GameManager.sanity = min(100, GameManager.sanity + 15)
 		)
 
@@ -573,7 +860,8 @@ func _add_loot_button(container: Control, txt: String, action: Callable) -> void
 	btn.pressed.connect(func():
 		action.call()
 		btn.disabled = true; btn.modulate = Color(0.5, 0.5, 0.5, 0.6)
-		if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
+		# Llamada directa al Autoload
+		AudioManager.play("button_click")
 	)
 	container.add_child(btn)
 
@@ -866,6 +1154,12 @@ func _penitente_reward() -> void:
 	var heal_amount = int(player_max_hp * 0.25)
 	player_hp = min(player_hp + heal_amount, player_max_hp)
 	GameManager.player_hp = player_hp
+	# Logica Reloj
+	cards_played_this_turn += 1
+	if GameManager.has_relic("reloj_negro") and cards_played_this_turn % 3 == 0:
+		player_energy = min(player_energy + 1, player_max_energy)
+		flash_small("Reloj: +1 Energia!")
+
 	update_ui()
 	show_message("Te curas %d HP y recibes una vision." % heal_amount, Color(0.4, 1.0, 0.6))
 	await get_tree().create_timer(2.0).timeout
@@ -967,6 +1261,10 @@ func _on_end_turn_button_pressed() -> void:
 				if get_node_or_null("/root/AudioManager"): AudioManager.play("player_hit")
 		elif action.type == "shield":
 			e.shield += action.value
+		elif action.type == "insanity":
+			GameManager.sanity = max(0, GameManager.sanity - action.value)
+			flash_small(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
+			update_ui()
 
 		await get_tree().create_timer(0.35).timeout
 
@@ -974,11 +1272,15 @@ func _on_end_turn_button_pressed() -> void:
 
 	if player_hp <= 0:
 		GameManager.player_hp = 0
+		is_eye_breaking_4th_wall = true # El ojo te observa caer
+		update_ui()
 		if get_node_or_null("/root/AudioManager"): AudioManager.play("defeat")
+		await get_tree().create_timer(2.5).timeout
 		get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
 		return
 
 	GameManager.player_hp = player_hp
+	cards_played_this_turn = 0
 	update_ui(); update_intent_labels()
 	await draw_hand()
 	is_player_turn = true; end_turn_btn.disabled = false
@@ -987,8 +1289,8 @@ func _on_end_turn_button_pressed() -> void:
 # ── Dev ────────────────────────────────────────────────────────────────────────
 func _build_dev_panel(vp: Vector2) -> Panel:
 	var p = Panel.new()
-	p.position = Vector2(vp.x - 230, vp.y - 230)
-	p.size = Vector2(225, 222)
+	p.position = Vector2(vp.x - 230, vp.y - 400)
+	p.size = Vector2(225, 380)
 	p.z_index = 60
 	var st = StyleBoxFlat.new()
 	st.bg_color = Color(0.08, 0.08, 0.1, 0.95)
@@ -1026,10 +1328,14 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 			GameManager.add_secret_item("simbolo_amarillo")
 			GameManager.add_secret_item("cancion_amarilla")
 			GameManager.add_secret_item("carta_carcosa")
-			GameManager.is_hastur_fight = false
-			GameManager.is_final_boss = true
-			GameManager.current_world = 1
+			GameManager.is_hastur_fight = true
 			_dev_force_win()],
+		["SAN: 100 (Claro)", func(): GameManager.sanity = 100; update_ui()],
+		["SAN: 55 (Viñeta)", func(): GameManager.sanity = 55; update_ui()],
+		["SAN: 35 (Parpadeo)", func(): GameManager.sanity = 35; update_ui()],
+		["SAN: 15 (Ceguera)", func(): GameManager.sanity = 15; update_ui()],
+		["SAN: 0 (Muerte)", func(): GameManager.sanity = 0; check_combat_end()],
+		["HOGUERA (Rest)", func(): get_tree().change_scene_to_file("res://scenes/ui/Rest.tscn")],
 	]
 
 	for i in range(btns.size()):
@@ -1235,7 +1541,24 @@ func _make_pile_label(pos: Vector2, col: Color) -> Label:
 func show_message(txt, col: Color) -> void:
 	lbl_message.text = txt; lbl_message.modulate = col
 	lbl_message.visible = true
+	
+	if GameManager.sanity < 30:
+		# Efecto de sacudida de texto
+		var orig_pos = lbl_message.position
+		var tw = create_tween().set_loops(10)
+		tw.tween_property(lbl_message, "position", orig_pos + Vector2(randf_range(-5,5), randf_range(-3,3)), 0.05)
+		tw.tween_property(lbl_message, "position", orig_pos, 0.05)
+	
 	create_tween().tween_property(lbl_message, "modulate:a", 1.0, 0.5).from(0.0)
+
+func flash_small(text: String) -> void:
+	var f = Label.new(); f.text = text
+	f.add_theme_font_size_override("font_size", 16); f.modulate = Color(1, 0.8, 0.3)
+	f.position = Vector2(300, 250); f.z_index = 100; add_child(f)
+	var t = create_tween()
+	t.tween_property(f, "position:y", 180, 1.5).set_trans(Tween.TRANS_SINE)
+	t.parallel().tween_property(f, "modulate:a", 0.0, 1.5)
+	t.chain().tween_callback(f.queue_free)
 
 # ── Hastur ─────────────────────────────────────────────────────────────────────
 func _start_hastur_madness_loop() -> void:

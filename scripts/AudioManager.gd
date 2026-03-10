@@ -34,7 +34,8 @@ func _ready() -> void:
 	_sounds["menu_hover"]   = _tone(300.0, 0.05, 0.15)
 	_sounds["menu_glitch"]  = _descend_noise(120.0, 40.0, 0.25, 0.5)
 	_sounds["ambient_hum"]  = _tone_with_noise(60.0, 2.0, 0.1)
-	_sounds["thunder"]      = _tone_with_noise(40.0, 1.5, 0.8) # Sonido de trueno
+	_sounds["thunder"]      = _tone_with_noise(40.0, 1.5, 0.8)
+	_sounds["agony_shriek"] = _descend(1200.0, 400.0, 0.4, 0.3) # Grito agudo
 
 func play(sound_name: String) -> void:
 	if not _sounds.has(sound_name):
