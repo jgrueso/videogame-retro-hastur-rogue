@@ -93,11 +93,19 @@ func _ready() -> void:
 		if GameManager.is_hastur_fight:
 			_start_hastur_madness_loop()
 		elif not is_avatar:
-			var thought = LoreData.get_player_thought(enemies[0].name)
+			var char_id = GameManager.selected_character
+			var char_info = CombatData.CHAR_DATA.get(char_id, {"symbol": "♟", "color": Color.WHITE})
+			var thought = LoreData.get_player_thought(char_id, GameManager.sanity, enemies[0].name)
+			
 			await get_tree().create_timer(0.9).timeout
-			lbl_message.modulate = Color(0.6, 0.6, 0.6)
+			
+			# Mostrar nombre en mayúsculas y usar el color del personaje
+			lbl_message.text = "[" + char_id.to_upper() + "]: "
+			lbl_message.modulate = char_info["color"]
 			panel_message.visible = true
-			await _typewrite(lbl_message, thought, 0.03)
+			
+			# El texto se escribe después del prefijo
+			await _typewrite(lbl_message, lbl_message.text + thought, 0.03)
 			await get_tree().create_timer(2.0).timeout
 			var ft = create_tween()
 			ft.tween_property(panel_message, "modulate:a", 0.0, 0.6)
@@ -1079,7 +1087,11 @@ func _kill_enemy(e: Dictionary) -> void:
 	var t = create_tween()
 	t.tween_property(e.panel, "modulate:a", 0.0, 0.4)
 	t.tween_callback(func(): e.panel.visible = false)
+	
+	_is_showing_death_dialogue = true
 	await _show_death_dialogue(e.name)  # esperar a que el jugador haga clic
+	_is_showing_death_dialogue = false
+	
 	check_combat_end()
 
 func _spawn_damage_number(pos: Vector2, amount: int, col: Color) -> void:
@@ -1352,15 +1364,16 @@ func _sync_dynamic_audio() -> void:
 		var vol = -20.0 + (lost_sanity * 0.25)
 		var pitch = 1.0 + (lost_sanity * 0.01)
 		AudioManager.update_loop_params("Glith_distorsion_noised_sound", vol, pitch)
+var _is_showing_death_dialogue: bool = false
 
 # ── Fin de combate ─────────────────────────────────────────────────────────────
-
 func check_combat_end() -> void:
-	if combat_ended or _is_ending: return
+	if combat_ended or _is_ending or _is_showing_death_dialogue: return
 	var all_dead = true
 	for e in enemies:
 		if e.hp > 0: all_dead = false
 	if not all_dead: return
+
 
 	_is_ending = true
 	combat_ended = true
@@ -2104,6 +2117,10 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 			GameManager.add_secret_item("cancion_amarilla")
 			GameManager.add_secret_item("carta_carcosa")
 			show_message("Fragmentos: 3/3 — Hastur activado", Color(0.7, 0.3, 0.9))],
+		["+ Reliquia: Traductor", func():
+			GameManager.add_relic("lengua_tablero")
+			flash_small("Reliquia obtenida: Lengua del Tablero")
+			_populate_relics()],
 		["Final: REY SIN CORONA", func():
 			GameManager.is_hastur_fight = false
 			GameManager.is_final_boss = true
@@ -2514,6 +2531,9 @@ func show_message(txt, col: Color) -> void:
 var active_flashes: Array = []
 
 func flash_small(text: String) -> void:
+	# Registrar en el log de combate
+	log_message("SISTEMA", text, Color(1.0, 0.85, 0.2))
+	
 	var f = Label.new()
 	f.text = text
 	f.add_theme_font_size_override("font_size", 17)

@@ -11,145 +11,102 @@ static func get_lore_stage() -> int:
 	return 4              # Confrontacion
 
 # ─── PENSAMIENTOS DEL JUGADOR al entrar en combate ────────────────────────────
-static func get_player_thought(enemy_name: String) -> String:
-	var stage = get_lore_stage()
+static func get_player_thought(char_id: String, sanity: int, enemy_name: String) -> String:
+	if sanity < 30:
+		return _get_low_sanity_thought(char_id, enemy_name)
+	elif sanity < 70:
+		return _get_mid_sanity_thought(char_id, enemy_name)
+	else:
+		return _get_high_sanity_thought(char_id, enemy_name)
 
-	if stage == 0:
-		match enemy_name:
-			"Siervo Rebelde":   return "Otro corrompido. Le dare descanso rapido."
-			"Peon Maldito":     return "Se mueve como si algo tirara de sus huesos desde dentro."
-			"Torre Rota":       return "Una fortaleza caida. Nada que mi acero no pueda terminar."
-			"Alfil Caido":      return "Un creyente pervertido. Su fe ya no le protege."
-			"Caballero Roto":   return "Fue como yo, una vez. Ya no."
-			"Inquisidor Ciego": return "Busca algo que no encontrara. Yo tampoco se que es."
-			"El Penitente":     return "Parece que quiere decirme algo. Seguramente una trampa."
-			"EL CARCELERO":     return "Un guardian imponente. Pero todos los guardas tienen una llave."
-			"EL REY SIN CORONA":return "El Rey al que sirvo. Debo... debo protegerle. ¿Verdad?"
-		return "Siento el peso de mi mision. Adelante."
+static func _get_high_sanity_thought(char_id: String, enemy_name: String) -> String:
+	var has_trans = GameManager.has_relic("lengua_tablero")
+	
+	match char_id:
+		"conquistador":
+			match enemy_name:
+				"El Penitente":
+					if has_trans: return "Habla de perdón, pero yo solo escucho el eco de un peón quebrado. No habrá piedad en mi tablero."
+					return "Un cobarde que se rinde ante el tablero. Mi acero no conoce la piedad."
+				"EL CARCELERO": return "Un obstáculo digno. Tomaré sus llaves y su corona de ceniza."
+				"Avatar de Hastur": return "¿Un dios? He quemado templos más grandes que este ser."
+				_: return ["Otra pieza que se interpone en mi conquista.", "El tablero se teñirá de rojo hoy.", "Mi nombre será ley en Carcosa."].pick_random()
+		
+		"estratega":
+			match enemy_name:
+				"El Penitente":
+					if has_trans: return "Habla de 'runs' y 'ciclos'... ¿Acaso esta prisión tiene un arquitecto tan sádico como para repetir la misma jugada eternamente?"
+					return "Su trayectoria desafía la lógica del tablero. Es una anomalía que exige ser corregida."
+				"EL CARCELERO": return "Si él es el guarda, yo soy el teorema que descifrará las grietas de esta jaula."
+				"Avatar de Hastur": return "Sus dimensiones se burlan de la geometría sagrada. Una paradoja viviente que debo diseccionar."
+				_: return ["Este patrón es... elegante en su crueldad. Lo desarmaré pieza a pieza.", "Veo los hilos del movimiento antes de que ocurran. Pura matemática del caos.", "Un despliegue táctico lamentable. Procedo a la optimización del campo."].pick_random()
 
-	if stage == 1:
-		match enemy_name:
-			"El Penitente": return "Lleva marcas en la piel. Numeros. Como un inventario."
-			"EL CARCELERO": return "No me mira como a un enemigo. Me mira como a una pieza en el tablero."
-		return "Hay algo extraño en el aire. Como si ya hubiera pasado por aqui."
+		
+		"guardian":
+			match enemy_name:
+				"El Penitente":
+					if has_trans: return "Dice que mi escudo es mi propia jaula. Que protejo un mundo que ya ha muerto."
+					return "Siento su cansancio. Ojalá pudiera ofrecerle un refugio, pero el deber manda."
+				"EL CARCELERO": return "Mi escudo contra su maza. No permitiré que nadie más sea encerrado."
+				"Avatar de Hastur": return "Esta presencia... es la que juré detener. Por los caídos."
+				_: return ["Mantener la formación. No dar ni un paso atrás.", "Mientras yo respire, el vacío no avanzará.", "Soy el muro entre ellos y el final."].pick_random()
+	
+	return "Adelante. El destino aguarda."
 
-	if stage == 2:
-		match enemy_name:
-			"El Penitente":      return "Sus ojos... reconocen los mios. ¿Nos hemos visto antes?"
-			"EL CARCELERO":      return "Si es el carcelero... ¿de que prision soy yo el preso?"
-			"EL REY SIN CORONA": return "No tiene corona. Nunca la tuvo. ¿A quien he estado sirviendo?"
-		return "El tablero se repite. Estoy seguro. Ya estuve aqui."
+static func _get_mid_sanity_thought(char_id: String, enemy_name: String) -> String:
+	var has_trans = GameManager.has_relic("lengua_tablero")
+	
+	match char_id:
+		"conquistador":
+			if enemy_name == "El Penitente" and has_trans: return "Dice que ya he muerto mil veces. Que mi gloria es solo una repetición de su dolor."
+			return ["El aire sabe a metal oxidado... ¿He matado a este ser antes?", "Mis cicatrices pican bajo la armadura. ¿Son mías o del tablero?", "Mis victorias se sienten huecas. Como si ganara en un mundo de cartón."].pick_random()
+		"estratega":
+			if enemy_name == "El Penitente" and has_trans: return "El Penitente afirma que los datos se resetean, pero el trauma permanece en el código."
+			return ["Hay un error en la suma total de este universo. Los números no mienten.", "Las variables están cambiando de forma no lineal. El tablero parece respirar.", "¿Quién mueve mi lógica? Mi mente procesa pensamientos ajenos."].pick_random()
+		"guardian":
+			if enemy_name == "El Penitente" and has_trans: return "Susurra que el Rey Amarillo me talló a partir de un recuerdo olvidado."
+			return ["Este escudo pesa más que ayer. Siento el dolor de todos los que han caído.", "¿Soy el guardián de este mundo o el carcelero de mi propia alma?", "Hay un susurro bajo la lluvia que conoce mi nombre real."].pick_random()
+	
+	return "Algo no encaja en esta realidad. Las sombras se mueven solas."
 
-	# stage 3+
-	match enemy_name:
-		"El Penitente":      return "Es lo que yo sere despues de suficientes intentos."
-		"EL CARCELERO":      return "Guarda la jaula en la que yo mismo me encerre."
-		"EL REY SIN CORONA": return "No es el Rey. Es el vacio con forma de Rey."
-		"EL REY AMARILLO":   return "Aqui esta. La cosa que ha movido mis manos todo este tiempo."
-	return "Mis manos tiemblan. Pero no de miedo. De reconocimiento."
+static func _get_low_sanity_thought(char_id: String, enemy_name: String) -> String:
+	var has_trans = GameManager.has_relic("lengua_tablero")
+	if enemy_name == "El Penitente" and has_trans:
+		return "¡EL PENITENTE TIENE MI CARA! ¡DICE QUE ÉL ES YO EN LA PRÓXIMA PARTIDA!"
+
+	var common = ["¡NO SON MIS MANOS! ¡SON MADERA!", "El Rey... me mira desde mis propios ojos.", "¿Cuántas veces he muerto ya?", "TODO ES UNA BROMA TALLADA EN HUESO."]
+	match char_id:
+		"conquistador": return ["¡SANGRE PARA EL TABLERO DORADO!", "¡MI CORONA ESTÁ HECHA DE DIENTES!"].pick_random()
+		"estratega": return ["¡LA ECUACIÓN ES CERO! ¡TODO ES CERO!", "¡ERROR DE SISTEMA! ¡HUMANO NO ENCONTRADO!"].pick_random()
+		"guardian": return ["¡EL ESCUDO ES UNA LÁPIDA!", "¡PROTEJO UNA TUMBA VACÍA!"].pick_random()
+	
+	return common.pick_random()
 
 # ─── DIALOGOS DE MUERTE ────────────────────────────────────────────────────────
 static func get_death_dialogue(enemy_name: String) -> String:
 	var stage = get_lore_stage()
 	var has_translator = GameManager.has_relic("lengua_tablero")
 
-	# Jefes: siempre tienen dialogo, sin importar el stage
 	match enemy_name:
-		"EL CARCELERO":
-			if stage <= 1:
-				return "Eres... mas persistente... de lo esperado.\nPero volveras. Siempre volveras."
-			return "Crees que me has matado.\nYo soy la jaula. La jaula no muere."
-		"EL REY SIN CORONA":
-			if GameManager.has_all_secret_items():
-				return "Bien jugado... pieza.\nPero el verdadero tablero... aun no lo has visto."
-			elif stage <= 2:
-				return "El... otro... te espera.\nEn el siguiente... tablero."
-			return "No soy el Rey. Nunca lo fui.\nSoy el hueco donde estaba el Rey."
-		"EL REY AMARILLO":
-			if GameManager.has_all_secret_items():
-				return "Los has reunido...\nLos tres fragmentos del signo...\nYo era solo el muro.\nAhora... el que esta detras... despierta."
-			return "¿Crees que esto termina aqui?\nSiempre vuelves. Siempre pierdes.\nY aun asi... vuelves. Eso me divierte."
-		"EL VERDADERO HASTUR":
-			return "H A S T U R   N O   M U E R E\nH A S T U R   E S P E R A\nH A S T U R   R E C U E R D A"
-		"LA DAMA DE CENIZA":
-			return "Mi fuego... era lo unico real... en este mundo de madera..."
-		"El Penitente":
-			return "Gracias... por darme... el castigo que merecia..."
+		"EL CARCELERO": return "Crees que me has matado. Yo soy la jaula. La jaula no muere."
+		"EL REY SIN CORONA": return "No soy el Rey. Soy el hueco donde estaba el Rey."
+		"EL REY AMARILLO": return "¿Crees que esto termina aqui? Siempre vuelves."
+		"EL VERDADERO HASTUR": return "H A S T U R   R E C U E R D A"
+		"El Penitente": return "Gracias... por darme... el castigo que merecia..."
 
-	# Enemigos normales: pueden hablar garbled sin traductor
 	const GARBLED_ENEMIES = ["Siervo Rebelde", "Peon Maldito", "Espectro", "Alfil Caido"]
 	if enemy_name in GARBLED_ENEMIES and not has_translator and stage <= 1:
-		return GARBLED_NARRATIVE.get(enemy_name, "")
+		return GARBLED_NARRATIVE.get(enemy_name, "Se desvanece en ceniza.")
 
 	match enemy_name:
-		"Siervo Rebelde":
-			match stage:
-				0: return "Libre... al fin... libre..."
-				1: return "Gracias... por romper... mis hilos."
-				2: return "El Rey te tallara... de nuevo... igual que a mi."
-				_: return "Somos el mismo error. Una y otra vez."
+		"Siervo Rebelde": return "Libre... al fin... libre..."
+		"Peon Maldito": return "El tablero nos comera a los dos."
+		"Alfil Caido": return "No hay dioses aqui. Solo el juego."
+		"Torre Rota": return "Soy lo que queda cuando las reglas se rompen."
+		"Inquisidor Ciego": return "Buscaba la herejia. Era yo. Siempre fui yo."
+		_: return "Se desintegra en el vacío."
 
-		"Peon Maldito":
-			match stage:
-				0: return "No era... mi culpa..."
-				1: return "No recuerdo... mi nombre. ¿Tu recuerdas el tuyo?"
-				_: return "El tablero nos comera a los dos."
-
-		"Alfil Caido":
-			match stage:
-				0: return "Mi fe... fue real... alguna vez..."
-				1: return "Rece a algo que ya nos habia devorado."
-				_: return "No hay dioses aqui. Solo el juego."
-
-		"Espectro":
-			match stage:
-				0: return "..."
-				1: return "Fui... como tu..."
-				_: return "No muero. Me... reciclan."
-
-		"El Penitente":
-			match stage:
-				0: return "Escucha... tienes que escuchar... el tablero no es real..."
-				1: return "Ya lo sabes. En algun lugar de ti, ya lo sabes. Huye."
-				2: return "No puedes ganar. Solo puedes... recordar mas rapido que la vez anterior."
-				_: return "Esta es mi run numero... ya no recuerdo. Y la tuya tambien lleva mas de las que crees."
-
-		"Torre Rota":
-			match stage:
-				0: return "La oscuridad... no morira..."
-				_: return "Soy lo que queda cuando las reglas se rompen. Igual que tu."
-
-		"Caballero Roto":
-			match stage:
-				0: return "Falle... en proteger..."
-				_: return "Mi juramento era a algo que no existe. Como el tuyo."
-
-		"Inquisidor Ciego":
-			match stage:
-				0: return "La verdad... duele..."
-				_: return "Buscaba la herejia. Era yo. Siempre fui yo."
-
-		"EL CARCELERO":
-			if stage <= 1:
-				return "Eres... mas persistente... de lo esperado. Pero volveras."
-			return "Crees que me has matado. Yo soy la jaula. La jaula no muere."
-
-		"EL REY SIN CORONA":
-			if GameManager.has_all_secret_items():
-				return "Bien jugado... pieza. Pero el verdadero tablero... aun no lo has visto."
-			elif stage <= 2:
-				return "El... otro... te espera. En el siguiente... tablero."
-			return "No soy el Rey. Nunca lo fui. Soy el hueco donde estaba el Rey."
-
-		"EL REY AMARILLO":
-			return "¿Crees... que esto termina aqui? Eres mi jugada favorita.\nSiempre vuelves. Siempre pierdes. Y aun asi... vuelves."
-
-		"EL VERDADERO HASTUR":
-			return "H̷A̵S̷T̷U̵R̷ N̵O̶ M̷U̵E̷R̵E̴\nH̷A̵S̷T̷U̵R̷ E̵S̸P̷E̵R̷A̵\nH̷A̵S̷T̷U̵R̷ R̵E̶C̵U̷E̵R̷D̵A̷"
-
-	return ""
-
-# ─── GARBLED (sin traductor) ───────────────────────────────────────────────────
+# ─── GARBLED ──────────────────────────────────────────────────────────────────
 const GARBLED = {
 	"Siervo Rebelde": "▓░▒ ▓▓░...",
 	"Peon Maldito":   "◌◍● ◌●◍◌",
@@ -158,10 +115,10 @@ const GARBLED = {
 }
 
 const GARBLED_NARRATIVE = {
-	"Siervo Rebelde": "Se retuerce con un dolor que parece mas metalico que humano. Sus labios forman palabras sin sonido.",
-	"Peon Maldito":   "Algo dentro de el se rompe con un sonido humedo. Sus ojos miran un punto que no existe en este mundo.",
-	"Espectro":       "Se disuelve en el aire como humo frio. Donde estaba queda un olor a tierra mojada y tiempo viejo.",
-	"Alfil Caido":    "Cae de rodillas. Sus manos buscan algo en el suelo. Un altar que ya no esta.",
+	"Siervo Rebelde": "Se retuerce con un dolor que parece mas metalico que humano.",
+	"Peon Maldito":   "Algo dentro de el se rompe con un sonido humedo.",
+	"Espectro":       "Se disuelve en el aire como humo frio.",
+	"Alfil Caido":    "Cae de rodillas. Sus manos buscan algo en el suelo.",
 }
 
 static func is_garbled(text: String) -> bool:
@@ -169,46 +126,10 @@ static func is_garbled(text: String) -> bool:
 		if cipher in text: return true
 	return false
 
-# ─── FRAGMENTOS POST-COMBATE ───────────────────────────────────────────────────
 static func get_post_combat_fragment() -> String:
 	var p = GameManager.lore_progress
 	match p:
-		8:
-			return "[ Cronica del Heroe ]\n\n'He llegado a los limites de Valdris. La corrupcion es fuerte, pero el Rey me guia.\nSiento una fuerza invisible empujandome hacia adelante.\nEs el honor. Debe ser el honor.'"
-		18:
-			return "[ Fragmento de un diario ]\n\n'Dia 40. He matado a cien enemigos.\nPero no puedo recordar el nombre de mi madre.\n¿Es este el precio de la gloria? ¿Olvidadlo todo para salvarlo todo?'"
-		30:
-			return "[ Inscripcion en una piedra vieja ]\n\n'EL REY AMARILLO NO CREO EL MUNDO.\nENCONTRO EL MUNDO Y DECIDIO QUE SERIA SU TABLERO.\nNOSOTROS SOMOS LAS ASTILLAS QUE QUEDARON TRAS TALLAR LAS PIEZAS.'"
+		8: return "[ Cronica ]\n'El Rey me guia.'"
+		18: return "[ Diario ]\n'No recuerdo el nombre de mi madre.'"
+		30: return "[ Inscripcion ]\n'EL REY AMARILLO ENCONTRO EL MUNDO.'"
 	return ""
-
-static func get_random_thought(_type: String = "general") -> String:
-	var stage = get_lore_stage()
-	var sanity = GameManager.sanity
-	
-	if sanity < 25:
-		var critical = [
-			"¡SÁCAME DE AQUÍ! ¡SÁCAME DE AQUÍ!",
-			"Mis ojos... no son mis ojos...",
-			"El Rey... me esta tallando la cara...",
-			"¿Donde estan mis manos? No las veo...",
-			"La cancion... no para... me duele el alma...",
-			"Todo es madera. Todo es madera y sangre.",
-		]
-		return critical[randi() % critical.size()]
-
-	if stage == 0:
-		return "Debo seguir. Por el Rey. Por Valdris."
-	var pool = [
-		"El aire sabe a cobre y metal viejo.",
-		"Siento hilos invisibles tirando de mis munecas.",
-		"Mi sombra se mueve un segundo despues que yo.",
-		"¿Cuantas veces he cruzado este mismo pasillo?",
-		"El suelo tiene marcas de pasos. Son mis pasos.",
-	]
-	return pool[randi() % pool.size()]
-
-static func get_yellow_king_whisper() -> String:
-	var stage = get_lore_stage()
-	if stage == 0:
-		return "'Bien hecho, campeon mio. Sigue adelante.'"
-	return "'¿Sabias que esta es la vez numero " + str(GameManager.total_runs + 1) + " que mueres por mi entretenimiento?'"
