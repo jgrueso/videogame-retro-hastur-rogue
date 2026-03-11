@@ -265,8 +265,14 @@ func _apply_style(color: Color) -> void:
 	style.border_width_top = 3
 	style.border_width_bottom = 3
 	
-	# Borde segun tipo de carta
-	if "SUSURRO" in card_name or "ECO" in card_name:
+	# Detectar si es maldición por nombre o data
+	var is_curse = "MALDICIÓN" in description or "PESO DE LA VERDAD" in card_name or "MALDICIÓN DE CENIZA" in card_name
+	
+	if is_curse:
+		style.bg_color = Color(0.02, 0.0, 0.03) # Casi negro púrpura
+		style.border_color = Color(0.4, 0.1, 0.5) # Púrpura oscuro
+		label_name.modulate = Color(0.6, 0.2, 0.7) # Texto corrupto
+	elif "SUSURRO" in card_name or "ECO" in card_name:
 		style.border_color = Color(0.5, 0.4, 0.6) # Purpura místico para especiales
 	elif cost == 0:
 		style.border_color = Color(0.5, 0.5, 0.5) # Gris para coste 0

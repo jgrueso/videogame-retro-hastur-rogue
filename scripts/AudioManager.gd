@@ -40,7 +40,10 @@ func _ready() -> void:
 	_sounds["menu_glitch"]  = _descend_noise(120.0, 40.0, 0.25, 0.5)
 	_sounds["ambient_hum"]  = _tone_with_noise(60.0, 2.0, 0.1)
 	_sounds["thunder"]      = _tone_with_noise(40.0, 1.5, 0.8)
-	_sounds["agony_shriek"] = _descend(1200.0, 400.0, 0.4, 0.3) # Grito agudo
+	
+	# Grito de Agonía: Más complejo y aterrador
+	_sounds["agony_shriek"] = _descend_noise(800.0, 100.0, 0.8, 0.7) # Un lamento que cae en el ruido
+	_sounds["whisper_madness"] = _tone_with_noise(200.0, 0.5, 0.4) # Susurro sintético
 
 func play(sound_name: String) -> void:
 	var stream: AudioStream = null

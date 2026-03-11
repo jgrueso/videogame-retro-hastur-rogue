@@ -32,6 +32,8 @@ var lbl_draw_pile: Label
 var lbl_discard_pile: Label
 var end_turn_btn: Button
 var relics_container: HBoxContainer
+var log_panel: Panel
+var log_vbox: VBoxContainer
 var lbl_message: Label
 var panel_message: Panel
 var vignette: ColorRect
@@ -191,6 +193,7 @@ func _show_avatar_intro() -> void:
 func _show_avatar_bark() -> void:
 	if enemies.is_empty() or not "AVATAR" in enemies[0].name.to_upper(): return
 	var msg = CombatData.ENEMY_COMBAT_BANTER["Avatar de Hastur"][randi() % CombatData.ENEMY_COMBAT_BANTER["Avatar de Hastur"].size()]
+	log_message("AVATAR", msg, Color(0.8, 0.4, 1.0))
 	
 	var bark_lbl = Label.new()
 	bark_lbl.text = msg
@@ -401,6 +404,31 @@ func build_ui() -> void:
 	relics_container.add_theme_constant_override("separation", 6)
 	add_child(relics_container)
 	_populate_relics()
+
+	# --- HISTORIAL DE COMBATE (Log) ---
+	log_panel = Panel.new()
+	log_panel.position = Vector2(10, 55)
+	log_panel.size = Vector2(300, 120)
+	log_panel.modulate.a = 0.25 # Casi transparente por defecto
+	log_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(log_panel)
+	
+	var ls = StyleBoxFlat.new()
+	ls.bg_color = Color(0, 0, 0, 0.7); ls.border_width_left = 2; ls.border_color = Color(0.3, 0.3, 0.3)
+	log_panel.add_theme_stylebox_override("panel", ls)
+	
+	var scroll = ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_KEEP_SIZE, 5)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	log_panel.add_child(scroll)
+	
+	log_vbox = VBoxContainer.new()
+	log_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(log_vbox)
+	
+	# Hover logic para el Log
+	log_panel.mouse_entered.connect(func(): create_tween().tween_property(log_panel, "modulate:a", 1.0, 0.2))
+	log_panel.mouse_exited.connect(func(): create_tween().tween_property(log_panel, "modulate:a", 0.25, 0.3))
 
 	# Viñeta de Cordura
 	vignette = ColorRect.new()
@@ -657,12 +685,15 @@ func _process(_delta: float) -> void:
 	else:
 		position = Vector2.ZERO
 
-	# Logica de Parpadeo (Blinks)
+	# Logica de Parpadeo (Blinks) y Sonidos de Terror
 	if not combat_ended and GameManager.sanity < 35:
-		if randf() < 0.005: 
+		if randf() < 0.008: 
 			_trigger_screen_blink()
-			if GameManager.sanity < 25 and randf() < 0.3:
-				if get_node_or_null("/root/AudioManager"): AudioManager.play("agony_shriek")
+			if get_node_or_null("/root/AudioManager"):
+				if randf() < 0.4:
+					AudioManager.play("agony_shriek")
+				else:
+					AudioManager.play("whisper_madness")
 
 	# Oscilacion suave de nombres (Efecto de agua/eco)
 	if not combat_ended and GameManager.sanity < 50:
@@ -698,6 +729,9 @@ var _is_resolving_extra_mirror_card: bool = false
 
 func _flash_relic(relic_id: String) -> void:
 	if not relics_container: return
+	var r_name = GameManager.RELIC_DATA.get(relic_id, {"name": relic_id})["name"]
+	log_message("RELIQUIA", "Se activa: " + r_name, Color(0.9, 0.8, 0.2))
+	
 	for icon in relics_container.get_children():
 		if icon.get("relic_id") == relic_id:
 			# Efecto de pulso
@@ -748,6 +782,7 @@ func _resolve_card(card, enemy_idx: int) -> void:
 	discard_pile.append({"name": card.card_name, "attack": card.attack, "defense": card.defense, "cost": card.cost})
 
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_play")
+	log_message("TU", "Juegas " + card.card_name, Color(0.4, 0.8, 1.0))
 
 	# ── LÓGICA DE CARTAS ESPECIALES (Independientes de ataque base) ──
 	
@@ -832,6 +867,7 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			if get_node_or_null("/root/AudioManager"): AudioManager.play("shield_block")
 		if dmg > 0:
 			e.hp -= dmg
+			log_message("TU", "Infliges %d de daño a %s" % [dmg, e.name], Color(0.4, 0.8, 1.0))
 			_spawn_damage_number(e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
 			_animate_enemy_hit(e)
 			if get_node_or_null("/root/AudioManager"): AudioManager.play("enemy_hit")
@@ -846,6 +882,8 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			
 			# BOTÓN MISTERIOSO (15%): Fragmento Eterno
 			if "AVATAR" in e.name.to_upper():
+				await _show_avatar_defeat_lore()
+				
 				if randf() < 0.15:
 					GameManager.has_eternal_fragment = true
 					flash_small("✦ ¡HAS OBTENIDO UN FRAGMENTO DE ETERNIDAD! ✦")
@@ -1713,6 +1751,14 @@ func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void
 			GameManager.add_relic(relic_id)
 			dim.queue_free(); title.queue_free(); panels_root.queue_free()
 			if next_scene == "__world2__":
+				# Cinemática del Falso Rey
+				await _show_yellow_truth_cinematic([
+					"El Rey Sin Corona ha sido reclamado por el vacío.",
+					"Buscó un trono que nunca existió, olvidando que en este tablero...",
+					"Incluso los reyes son solo peones en manos del que viste de Amarillo.",
+					"Bienvenido al Tablero Dorado. Donde la ceniza se vuelve ley."
+				])
+				
 				GameManager.current_world = 1
 				GameManager.map_graph = []
 				GameManager.map_path = {} # Limpiar el camino del mundo anterior
@@ -1877,6 +1923,7 @@ func _on_end_turn_button_pressed() -> void:
 			# Mostrar siempre el daño o el fallo si es un ataque
 			if dmg > 0:
 				player_hp -= dmg
+				log_message(e.name, "Te inflige %d de daño" % dmg, Color(1.0, 0.3, 0.3))
 				_animate_player_hit()
 				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), dmg, Color(1, 0.3, 0.3))
 				if get_node_or_null("/root/AudioManager"): AudioManager.play("player_hit")
@@ -2299,6 +2346,27 @@ func _show_deck_viewer() -> void:
 	close_btn.pressed.connect(overlay.queue_free)
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
 
+func log_message(subject: String, text: String, color: Color) -> void:
+	if not log_vbox: return
+	
+	var lbl = Label.new()
+	lbl.text = "[%s]: %s" % [subject.to_upper(), text]
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.modulate = color
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.custom_minimum_size.x = 280
+	log_vbox.add_child(lbl)
+	
+	# Mantener solo los últimos 20 mensajes
+	if log_vbox.get_child_count() > 20:
+		log_vbox.get_child(0).queue_free()
+	
+	# Auto-scroll al final (esperar un frame para que el layout se actualice)
+	await get_tree().process_frame
+	var scroll = log_panel.get_child(0) as ScrollContainer
+	if scroll:
+		scroll.set_v_scroll(log_vbox.size.y)
+
 func _show_player_passive_tooltip() -> void:
 	var char_id = GameManager.selected_character
 	var char_name = char_id.to_upper()
@@ -2483,3 +2551,77 @@ func _start_hastur_madness_loop() -> void:
 		f.position = Vector2(0, 200); f.size = Vector2(1152, 200)
 		f.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; f.z_index = 5; add_child(f)
 		await get_tree().create_timer(0.12).timeout; f.queue_free()
+
+# ── Cinemáticas de Verdad Amarilla ─────────────────────────────────────────────
+
+func _show_yellow_truth_cinematic(lines: Array) -> void:
+	var vp = get_viewport_rect().size
+	var layer = CanvasLayer.new()
+	layer.layer = 150
+	add_child(layer)
+	
+	var bg = ColorRect.new()
+	bg.color = Color(0.9, 0.8, 0.2) # Amarillo Hastur
+	bg.size = vp
+	layer.add_child(bg)
+	
+	# Efecto de ruido/grano sutil
+	var noise = ColorRect.new()
+	noise.color = Color(0, 0, 0, 0.05)
+	noise.size = vp
+	layer.add_child(noise)
+	var n_tw = create_tween().set_loops()
+	n_tw.tween_property(noise, "modulate:a", 0.15, 0.05)
+	n_tw.tween_property(noise, "modulate:a", 0.05, 0.05)
+	
+	var lbl = Label.new()
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.position = Vector2(vp.x * 0.1, vp.y * 0.2)
+	lbl.size = Vector2(vp.x * 0.8, vp.y * 0.6)
+	lbl.add_theme_font_size_override("font_size", 28)
+	lbl.add_theme_color_override("font_color", Color.BLACK)
+	layer.add_child(lbl)
+	
+	for text in lines:
+		lbl.text = ""
+		await _typewrite(lbl, text, 0.04)
+		await get_tree().create_timer(2.5).timeout
+		var fade = create_tween()
+		fade.tween_property(lbl, "modulate:a", 0.0, 0.5)
+		await fade.finished
+		lbl.modulate.a = 1.0
+	
+	var out = create_tween()
+	out.tween_property(layer, "modulate:a", 0.0, 1.0)
+	await out.finished
+	layer.queue_free()
+
+func _show_avatar_defeat_lore() -> void:
+	var count = GameManager.secret_items.size()
+	var lines = []
+	
+	match count:
+		1:
+			lines = [
+				"El Heraldo cae, pero su sombra permanece.",
+				"Un solo fragmento de verdad es una carga pesada.",
+				"Has visto el borde del tablero... y lo que hay debajo."
+			]
+		2:
+			lines = [
+				"Dos verdades chocan en tu mente.",
+				"El Rey no está lejos, su risa resuena en tu mazo.",
+				"¿Sientes la lluvia roja? Es el cielo llorando por tu ignorancia."
+			]
+		3:
+			lines = [
+				"EL VELO SE HA ROTO.",
+				"Hastur no necesita buscarte. Tú ya eres suyo.",
+				"Bienvenido a la Perdida Carcosa. Aquí el tiempo es solo una pieza más."
+			]
+		_:
+			lines = ["El vacío devuelve tu mirada."]
+			
+	await _show_yellow_truth_cinematic(lines)

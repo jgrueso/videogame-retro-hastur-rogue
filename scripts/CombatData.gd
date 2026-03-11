@@ -55,12 +55,12 @@ const ENEMY_COMBAT_BANTER = {
 	"Idolo Corrupto":   ["la ceniza llama...", "mira el sol negro...", "tu voz se apaga..."],
 	"El Penitente":     ["...perdon...", "...el Rey observa...", "...aun no es tu hora..."],
 	"Avatar de Hastur": [
-		"El tablero no tiene bordes... solo caídas infinitas.",
-		"Tus cuerdas son de ceniza. Yo solo soplo.",
-		"La canción ya ha empezado. Tú eres solo una nota desafinada.",
-		"Carcosa no es un lugar. Es lo que queda cuando dejas de ser tú.",
-		"¿Sientes cómo se estira tu realidad? Es el Rey saludando.",
-		"Ninguna pieza vuelve a la caja. Todas se funden en el Tablero Dorado."
+		"Ese fragmento quema tu mano... porque no es tuya.",
+		"Ladron de realidades. Devuelve lo que el Rey ha perdido.",
+		"¿Crees que puedes cargar con la eternidad? Tus hombros ya se rompen.",
+		"Viniste por ceniza y robaste oro. El Tablero Dorado reclama su deuda.",
+		"Cada pieza que guardas es un grito que te encontrara.",
+		"No eres un jugador. Eres solo un receptaculo para lo que nos pertenece."
 	]
 }
 
