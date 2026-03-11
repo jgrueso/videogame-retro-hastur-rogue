@@ -88,12 +88,20 @@ func play_loop(sound_name: String) -> void:
 	if _active_loops.has(sound_name): return
 	var stream = _get_stream(sound_name)
 	if stream:
+		# Forzar loop según el formato ANTES de reproducir
+		if stream is AudioStreamMP3: 
+			stream.loop = true
+		elif stream is AudioStreamWAV:
+			stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		elif stream is AudioStreamOggVorbis:
+			stream.loop = true
+			
+		print("AudioManager: Iniciando loop de: ", sound_name)
 		var p = AudioStreamPlayer.new()
 		p.stream = stream
-		p.volume_db = -20.0 # Empezar suave
+		p.volume_db = -10.0 # Empezar un poco más fuerte
 		add_child(p)
 		p.play()
-		if stream is AudioStreamMP3: stream.loop = true
 		_active_loops[sound_name] = p
 
 func update_loop_params(sound_name: String, vol: float, pitch: float) -> void:

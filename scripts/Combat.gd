@@ -110,13 +110,18 @@ func _ready() -> void:
 		await _show_avatar_intro()
 		GameManager.sanity = max(0, GameManager.sanity - 30)
 		flash_small("¡PRESENCIA ATERRADORA! -30 Cordura")
-		
-		# Iniciar loop de distorsión dinámica
 		if get_node_or_null("/root/AudioManager"):
 			AudioManager.play_loop("Glith_distorsion_noised_sound")
-			_update_distortion_by_sanity()
-			
+			_sync_dynamic_audio()
 		update_ui()
+
+	# --- LÓGICA ESPECIAL VERDADERO HASTUR ---
+	if GameManager.is_hastur_fight:
+		# Hastur no necesita intro de texto, él ES el ruido
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play_loop("Glith_distorsion_noised_sound")
+			AudioManager.play_loop("Cry_whisper_woman_sound")
+			_sync_dynamic_audio()
 
 	end_turn_btn.disabled = false
 
@@ -1035,7 +1040,8 @@ func update_ui() -> void:
 	if sanity_bar_player:
 		sanity_bar_player.value = GameManager.sanity
 	
-	_update_distortion_by_sanity()
+	# Sincronización centralizada de audio dinámico
+	_sync_dynamic_audio()
 	
 	lbl_energy.text = "Energia: %d/%d" % [player_energy, player_max_energy]
 	
@@ -1225,19 +1231,36 @@ func _start_eye_blink_loop() -> void:
 
 var _is_ending: bool = false
 
-func _update_distortion_by_sanity() -> void:
+func _sync_dynamic_audio() -> void:
 	if not get_node_or_null("/root/AudioManager"): return
-	
-	# Solo si el loop está activo (por ahora solo contra el Avatar)
+
 	var lost_sanity = 100.0 - GameManager.sanity
-	# Volumen: de -20dB (cordura 100) a 0dB (cordura 0)
-	var vol = -20.0 + (lost_sanity * 0.2)
-	# Pitch: de 1.0 (cordura 100) a 1.8 (cordura 0)
-	var pitch = 1.0 + (lost_sanity * 0.008)
-	
-	AudioManager.update_loop_params("Glith_distorsion_noised_sound", vol, pitch)
+	var is_avatar = not enemies.is_empty() and "AVATAR" in enemies[0].name.to_upper()
+
+	# 1. Lógica para Hastur (Prioridad máxima)
+	if GameManager.is_hastur_fight and not enemies.is_empty():
+		var h = enemies[0]
+		var hp_perc = float(h.hp) / float(h.max_hp)
+		var intensity = 1.0 - hp_perc
+		
+		# Glitch (Hastur) - Empezar en -5dB y subir a +2dB
+		var g_vol = -5.0 + (intensity * 7.0)
+		var g_pitch = 1.0 + (intensity * 0.6)
+		AudioManager.update_loop_params("Glith_distorsion_noised_sound", g_vol, g_pitch)
+
+		# Susurro (Hastur)
+		var s_vol = -20.0 + (intensity * 18.0)
+		var s_pitch = 1.0 - (intensity * 0.4)
+		AudioManager.update_loop_params("Cry_whisper_woman_sound", s_vol, s_pitch)
+
+	# 2. Lógica para Avatar o Cordura baja (Solo Glitch)
+	elif is_avatar or GameManager.sanity < 40:
+		var vol = -20.0 + (lost_sanity * 0.25)
+		var pitch = 1.0 + (lost_sanity * 0.01)
+		AudioManager.update_loop_params("Glith_distorsion_noised_sound", vol, pitch)
 
 # ── Fin de combate ─────────────────────────────────────────────────────────────
+
 func check_combat_end() -> void:
 	if combat_ended or _is_ending: return
 	var all_dead = true
@@ -1248,9 +1271,10 @@ func check_combat_end() -> void:
 	_is_ending = true
 	combat_ended = true
 	
-	# Detener distorsión
+	# Detener distorsiones
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.stop_loop("Glith_distorsion_noised_sound")
+		AudioManager.stop_loop("Cry_whisper_woman_sound")
 	
 	# Recuperación de Cordura al Ganar
 	GameManager.sanity = min(100, GameManager.sanity + 10)
@@ -1918,6 +1942,13 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 			if not enemies.is_empty(): _trigger_boss_phase_2(enemies[0])],
 		["CURAR TODO", func():
 			player_hp = player_max_hp; update_ui()],
+		["DAÑO ENEMIGOS -40", func():
+			for e in enemies:
+				if e.hp > 0:
+					e.hp = max(0, e.hp - 40)
+					_spawn_damage_number(e.panel.global_position + Vector2(100, 60), 40, Color(1, 1, 1))
+					if e.hp <= 0: await _kill_enemy(e)
+			update_ui()],
 		["SAN: 100 (Claro)", func(): GameManager.sanity = 100; update_ui()],
 		["SAN: 55 (Viñeta)", func(): GameManager.sanity = 55; update_ui()],
 		["SAN: 35 (Parpadeo)", func(): GameManager.sanity = 35; update_ui()],
