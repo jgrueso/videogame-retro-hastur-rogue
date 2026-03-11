@@ -2560,19 +2560,22 @@ func _show_yellow_truth_cinematic(lines: Array) -> void:
 	layer.layer = 150
 	add_child(layer)
 	
-	var bg = ColorRect.new()
-	bg.color = Color(0.9, 0.8, 0.2) # Amarillo Hastur
-	bg.size = vp
-	layer.add_child(bg)
+	# Nodo raíz para poder desvanecer todo el contenido
+	var root = Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(root)
 	
-	# Efecto de ruido/grano sutil
+	# Fondo Negro Profundo
+	var bg = ColorRect.new()
+	bg.color = Color(0, 0, 0, 1.0)
+	bg.size = vp
+	root.add_child(bg)
+	
+	# Ruido visual
 	var noise = ColorRect.new()
-	noise.color = Color(0, 0, 0, 0.05)
+	noise.color = Color(0.1, 0.1, 0.1, 0.1)
 	noise.size = vp
-	layer.add_child(noise)
-	var n_tw = create_tween().set_loops()
-	n_tw.tween_property(noise, "modulate:a", 0.15, 0.05)
-	n_tw.tween_property(noise, "modulate:a", 0.05, 0.05)
+	root.add_child(noise)
 	
 	var lbl = Label.new()
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2580,22 +2583,50 @@ func _show_yellow_truth_cinematic(lines: Array) -> void:
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
 	lbl.position = Vector2(vp.x * 0.1, vp.y * 0.2)
 	lbl.size = Vector2(vp.x * 0.8, vp.y * 0.6)
-	lbl.add_theme_font_size_override("font_size", 28)
-	lbl.add_theme_color_override("font_color", Color.BLACK)
-	layer.add_child(lbl)
+	lbl.add_theme_font_size_override("font_size", 26)
+	lbl.modulate = Color(0.4, 0.35, 0.1)
+	root.add_child(lbl)
 	
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("ambient_hum")
+
 	for text in lines:
+		if not is_instance_valid(self): break
 		lbl.text = ""
-		await _typewrite(lbl, text, 0.04)
-		await get_tree().create_timer(2.5).timeout
+		lbl.modulate = Color(0.4, 0.35, 0.1)
+		lbl.modulate.a = 1.0 # Asegurar visibilidad al inicio de cada frase
+		
+		var text_tw = create_tween()
+		text_tw.tween_property(lbl, "modulate", Color(1.2, 1.0, 0.2), 2.5)
+		
+		await _typewrite(lbl, text, 0.06)
+		await get_tree().create_timer(1.5).timeout
+		
+		# Efecto Rotoscopia
+		for i in range(4):
+			if not is_instance_valid(bg): break
+			bg.color = Color(0.1, 0.08, 0.0) if i % 2 == 0 else Color(0,0,0)
+			lbl.visible = !lbl.visible
+			await get_tree().create_timer(0.05).timeout
+		
+		lbl.visible = true
+		bg.color = Color.BLACK
+		
+		# Desvanecer frase actual
 		var fade = create_tween()
-		fade.tween_property(lbl, "modulate:a", 0.0, 0.5)
+		fade.tween_property(lbl, "modulate:a", 0.0, 0.8)
 		await fade.finished
-		lbl.modulate.a = 1.0
+		# NO reseteamos alpha a 1.0 aquí para que no "salte" el texto
+	
+	print("Combat: Iniciando desvanecimiento final de cinemática...")
 	
 	var out = create_tween()
-	out.tween_property(layer, "modulate:a", 0.0, 1.0)
-	await out.finished
+	out.tween_property(root, "modulate:a", 0.0, 1.0)
+	
+	# Si en 2 segundos no ha terminado, forzamos la salida
+	await get_tree().create_timer(1.2).timeout
+	
+	print("Combat: Cinemática concluida. Liberando recursos y volviendo al mapa.")
 	layer.queue_free()
 
 func _show_avatar_defeat_lore() -> void:
