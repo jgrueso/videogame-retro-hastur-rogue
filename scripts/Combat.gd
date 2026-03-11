@@ -117,7 +117,10 @@ func _ready() -> void:
 
 	# --- LÓGICA ESPECIAL VERDADERO HASTUR ---
 	if GameManager.is_hastur_fight:
-		# Hastur no necesita intro de texto, él ES el ruido
+		# Hastur ES el caos. Drenaje inicial masivo
+		GameManager.sanity = max(0, GameManager.sanity - 50)
+		flash_small("¡HASTUR HA LLEGADO! -50 Cordura")
+		
 		if get_node_or_null("/root/AudioManager"):
 			AudioManager.play_loop("Glith_distorsion_noised_sound")
 			AudioManager.play_loop("Cry_whisper_woman_sound")
@@ -206,7 +209,14 @@ func _show_avatar_bark() -> void:
 func _setup_encounter() -> void:
 	var pool = []
 	if GameManager.is_hastur_fight:
-		pool = [{"name": "EL VERDADERO HASTUR", "hp": 240, "pattern": [{"type": "attack", "value": 15}, {"type": "shield", "value": 12}]}]
+		pool = [{"name": "EL VERDADERO HASTUR", "hp": 350, "pattern": [
+			{"type": "insanity", "value": 15}, 
+			{"type": "attack", "value": 20}, 
+			{"type": "possession", "value": 0}, 
+			{"type": "attack", "value": 15},
+			{"type": "ultimate_charge", "value": 0},
+			{"type": "ultimate_attack", "value": 45}
+		]}]
 	elif GameManager.is_final_boss:
 		if GameManager.current_world == 1:
 			pool = [{"name": "EL REY AMARILLO",   "hp": 180, "pattern": [{"type": "attack", "value": 14}, {"type": "shield", "value": 10}, {"type": "attack", "value": 18}]}]
@@ -1820,28 +1830,72 @@ func _on_end_turn_button_pressed() -> void:
 			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), action.value, Color(0.7, 0.3, 1.0))
 			flash_small(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
 			update_ui()
+		
+		# --- NUEVAS MECÁNICAS DE HASTUR ---
+		elif action.type == "possession":
+			var cards = hand_container.get_children()
+			if not cards.is_empty():
+				var target_card = cards[randi() % cards.size()]
+				flash_small("¡HASTUR TOMA EL CONTROL!")
+				flash_small("Usas " + target_card.card_name + " contra ti mismo.")
+				
+				# Aplicar daño al jugador basado en el ataque de la carta
+				var self_dmg = target_card.attack
+				if "SIERVO" in target_card.card_name: self_dmg += GameManager.siervo_atk_bonus_perm
+				
+				player_hp -= self_dmg
+				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), self_dmg, Color(1, 0.2, 0.2))
+				_animate_player_hit()
+				
+				# Animación de la carta volando hacia el jugador
+				await target_card.play_attack_animation(player_panel.global_position + Vector2(200, 30))
+				target_card.queue_free()
+				reorganize_hand()
+				
+				flash_small("Tu turno ha sido arrebatado.")
+				# Forzar fin de turno (pero como ya estamos en turno enemigo, esto solo salta las acciones restantes si las hubiera)
+				break 
+		
+		elif action.type == "ultimate_charge":
+			flash_small("¡EL CIELO SE RASGA! Hastur prepara su juicio...")
+			_trigger_screen_blink()
+			if get_node_or_null("/root/AudioManager"): AudioManager.play("agony_shriek")
+			
+		elif action.type == "ultimate_attack":
+			flash_small("¡EL JUICIO DE CARCOSA!")
+			player_hp -= action.value
+			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), action.value, Color(1, 0, 0))
+			_trigger_screen_blink()
+			_animate_player_hit()
 
 		await get_tree().create_timer(0.35).timeout
 
 	# ── FIN DEL TURNO ENEMIGO ──
-	# Drenaje de cordura por turno si el Avatar está presente
-	if not enemies.is_empty() and "AVATAR" in enemies[0].name.to_upper():
-		GameManager.sanity = max(0, GameManager.sanity - 5)
-		_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 5, Color(0.7, 0.3, 1.0))
-		flash_small("LA PRESENCIA DEL AVATAR TE CORROMPE (-5)")
-		
-		# --- REFLEJO DE LA LOCURA ---
-		if GameManager.sanity < 20:
-			var cards_in_hand = hand_container.get_children()
-			if not cards_in_hand.is_empty():
-				var target_card = cards_in_hand[randi() % cards_in_hand.size()]
-				flash_small("¡REFLEJO DE LA LOCURA! Una pieza ha sido corrompida.")
-				target_card.setup({"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 1, "curse": true})
-				target_card.modulate = Color(0.4, 0.1, 0.5) # Color corrupto
-				if get_node_or_null("/root/AudioManager"):
-					AudioManager.play("Cry_whisper_woman_sound")
-		
-		update_ui()
+	# Drenaje de cordura por turno si el Avatar o Hastur están presentes
+	if not enemies.is_empty():
+		var e0 = enemies[0]
+		if "HASTUR" in e0.name.to_upper():
+			GameManager.sanity = max(0, GameManager.sanity - 10) # Hastur drena más
+			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 10, Color(0.7, 0.3, 1.0))
+			flash_small("LA CANCIÓN DE CARCOSA TE PERSIGUE (-10)")
+			update_ui()
+		elif "AVATAR" in e0.name.to_upper():
+			GameManager.sanity = max(0, GameManager.sanity - 5)
+			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 5, Color(0.7, 0.3, 1.0))
+			flash_small("LA PRESENCIA DEL AVATAR TE CORROMPE (-5)")
+			
+			# --- REFLEJO DE LA LOCURA ---
+			if GameManager.sanity < 20:
+				var cards_in_hand = hand_container.get_children()
+				if not cards_in_hand.is_empty():
+					var target_card = cards_in_hand[randi() % cards_in_hand.size()]
+					flash_small("¡REFLEJO DE LA LOCURA! Una pieza ha sido corrompida.")
+					target_card.setup({"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 1, "curse": true})
+					target_card.modulate = Color(0.4, 0.1, 0.5) # Color corrupto
+					if get_node_or_null("/root/AudioManager"):
+						AudioManager.play("Cry_whisper_woman_sound")
+			
+			update_ui()
 
 	# Limpiar debuffs y escudos de TODOS los enemigos antes de que empiece el turno del jugador
 	for e_final in enemies:
@@ -2180,6 +2234,12 @@ func _show_enemy_intent_tooltip(idx: int) -> void:
 			txt = "INTENCION: ESCUDO\nGanara " + str(action.value) + " de proteccion.\n\n[El escudo enemigo se resetea al inicio de su turno]"
 		elif action.type == "insanity":
 			txt = "INTENCION: CORROMPER\nDrenara " + str(action.value) + " de tu Cordura.\n\n[La cordura baja distorsiona la realidad]"
+		elif action.type == "possession":
+			txt = "INTENCION: POSESIÓN\nHastur tomara una de tus piezas y la usara contra ti.\n\n[Pierdes la carta y recibes su daño]"
+		elif action.type == "ultimate_charge":
+			txt = "INTENCION: PREPARACIÓN\nHastur acumula energía del vacío para un golpe devastador el próximo turno."
+		elif action.type == "ultimate_attack":
+			txt = "INTENCION: JUICIO DE CARCOSA\nInfligira " + str(action.value) + " de daño masivo.\n\n[No puede ser evadido]"
 	
 	# Añadir estado de debuffs si existen
 	if e.get("atk_reduction", 0) > 0:
