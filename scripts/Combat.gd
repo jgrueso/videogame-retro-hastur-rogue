@@ -33,6 +33,7 @@ var lbl_discard_pile: Label
 var end_turn_btn: Button
 var relics_container: HBoxContainer
 var lbl_message: Label
+var panel_message: Panel
 var vignette: ColorRect
 var eye_node: Control
 var blink_overlay: ColorRect
@@ -82,7 +83,7 @@ func _ready() -> void:
 		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
 		show_message("EL TABLERO TE OBSERVA", Color(0.8, 0.4, 1.0))
 		await get_tree().create_timer(1.5).timeout
-		lbl_message.visible = false
+		panel_message.visible = false
 
 	if not enemies.is_empty():
 		var is_avatar = "AVATAR" in enemies[0].name.to_upper()
@@ -93,14 +94,15 @@ func _ready() -> void:
 			var thought = LoreData.get_player_thought(enemies[0].name)
 			await get_tree().create_timer(0.9).timeout
 			lbl_message.modulate = Color(0.6, 0.6, 0.6)
-			lbl_message.visible = true
+			panel_message.visible = true
 			await _typewrite(lbl_message, thought, 0.03)
 			await get_tree().create_timer(2.0).timeout
 			var ft = create_tween()
-			ft.tween_property(lbl_message, "modulate:a", 0.0, 0.6)
+			ft.tween_property(panel_message, "modulate:a", 0.0, 0.6)
 			await ft.finished
-			lbl_message.visible = false
-			lbl_message.modulate.a = 1.0
+			panel_message.visible = false
+			panel_message.modulate.a = 1.0
+
 
 	is_player_turn = true
 	await draw_hand()
@@ -300,7 +302,12 @@ func build_ui() -> void:
 	player_sprite_label.position = Vector2(10, 15)
 	player_sprite_label.size = Vector2(80, 90)
 	player_sprite_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	player_sprite_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	player_panel.add_child(player_sprite_label)
+	
+	player_sprite_label.mouse_entered.connect(_show_player_passive_tooltip)
+	player_sprite_label.mouse_exited.connect(_hide_player_passive_tooltip)
+	
 	_start_player_idle_bob()
 
 	hp_bar_player = _make_hp_bar(player_max_hp, 440); hp_bar_player.position = Vector2(100, 40); player_panel.add_child(hp_bar_player)
@@ -335,10 +342,19 @@ func build_ui() -> void:
 	end_turn_btn.position = Vector2(900, 480); end_turn_btn.size = Vector2(230, 50)
 	end_turn_btn.pressed.connect(_on_end_turn_button_pressed); add_child(end_turn_btn)
 
-	lbl_message = Label.new(); lbl_message.position = Vector2(100, 180); lbl_message.size = Vector2(952, 200)
+	# Panel de Mensajes Lore/Pensamientos
+	panel_message = _make_panel(Vector2(100, 180), Vector2(952, 200), Color(0, 0, 0, 0.9), Color(0.3, 0.25, 0.1))
+	panel_message.z_index = 10
+	panel_message.visible = false
+	add_child(panel_message)
+
+	lbl_message = Label.new()
+	lbl_message.position = Vector2(20, 20)
+	lbl_message.size = Vector2(912, 160)
 	lbl_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_message.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	lbl_message.z_index = 10; lbl_message.visible = false; add_child(lbl_message)
+	lbl_message.autowrap_mode = TextServer.AUTOWRAP_WORD
+	panel_message.add_child(lbl_message)
 
 	# Paneles enemigos
 	for i in range(enemies.size()):
@@ -566,7 +582,7 @@ func _spawn_card_node(data_in: Dictionary, start_pos: Vector2 = Vector2.ZERO, de
 	card.connect("card_played",   _on_card_played)
 
 func _on_card_selected(card) -> void:
-	targeting_active = true; targeting_card = card; targeting_arrow.visible = true
+	targeting_active = true; targeting_card = card; targeting_arrow.visible = true; card.set_disabled(true)
 
 func _on_card_played(card) -> void:
 	_resolve_card(card, -1)
@@ -680,6 +696,31 @@ func _check_targeting() -> void:
 
 var _is_resolving_extra_mirror_card: bool = false
 
+func _flash_relic(relic_id: String) -> void:
+	if not relics_container: return
+	for icon in relics_container.get_children():
+		if icon.get("relic_id") == relic_id:
+			# Efecto de pulso
+			var tw = create_tween().set_parallel(true)
+			tw.tween_property(icon, "scale", Vector2(1.4, 1.4), 0.1)
+			tw.tween_property(icon, "modulate", Color(2, 2, 2), 0.1)
+			tw.chain().set_parallel(true)
+			tw.tween_property(icon, "scale", Vector2(1.0, 1.0), 0.2)
+			tw.tween_property(icon, "modulate", Color(1, 1, 1), 0.2)
+			
+			# Partículas rápidas (ColorRects temporales)
+			for i in range(8):
+				var p = ColorRect.new()
+				p.size = Vector2(4, 4)
+				p.position = icon.global_position + Vector2(20, 20)
+				add_child(p)
+				var pt = create_tween().set_parallel(true)
+				var dest = p.position + Vector2(randf_range(-50, 50), randf_range(-50, 50))
+				pt.tween_property(p, "position", dest, 0.4)
+				pt.tween_property(p, "modulate:a", 0.0, 0.4)
+				pt.tween_callback(p.queue_free).set_delay(0.4)
+			break
+
 # ── Resolver carta ─────────────────────────────────────────────────────────────
 func _resolve_card(card, enemy_idx: int) -> void:
 	# Lógica del Espejo Fragmentado: Jugar la primera carta dos veces
@@ -688,9 +729,10 @@ func _resolve_card(card, enemy_idx: int) -> void:
 		_resolve_card(card, enemy_idx)
 		_is_resolving_extra_mirror_card = false
 		flash_small("¡ESPEJO FRAGMENTADO! Movimiento duplicado.")
+		_flash_relic("espejo_fragmentado")
 
 	var effective_cost = card.get_effective_cost()
-	if player_energy < effective_cost: return
+	if player_energy < effective_cost: card.set_disabled(false); return
 	player_energy -= effective_cost
 	
 	# Efecto Cordura Baja: Desobediencia
@@ -714,8 +756,8 @@ func _resolve_card(card, enemy_idx: int) -> void:
 		flash_small("¡ECO DEL VACIO! Todos los enemigos sufren.")
 		for e_aoe in enemies:
 			if e_aoe.hp > 0:
-				# Daño base 4 + bono de mejora (guardado en attack)
-				var a_dmg = 4 + card.attack + (GameManager.siervo_atk_bonus_perm if GameManager.selected_character == "conquistador" else 0)
+				# Usar el ataque que viene en la carta + bonos
+				var a_dmg = card.attack + (GameManager.siervo_atk_bonus_perm if GameManager.selected_character == "conquistador" else 0)
 				e_aoe.hp -= a_dmg
 				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), a_dmg, Color(0.7, 0.7, 1.0))
 				_animate_enemy_hit(e_aoe)
@@ -763,8 +805,10 @@ func _resolve_card(card, enemy_idx: int) -> void:
 				flash_small("¡CONEXIÓN ABISAL! Daño aumentado por tu locura.")
 
 		# Lógica especial para JAQUE ETERNO (Canaliza tu dolor)
-		if "JAQUE ETERNO" in card.card_name:
-			dmg = player_max_hp - player_hp
+		if "JAQUE ETERNO" in card.card_name.to_upper():
+			var health_lost = player_max_hp - player_hp
+			# Mínimo 5 de daño para que no parezca bug si el jugador está full vida
+			dmg = max(5, health_lost) 
 			flash_small("¡JAQUE ETERNO! Dolor canalizado: " + str(dmg))
 			_trigger_screen_blink()
 			if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
@@ -825,6 +869,7 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			if GameManager.has_relic("sangre_caido"):
 				GameManager.siervo_atk_bonus_perm += 1
 				flash_small("Sangre del Caido: +1 ATK extra!")
+				_flash_relic("sangre_caido")
 				refresh_hand_visuals()
 				
 			_kill_enemy(e) # async
@@ -850,6 +895,7 @@ func _resolve_card(card, enemy_idx: int) -> void:
 	if GameManager.has_relic("reloj_negro") and cards_played_this_turn % 3 == 0:
 		player_energy = min(player_energy + 1, player_max_energy)
 		flash_small("Reloj: +1 Energia!")
+		_flash_relic("reloj_negro")
 
 	update_ui(); update_intent_labels(); check_combat_end()
 
@@ -1160,7 +1206,7 @@ func _trigger_boss_phase_2(e: Dictionary) -> void:
 	tw.tween_callback(flash.queue_free)
 	
 	await get_tree().create_timer(1.5).timeout
-	lbl_message.visible = false
+	panel_message.visible = false
 	update_ui(); update_intent_labels()
 
 func update_card_states() -> void:
@@ -1303,6 +1349,13 @@ func check_combat_end() -> void:
 	var victory_phrases = CombatData.VICTORY_PHRASES
 	show_message(victory_phrases[randi() % victory_phrases.size()], Color(0.85, 0.7, 0.2))
 	await get_tree().create_timer(1.2).timeout
+	
+	# Desvanecer el panel de mensaje antes de pasar a la siguiente pantalla para evitar solapamientos
+	var fade = create_tween()
+	fade.tween_property(panel_message, "modulate:a", 0.0, 0.4)
+	await fade.finished
+	panel_message.visible = false
+	panel_message.modulate.a = 1.0 # Reset para el próximo uso
 
 	if GameManager.is_hastur_fight:
 		# Final secreto — Hastur derrotado: victoria real
@@ -1359,7 +1412,16 @@ func _show_loot_screen() -> void:
 	)
 
 	_add_loot_button(reward_vbox, "✦ Recolectar Ecos de los Caidos (Carta)", func():
-		get_tree().change_scene_to_file("res://scenes/ui/CardDraft.tscn")
+		var draft_scene = load("res://scenes/ui/CardDraft.tscn")
+		var draft = draft_scene.instantiate()
+		draft.z_index = 200
+		add_child(draft)
+		# No hace falta conectar a señal si solo queremos que se cierre, 
+		# pero podemos ocultar el panel de loot mientras tanto
+		loot_panel.visible = false
+		draft.connect("draft_completed", func():
+			loot_panel.visible = true
+		)
 	)
 
 	if randf() < 0.35:
@@ -1653,8 +1715,14 @@ func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void
 			if next_scene == "__world2__":
 				GameManager.current_world = 1
 				GameManager.map_graph = []
+				GameManager.map_path = {} # Limpiar el camino del mundo anterior
 				GameManager.current_map_floor = 0
 				GameManager.current_map_col = -1
+				
+				# Recuperar fuerzas para el nuevo mundo
+				GameManager.player_hp = GameManager.player_max_hp
+				GameManager.sanity = 100
+				
 				get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
 			else:
 				get_tree().change_scene_to_file(next_scene)
@@ -1671,7 +1739,7 @@ func _penitente_reward() -> void:
 	show_message("El Penitente asiente y desaparece.", Color(0.5, 1.0, 0.5))
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("relic_get")
 	await get_tree().create_timer(1.5).timeout
-	lbl_message.visible = false
+	panel_message.visible = false
 
 	# Recompensa: curar + un fragmento de lore
 	var heal_amount = int(player_max_hp * 0.25)
@@ -1820,6 +1888,23 @@ func _on_end_turn_button_pressed() -> void:
 						furia_points = min(3, furia_points + gained)
 						flash_small("¡RESILIENCIA! Furia acumulada: " + str(furia_points) + "/3")
 						update_ui()
+				
+				# --- EFECTO CORONA DE ESPINAS ---
+				if GameManager.has_relic("corona_espinas"):
+					var thorns_dmg = dmg
+					if GameManager.sanity < 50:
+						thorns_dmg *= 2
+						flash_small("¡ESPINAS DE CARCOSA! Venganza duplicada.")
+					else:
+						flash_small("Corona de Espinas: Contraataque.")
+					
+					_flash_relic("corona_espinas")
+					for e_thorns in enemies:
+						if e_thorns.hp > 0:
+							e_thorns.hp -= thorns_dmg
+							_spawn_damage_number(e_thorns.panel.global_position + Vector2(100, 60), thorns_dmg, Color(0.8, 0.1, 0.1))
+							_animate_enemy_hit(e_thorns)
+					check_combat_end()
 			else:
 				# Es un FALLO (daño 0)
 				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 0, Color(1, 0.3, 0.3))
@@ -1897,10 +1982,9 @@ func _on_end_turn_button_pressed() -> void:
 			
 			update_ui()
 
-	# Limpiar debuffs y escudos de TODOS los enemigos antes de que empiece el turno del jugador
+	# Limpiar debuffs de TODOS los enemigos antes de que empiece el turno del jugador
 	for e_final in enemies:
 		e_final["atk_reduction"] = 0
-		e_final.shield = 0 
 
 	player_energy = player_max_energy; player_shield = 0
 
@@ -1909,6 +1993,7 @@ func _on_end_turn_button_pressed() -> void:
 		player_hp = 1
 		velo_used = true
 		flash_small("¡VELO DE LA DAMA! La muerte ha sido negada.")
+		_flash_relic("velo_dama")
 		_trigger_screen_blink()
 		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
 
@@ -2214,6 +2299,37 @@ func _show_deck_viewer() -> void:
 	close_btn.pressed.connect(overlay.queue_free)
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
 
+func _show_player_passive_tooltip() -> void:
+	var char_id = GameManager.selected_character
+	var char_name = char_id.to_upper()
+	var passive_txt = CombatData.PASSIVE_DESCRIPTIONS.get(char_id, "Sin descripción.")
+	
+	var txt = "[ HABILIDAD PASIVA ]\n"
+	txt += char_name + "\n\n" + passive_txt
+	
+	var tip = Label.new()
+	tip.name = "PassiveTooltipLabel"
+	tip.text = txt
+	tip.add_theme_font_size_override("font_size", 12)
+	tip.modulate = Color(0.4, 0.8, 1.0) # Azul claro/Estrategia
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD
+	
+	# Cálculo más generoso de altura y ancho
+	var panel_w = 280
+	var line_count = txt.count("\n") + (txt.length() / 35) + 2 # Estimación de wrap
+	var panel_h = line_count * 18 + 30
+	
+	var p = _make_panel(Vector2(85, -20), Vector2(panel_w, panel_h), Color(0,0,0,0.95), Color(0.2, 0.5, 0.8))
+	p.name = "PassiveTooltipPanel"
+	p.z_index = 100
+	p.add_child(tip); tip.position = Vector2(12, 12); tip.size = Vector2(panel_w - 24, panel_h - 24)
+	player_sprite_label.add_child(p)
+
+func _hide_player_passive_tooltip() -> void:
+	if is_instance_valid(player_sprite_label):
+		var p = player_sprite_label.get_node_or_null("PassiveTooltipPanel")
+		if p: p.queue_free()
+
 func _show_enemy_intent_tooltip(idx: int) -> void:
 	if idx >= enemies.size() or enemies[idx].hp <= 0: return
 	var e = enemies[idx]
@@ -2222,24 +2338,36 @@ func _show_enemy_intent_tooltip(idx: int) -> void:
 	if e.peaceful:
 		txt = "ESTADO: PACIFICO\nNo atacara mientras no sea provocado.\n\n\"" + _get_enemy_banter(e.name) + "\""
 	else:
+		# --- EFECTO OJO DEL ORÁCULO ---
+		if GameManager.has_relic("ojo_oraculo"):
+			txt = "[👁 PREDICCIÓN DEL ORÁCULO]\n"
+			txt += "El destino del enemigo es claro:\n"
+			for i in range(e.pattern.size()):
+				var action = e.pattern[i]
+				var pointer = " ▶ " if i == (e.turn_index % e.pattern.size()) else "   "
+				var act_name = "ATAQUE" if action.type == "attack" else action.type.to_upper()
+				txt += pointer + act_name + " (" + str(action.value) + ")\n"
+			txt += "\n"
+		
 		var action = e.pattern[e.turn_index % e.pattern.size()]
+		txt += "--- TURNO ACTUAL ---\n"
 		if action.type == "attack":
 			var reduction = e.get("atk_reduction", 0)
 			var final_dmg = max(0, action.value - reduction)
-			txt = "INTENCION: ATACAR\nInfligira " + str(final_dmg) + " de daño."
+			txt += "INTENCION: ATACAR\nInfligira " + str(final_dmg) + " de daño."
 			if reduction > 0:
 				txt += "\n(Debilitado: -" + str(reduction) + " ATK)"
 			txt += "\n\n[El escudo puede absorber este golpe]"
 		elif action.type == "shield":
-			txt = "INTENCION: ESCUDO\nGanara " + str(action.value) + " de proteccion.\n\n[El escudo enemigo se resetea al inicio de su turno]"
+			txt += "INTENCION: ESCUDO\nGanara " + str(action.value) + " de proteccion.\n\n[El escudo enemigo se resetea al inicio de su turno]"
 		elif action.type == "insanity":
-			txt = "INTENCION: CORROMPER\nDrenara " + str(action.value) + " de tu Cordura.\n\n[La cordura baja distorsiona la realidad]"
+			txt += "INTENCION: CORROMPER\nDrenara " + str(action.value) + " de tu Cordura.\n\n[La cordura baja distorsiona la realidad]"
 		elif action.type == "possession":
-			txt = "INTENCION: POSESIÓN\nHastur tomara una de tus piezas y la usara contra ti.\n\n[Pierdes la carta y recibes su daño]"
+			txt += "INTENCION: POSESIÓN\nHastur tomara una de tus piezas y la usara contra ti.\n\n[Pierdes la carta y recibes su daño]"
 		elif action.type == "ultimate_charge":
-			txt = "INTENCION: PREPARACIÓN\nHastur acumula energía del vacío para un golpe devastador el próximo turno."
+			txt += "INTENCION: PREPARACIÓN\nHastur acumula energía del vacío para un golpe devastador el próximo turno."
 		elif action.type == "ultimate_attack":
-			txt = "INTENCION: JUICIO DE CARCOSA\nInfligira " + str(action.value) + " de daño masivo.\n\n[No puede ser evadido]"
+			txt += "INTENCION: JUICIO DE CARCOSA\nInfligira " + str(action.value) + " de daño masivo.\n\n[No puede ser evadido]"
 	
 	# Añadir estado de debuffs si existen
 	if e.get("atk_reduction", 0) > 0:
@@ -2253,11 +2381,15 @@ func _show_enemy_intent_tooltip(idx: int) -> void:
 	tip.modulate = Color(0.9, 0.9, 0.6)
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD
 	
+	# Cálculo dinámico de altura (aprox 18px por línea + margen)
+	var line_count = txt.count("\n") + 1
+	var panel_h = max(140, line_count * 18 + 20)
+	
 	# Posicion Y=240 para que aparezca debajo del panel (que mide 230)
-	var p = _make_panel(Vector2(-10, 240), Vector2(220, 140), Color(0,0,0,0.95), Color(0.5, 0.5, 0.2))
+	var p = _make_panel(Vector2(-10, 240), Vector2(220, panel_h), Color(0,0,0,0.95), Color(0.5, 0.5, 0.2))
 	p.name = "TooltipPanel"
 	p.z_index = 100
-	p.add_child(tip); tip.position = Vector2(10, 10); tip.size = Vector2(200, 120)
+	p.add_child(tip); tip.position = Vector2(10, 10); tip.size = Vector2(200, panel_h - 20)
 	e.panel.add_child(p)
 
 func _hide_enemy_intent_tooltip(idx: int) -> void:
@@ -2299,16 +2431,17 @@ func _make_pile_label(pos: Vector2, col: Color) -> Label:
 
 func show_message(txt, col: Color) -> void:
 	lbl_message.text = txt; lbl_message.modulate = col
-	lbl_message.visible = true
+	panel_message.visible = true
 	
 	if GameManager.sanity < 30:
 		# Efecto de sacudida de texto
-		var orig_pos = lbl_message.position
+		var orig_pos = panel_message.position
 		var tw = create_tween().set_loops(10)
-		tw.tween_property(lbl_message, "position", orig_pos + Vector2(randf_range(-5,5), randf_range(-3,3)), 0.05)
-		tw.tween_property(lbl_message, "position", orig_pos, 0.05)
+		tw.tween_property(panel_message, "position", orig_pos + Vector2(randf_range(-5,5), randf_range(-3,3)), 0.05)
+		tw.tween_property(panel_message, "position", orig_pos, 0.05)
 	
-	create_tween().tween_property(lbl_message, "modulate:a", 1.0, 0.5).from(0.0)
+	panel_message.modulate.a = 0.0
+	create_tween().tween_property(panel_message, "modulate:a", 1.0, 0.5)
 
 var active_flashes: Array = []
 

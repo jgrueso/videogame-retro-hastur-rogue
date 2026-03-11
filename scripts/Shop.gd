@@ -26,14 +26,20 @@ func _ready() -> void:
 	
 	build_ui()
 
+var shop_content: Control
+
 func build_ui() -> void:
 	var vp = get_viewport_rect().size
+	
+	shop_content = Control.new()
+	shop_content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(shop_content)
 	
 	# --- MARCO DECORATIVO ---
 	var border = ReferenceRect.new()
 	border.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	border.editor_only = false; border.border_color = Color(0.2, 0.15, 0.05, 0.5); border.border_width = 10
-	add_child(border)
+	shop_content.add_child(border)
 
 	# Header
 	var title = Label.new()
@@ -42,14 +48,14 @@ func build_ui() -> void:
 	title.modulate = Color(0.85, 0.75, 0.2)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, 40); title.size = Vector2(vp.x, 60)
-	add_child(title)
+	shop_content.add_child(title)
 
 	# El Mercader (Area visual)
 	var merchant_area = Panel.new()
 	merchant_area.position = Vector2(vp.x * 0.1, 110); merchant_area.size = Vector2(vp.x * 0.8, 100)
 	var ms = StyleBoxFlat.new(); ms.bg_color = Color(0.05, 0.04, 0.06); ms.set_corner_radius_all(10); ms.border_width_bottom = 2; ms.border_color = Color(0.3, 0.2, 0.4)
 	merchant_area.add_theme_stylebox_override("panel", ms)
-	add_child(merchant_area)
+	shop_content.add_child(merchant_area)
 
 	var greet_lbl = Label.new()
 	greet_lbl.text = greeting
@@ -68,7 +74,7 @@ func build_ui() -> void:
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info.position = Vector2(0, 220); info.size = Vector2(vp.x, 30)
 	info.modulate = Color(0.9, 0.9, 0.9)
-	add_child(info)
+	shop_content.add_child(info)
 
 	# --- GRID DE ITEMS ---
 	var grid = GridContainer.new()
@@ -77,7 +83,7 @@ func build_ui() -> void:
 	grid.size = Vector2(vp.x * 0.5, 300)
 	grid.add_theme_constant_override("h_separation", 30)
 	grid.add_theme_constant_override("v_separation", 30)
-	add_child(grid)
+	shop_content.add_child(grid)
 
 	for item in shop_items:
 		var item_box = _create_shop_item_box(item)
@@ -87,7 +93,7 @@ func build_ui() -> void:
 	var sac_container = VBoxContainer.new()
 	sac_container.position = Vector2(vp.x * 0.65, 270); sac_container.size = Vector2(300, 300)
 	sac_container.add_theme_constant_override("separation", 20)
-	add_child(sac_container)
+	shop_content.add_child(sac_container)
 
 	var sac_lbl = Label.new()
 	sac_lbl.text = "✦  TRUEQUES OSCUROS  ✦"
@@ -111,7 +117,7 @@ func build_ui() -> void:
 	btn_exit.position = Vector2(vp.x/2 - 120, 585); btn_exit.size = Vector2(240, 50)
 	btn_exit.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
 	_style_main_button(btn_exit, Color(0.15, 0.1, 0.05))
-	add_child(btn_exit)
+	shop_content.add_child(btn_exit)
 
 func _create_shop_item_box(item: Dictionary) -> Button:
 	var btn = Button.new()
@@ -169,11 +175,24 @@ func _style_main_button(btn: Button, color: Color) -> void:
 	var h = n.duplicate(); h.bg_color = color.lightened(0.1)
 	btn.add_theme_stylebox_override("hover", h)
 
+func _update_info() -> void:
+	var info = get_node_or_null("PlayerInfo")
+	if info:
+		info.text = "◈ MONEDAS: %d   ◈ VIDA: %d/%d   ◈ ENERGÍA: %d" % [GameManager.coins, GameManager.player_hp, GameManager.player_max_hp, GameManager.player_max_energy]
+
 func _on_buy_pressed(item: Dictionary) -> void:
 	if GameManager.spend_coins(item["cost"]):
 		match item["action"]:
 			"draft_common":
-				get_tree().change_scene_to_file("res://scenes/ui/CardDraft.tscn")
+				var draft_scene = load("res://scenes/ui/CardDraft.tscn")
+				var draft = draft_scene.instantiate()
+				add_child(draft)
+				# Ocultar SOLO el contenido de la tienda
+				shop_content.visible = false
+				draft.connect("draft_completed", func():
+					shop_content.visible = true
+					_update_info() 
+				)
 				return
 			"max_hp":
 				GameManager.player_max_hp += 15

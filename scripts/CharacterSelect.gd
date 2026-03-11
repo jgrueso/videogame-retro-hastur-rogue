@@ -46,7 +46,7 @@ const CHARACTERS = [
 		"symbol": "♞",
 		"deck": [
 			{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
-			{"name": "Eco del Vacio", "attack": 0, "defense": 0, "cost": 0},
+			{"name": "Eco del Vacío", "attack": 4, "defense": 0, "cost": 2},
 			{"name": "Baluarte de Hueso", "attack": 3, "defense": 3, "cost": 2},
 			{"name": "Idolo Inerte", "attack": 0, "defense": 8, "cost": 3},
 			{"name": "Idolo Inerte", "attack": 0, "defense": 8, "cost": 3},

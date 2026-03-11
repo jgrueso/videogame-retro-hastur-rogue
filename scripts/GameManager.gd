@@ -150,7 +150,7 @@ const RELIC_DATA = {
 	},
 	"corona_espinas": {
 		"name": "Corona de Espinas",
-		"desc": "+10 HP maximo.\nTodas las cartas cuestan +1 energia.",
+		"desc": "Cuando recibes daño, devuelves esa misma cantidad a TODOS los enemigos. Poder x2 si tu Cordura es menor a 50.",
 	},
 	"reloj_roto": {
 		"name": "Reloj de Arena Roto",

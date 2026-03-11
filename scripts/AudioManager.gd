@@ -25,7 +25,10 @@ func _ready() -> void:
 	_sounds["player_hit"]   = _tone_with_noise(150.0, 0.22, 0.65)
 	_sounds["shield_block"] = _tone(800.0, 0.10, 0.4)
 	_sounds["relic_get"]    = _arpeggio([880.0, 1100.0, 1320.0], 0.08, 0.5)
-	_sounds["victory"]      = _arpeggio([523.0, 659.0, 784.0, 1047.0], 0.14, 0.7)
+	
+	# Victoria Tétrica: Acorde disminuido lento y bajo
+	_sounds["victory"]      = _arpeggio([110.0, 130.81, 155.56, 110.0], 0.4, 0.8)
+	
 	_sounds["defeat"]       = _descend(300.0, 120.0, 0.6, 0.6)
 	_sounds["enemy_attack"] = _tone_with_noise(80.0, 0.15, 0.6)
 	_sounds["button_click"] = _tone(500.0, 0.07, 0.35)

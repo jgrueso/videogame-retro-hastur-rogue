@@ -212,6 +212,10 @@ func build_ui() -> void:
 	bg.position = Vector2.ZERO
 	bg.size = vp
 	add_child(bg)
+	
+	# Capa superior para que el HUD no haga scroll y los tooltips funcionen
+	var ui_layer = CanvasLayer.new()
+	add_child(ui_layer)
 
 	var world_name = "Mundo II — El Tablero Dorado" if GameManager.current_world == 1 else "Mundo I — La Caida del Rey"
 
@@ -221,7 +225,7 @@ func build_ui() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, 6)
 	title.size = Vector2(vp.x, 34)
-	add_child(title)
+	ui_layer.add_child(title)
 
 	var world_lbl = Label.new()
 	world_lbl.text = world_name
@@ -230,7 +234,7 @@ func build_ui() -> void:
 	world_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	world_lbl.position = Vector2(0, 38)
 	world_lbl.size = Vector2(vp.x, 20)
-	add_child(world_lbl)
+	ui_layer.add_child(world_lbl)
 
 	var graph = GameManager.map_graph
 	var info = Label.new()
@@ -241,7 +245,7 @@ func build_ui() -> void:
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info.position = Vector2(0, 56)
 	info.size = Vector2(vp.x, 24)
-	add_child(info)
+	ui_layer.add_child(info)
 
 	# Reliquias activas
 	if not GameManager.relics.is_empty():
@@ -250,14 +254,13 @@ func build_ui() -> void:
 		relic_label.add_theme_font_size_override("font_size", 11)
 		relic_label.modulate = Color(0.8, 0.7, 0.4)
 		relic_label.position = Vector2(6, 82)
-		add_child(relic_label)
+		ui_layer.add_child(relic_label)
 
 		var relic_scene = preload("res://scenes/ui/RelicIcon.tscn")
 		for i in range(GameManager.relics.size()):
 			var icon = relic_scene.instantiate()
 			icon.position = Vector2(6 + i * 48, 96)
-			icon.z_index = 50 # Asegurar que esté sobre el mapa
-			add_child(icon)
+			ui_layer.add_child(icon)
 			icon.setup(GameManager.relics[i])
 
 	# Boton Visor de Mazo
@@ -265,7 +268,7 @@ func build_ui() -> void:
 	deck_btn.text = " ▣ VER MAZO "
 	deck_btn.position = Vector2(vp.x - 160, 10); deck_btn.size = Vector2(150, 40)
 	deck_btn.add_theme_font_size_override("font_size", 14)
-	add_child(deck_btn)
+	ui_layer.add_child(deck_btn)
 	deck_btn.pressed.connect(_show_deck_viewer)
 
 	# Indicador de objetos misteriosos
@@ -277,7 +280,7 @@ func build_ui() -> void:
 		var s_style = StyleBoxFlat.new()
 		s_style.bg_color = Color(0,0,0,0)
 		si_container.add_theme_stylebox_override("panel", s_style)
-		add_child(si_container)
+		ui_layer.add_child(si_container)
 
 		var si_lbl = Label.new()
 		si_lbl.text = "✦ " + str(count) + " / 3"

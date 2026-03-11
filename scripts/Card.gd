@@ -36,6 +36,7 @@ const DESCRIPTIONS = {
 	"Rompetablero":        "EPICA. Aniquila escudos y golpea el alma enemiga.",
 	"Gran Maestro":        "EPICA. La jugada perfecta. Dano, escudo y energia.",
 	"Sacrificio del Rey":  "EPICA. Golpe desesperado. Dano masivo a un alto coste.",
+	"Sacrificio del rey":  "EPICA. Golpe desesperado. Dano masivo a un alto coste.",
 	"Susurro Debilitante": "NEUTRAL. Reduce el proximo ataque enemigo. Poder x2 si es tu ULTIMA carta.",
 	"Maldición de Ceniza": "MALDICIÓN. Una pieza corrompida por el Avatar. No tiene efecto, solo ocupa espacio.",
 	"Eco del Vacío":       "NEUTRAL. Golpe de ceniza que afecta a TODOS los enemigos simultaneamente.",
@@ -147,13 +148,21 @@ func setup(data: Dictionary) -> void:
 	if "+" in real_name:
 		real_name = real_name.split("+")[0].strip_edges()
 	
+	# Usar el nombre tal cual para la búsqueda, asegurando coincidencia con el diccionario
 	description = DESCRIPTIONS.get(real_name, "Sin descripcion.")
+	
+	# Si falló, intentar una búsqueda insensible a mayúsculas como respaldo
+	if description == "Sin descripcion.":
+		for key in DESCRIPTIONS.keys():
+			if key.to_lower() == real_name.to_lower():
+				description = DESCRIPTIONS[key]
+				break
 	
 	# Pasiva Estratega (Tooltip)
 	if GameManager.selected_character == "estratega" and "INQUISIDOR" in card_name:
 		description += "\n\n[LÓGICA: Coste -1]"
 	
-	requires_target = (attack > 0 or real_name == "Jaque Eterno") and real_name != "Eco del Vacio" and real_name != "Eco del Vacío"
+	requires_target = (attack > 0 or "JAQUE ETERNO" in card_name) and real_name != "Eco del Vacio" and real_name != "Eco del Vacío"
 	update_display()
 
 func update_display(force_upgrade_style: bool = false) -> void:
@@ -294,11 +303,9 @@ func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			tooltip_panel.visible = false
-			is_disabled = true
 			if requires_target:
 				card_selected.emit(self)
 			else:
-				await play_attack_animation()
 				card_played.emit(self)
 
 func animate_draw(start_pos: Vector2, delay: float) -> void:

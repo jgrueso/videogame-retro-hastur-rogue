@@ -20,6 +20,8 @@ var card_pool: Array = [
 var chosen: bool = false
 var cards_container: HBoxContainer
 
+signal draft_completed
+
 func _ready() -> void:
 	modulate.a = 0.0
 	build_ui()
@@ -27,41 +29,56 @@ func _ready() -> void:
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.4)
 
 func build_ui() -> void:
-	var bg = ColorRect.new()
-	bg.color = Color(0.05, 0.05, 0.1)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	var vp = get_viewport_rect().size
+	
+	# Fondo de velo oscuro para separar del combate
+	var veil = ColorRect.new()
+	veil.color = Color(0, 0, 0, 0.85)
+	veil.size = vp
+	add_child(veil)
+
+	# Panel central decorativo
+	var panel = Panel.new()
+	panel.size = Vector2(800, 500)
+	panel.position = (vp - panel.size) / 2
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.05, 0.08)
+	style.border_width_left = 2; style.border_width_right = 2
+	style.border_width_top = 2; style.border_width_bottom = 2
+	style.border_color = Color(0.4, 0.35, 0.1) # Oro viejo
+	style.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", style)
+	add_child(panel)
 
 	var title = Label.new()
-	title.text = "Elige una carta"
-	title.add_theme_font_size_override("font_size", 36)
+	title.text = "RECOLECTAR ECO"
+	title.add_theme_font_size_override("font_size", 32)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 60)
-	title.size = Vector2(1152, 60)
-	add_child(title)
+	title.modulate = Color(0.85, 0.75, 0.2)
+	title.position = Vector2(0, 30); title.size = Vector2(800, 50)
+	panel.add_child(title)
 
-	var combat_label = Label.new()
-	combat_label.text = "Combate " + str(GameManager.combat_count) + "  |  Monedas: " + str(GameManager.coins)
-	combat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	combat_label.position = Vector2(0, 120)
-	combat_label.size = Vector2(1152, 40)
-	add_child(combat_label)
+	var sub_title = Label.new()
+	sub_title.text = "Una pieza del pasado busca un nuevo tablero."
+	sub_title.add_theme_font_size_override("font_size", 14)
+	sub_title.modulate = Color(0.6, 0.6, 0.6)
+	sub_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub_title.position = Vector2(0, 80); sub_title.size = Vector2(800, 30)
+	panel.add_child(sub_title)
 
 	cards_container = HBoxContainer.new()
-	# 3 cartas x 130px + 2 separadores x 40px = 470px → centrado en 1152px
-	cards_container.position = Vector2(341, 200)
+	cards_container.position = Vector2(165, 140)
 	cards_container.size = Vector2(470, 195)
 	cards_container.add_theme_constant_override("separation", 40)
-	add_child(cards_container)
+	panel.add_child(cards_container)
 
 	var skip_btn = Button.new()
-	skip_btn.text = "Omitir recompensa"
-	skip_btn.position = Vector2(426, 510)
-	skip_btn.size = Vector2(300, 40)
+	skip_btn.text = "DEJAR QUE EL ECO SE EXTINGA (Omitir)"
+	skip_btn.position = Vector2(250, 400); skip_btn.size = Vector2(300, 45)
 	skip_btn.add_theme_font_size_override("font_size", 13)
-	skip_btn.modulate = Color(0.6, 0.6, 0.6)
+	skip_btn.modulate = Color(0.7, 0.3, 0.3)
 	skip_btn.pressed.connect(_on_skip)
-	add_child(skip_btn)
+	panel.add_child(skip_btn)
 
 func show_draft() -> void:
 	var pool = card_pool.duplicate()
@@ -93,11 +110,12 @@ func _on_card_chosen(card_data: Dictionary) -> void:
 		return
 	chosen = true
 	GameManager.add_card(card_data)
-	await get_tree().create_timer(0.5).timeout
-	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+	draft_completed.emit()
+	queue_free()
 
 func _on_skip() -> void:
 	if chosen:
 		return
 	chosen = true
-	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+	draft_completed.emit()
+	queue_free()

@@ -8,6 +8,12 @@ const CHAR_DATA = {
 	"guardian":     {"symbol": "♞", "color": Color(0.4, 0.75, 0.4)},
 }
 
+const PASSIVE_DESCRIPTIONS = {
+	"conquistador": "CONQUISTA: Al matar a un enemigo, tus Siervos ganan +1 ATK permanente y recuperas 3 de vida.",
+	"estratega":    "LOGICA: Tus cartas de Inquisidor Ciego cuestan -1 de energia. Robas 1 carta extra al inicio de cada combate.",
+	"guardian":     "RESILIENCIA: Generas 1 de Furia por cada 5 de daño recibido. A las 3 cargas, tu siguiente ataque hace daño doble."
+}
+
 # ── Pools de encuentros ────────────────────────────────────────────────────────
 const NORMAL_POOLS = [
 	[{"name": "Siervo Rebelde", "hp": 22, "pattern": [{"type": "attack", "value": 5}]}],
