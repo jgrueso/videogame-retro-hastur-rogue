@@ -12,7 +12,10 @@ func _ready() -> void:
 	_create_massive_black_sun(vp)
 	_start_heavy_rain(vp)
 	_start_lightning_system(vp)
-	_play_ambient_hum()
+	
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.stop_all()
+		AudioManager.play_loop("intro_title_song")
 
 	# Título
 	var title = Label.new()
@@ -49,16 +52,61 @@ func _ready() -> void:
 	btn_container.z_index = 15
 	add_child(btn_container)
 
-	var btn_start = _make_menu_button("ACEPTAR EL LLAMADO")
+	var btn_start = _make_menu_button("NUEVA PARTIDA")
+	var btn_continue = _make_menu_button("CONTINUAR EL LLAMADO")
 	var btn_exit = _make_menu_button("NEGARSE AL JUEGO")
 
+	# Solo mostrar Continuar si hay archivo
+	if not FileAccess.file_exists(GameManager.RUN_SAVE_PATH):
+		btn_continue.visible = false
+	else:
+		btn_continue.modulate = Color(0.4, 0.8, 1.0)
+
+	btn_container.add_child(btn_continue)
 	btn_container.add_child(btn_start)
 	btn_container.add_child(btn_exit)
 
-	btn_start.pressed.connect(func(): 
-		if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
+	# Botón borrar: esquina inferior izquierda, casi invisible
+	var btn_delete = Button.new()
+	btn_delete.text = "borrar progreso"
+	btn_delete.size = Vector2(160, 30)
+	btn_delete.position = Vector2(20, vp.y - 48)
+	btn_delete.add_theme_font_size_override("font_size", 12)
+	btn_delete.z_index = 15
+	var s_del = StyleBoxFlat.new()
+	s_del.bg_color = Color(0, 0, 0, 0)
+	s_del.set_border_width_all(0)
+	var s_del_h = StyleBoxFlat.new()
+	s_del_h.bg_color = Color(0.1, 0.02, 0.02, 0.6)
+	s_del_h.border_width_bottom = 1
+	s_del_h.border_color = Color(0.5, 0.1, 0.1)
+	s_del_h.set_corner_radius_all(3)
+	btn_delete.add_theme_stylebox_override("normal", s_del)
+	btn_delete.add_theme_stylebox_override("hover", s_del_h)
+	btn_delete.modulate = Color(0.5, 0.2, 0.2, 0.45)
+	add_child(btn_delete)
+
+	btn_start.pressed.connect(func():
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play("button_click")
+			AudioManager.stop_loop("intro_title_song")
+		GameManager.delete_run_save()
 		get_tree().change_scene_to_file("res://scenes/ui/CharacterSelect.tscn")
 	)
+
+	btn_continue.pressed.connect(func():
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play("button_click")
+			AudioManager.stop_loop("intro_title_song")
+		if GameManager.load_run():
+			get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+	)
+
+	btn_delete.pressed.connect(func():
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
+		_show_delete_menu(vp, btn_container)
+	)
+
 	btn_exit.pressed.connect(func(): get_tree().quit())
 
 func _create_massive_black_sun(vp: Vector2):
@@ -143,3 +191,93 @@ func _play_ambient_hum():
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.play("ambient_hum")
 		get_tree().create_timer(2.0).timeout.connect(_play_ambient_hum)
+
+func _show_delete_menu(vp: Vector2, btn_container: Node) -> void:
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.0)
+	overlay.size = vp
+	overlay.z_index = 200
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+	create_tween().tween_property(overlay, "color:a", 0.82, 0.25)
+
+	var panel = Panel.new()
+	panel.size = Vector2(460, 300)
+	panel.position = (vp - panel.size) / 2
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.06, 0.02, 0.02)
+	s.set_border_width_all(2)
+	s.border_color = Color(0.6, 0.15, 0.15)
+	s.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", s)
+	overlay.add_child(panel)
+
+	var title = Label.new()
+	title.text = "¿QUÉ DESEAS BORRAR?"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 22)
+	title.modulate = Color(0.9, 0.4, 0.4)
+	title.position = Vector2(0, 30)
+	title.size = Vector2(460, 36)
+	panel.add_child(title)
+
+	var desc = Label.new()
+	desc.text = "Esta acción no se puede deshacer."
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.add_theme_font_size_override("font_size", 14)
+	desc.modulate = Color(0.55, 0.45, 0.45)
+	desc.position = Vector2(0, 72)
+	desc.size = Vector2(460, 24)
+	panel.add_child(desc)
+
+	var vbox = VBoxContainer.new()
+	vbox.position = Vector2(60, 112)
+	vbox.size = Vector2(340, 170)
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+
+	var btn_run = _make_delete_button("BORRAR PARTIDA ACTUAL", Color(0.9, 0.6, 0.3))
+	var btn_all = _make_delete_button("BORRAR TODO EL PROGRESO", Color(0.9, 0.25, 0.25))
+	var btn_cancel = _make_menu_button("CANCELAR")
+
+	vbox.add_child(btn_run)
+	vbox.add_child(btn_all)
+	vbox.add_child(btn_cancel)
+
+	btn_run.pressed.connect(func():
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+		GameManager.delete_run_save()
+		overlay.queue_free()
+		get_tree().reload_current_scene()
+	)
+
+	btn_all.pressed.connect(func():
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+		GameManager.reset_all_progress()
+		overlay.queue_free()
+		get_tree().reload_current_scene()
+	)
+
+	btn_cancel.pressed.connect(func():
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
+		create_tween().tween_property(overlay, "modulate:a", 0.0, 0.2).finished.connect(overlay.queue_free)
+	)
+
+func _make_delete_button(txt: String, col: Color) -> Button:
+	var btn = Button.new()
+	btn.text = txt
+	btn.custom_minimum_size = Vector2(0, 48)
+	btn.add_theme_font_size_override("font_size", 17)
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.08, 0.02, 0.02, 0.9)
+	s.border_width_bottom = 2
+	s.border_color = col.darkened(0.3)
+	s.set_corner_radius_all(4)
+	var h = s.duplicate()
+	h.bg_color = Color(0.18, 0.05, 0.05)
+	h.border_color = col
+	btn.add_theme_stylebox_override("normal", s)
+	btn.add_theme_stylebox_override("hover", h)
+	btn.modulate = col
+	btn.mouse_entered.connect(func(): if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_hover"))
+	return btn

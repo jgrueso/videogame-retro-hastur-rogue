@@ -16,36 +16,34 @@ const PASSIVE_DESCRIPTIONS = {
 
 # ── Pools de encuentros ────────────────────────────────────────────────────────
 const NORMAL_POOLS = [
-	[{"name": "Siervo Rebelde", "hp": 22, "pattern": [{"type": "attack", "value": 5}]}],
-	[{"name": "Peon Maldito",   "hp": 18, "pattern": [{"type": "attack", "value": 7}]}],
-	[{"name": "Susurrador del Vacio", "hp": 25, "pattern": [{"type": "insanity", "value": 6}]}],
-	[{"name": "Idolo Corrupto", "hp": 40, "pattern": [{"type": "attack", "value": 4}, {"type": "insanity", "value": 4}]}],
-	[{"name": "Alfil Caido",    "hp": 30, "pattern": [{"type": "attack", "value": 4}, {"type": "shield", "value": 6}]}],
-	[{"name": "Espectro",       "hp": 14, "pattern": [{"type": "attack", "value": 9}]}],
-	[{"name": "El Penitente",   "hp": 26, "pattern": [{"type": "attack", "value": 5}], "peaceful": true, "peaceful_turns": 3}],
+	[{"name": "Siervo Rebelde", "hp": 28, "pattern": [{"type": "attack", "value": 7}]}],
+	[{"name": "Peon Maldito",   "hp": 24, "pattern": [{"type": "attack", "value": 9}]}],
+	[{"name": "Susurrador del Vacio", "hp": 32, "pattern": [{"type": "insanity", "value": 8}, {"type": "attack", "value": 4}]}],
+	[{"name": "Idolo Corrupto", "hp": 50, "pattern": [{"type": "attack", "value": 6}, {"type": "insanity", "value": 6}]}],
+	[{"name": "Alfil Caido",    "hp": 38, "pattern": [{"type": "attack", "value": 6}, {"type": "insanity", "value": 4}]}],
+	[{"name": "Espectro",       "hp": 18, "pattern": [{"type": "attack", "value": 12}]}],
+	[{"name": "El Penitente",   "hp": 35, "pattern": [{"type": "attack", "value": 7}], "peaceful": true, "peaceful_turns": 3}],
 	[
-		{"name": "Siervo Rebelde", "hp": 14, "pattern": [{"type": "attack", "value": 4}]},
-		{"name": "Siervo Rebelde", "hp": 14, "pattern": [{"type": "attack", "value": 4}]},
-	],
-	[
-		{"name": "Peon Maldito", "hp": 12, "pattern": [{"type": "attack", "value": 5}]},
-		{"name": "Espectro",     "hp": 10, "pattern": [{"type": "attack", "value": 6}]},
+		{"name": "Siervo Rebelde", "hp": 20, "pattern": [{"type": "attack", "value": 5}]},
+		{"name": "Siervo Rebelde", "hp": 20, "pattern": [{"type": "attack", "value": 5}]},
 	],
 ]
 
 const ELITE_POOLS = [
-	[{"name": "Avatar de Hastur", "hp": 150, "pattern": [{"type": "attack", "value": 15}, {"type": "insanity", "value": 10}, {"type": "shield", "value": 15}]}],
-	[{"name": "Torre Rota",       "hp": 45, "pattern": [{"type": "attack", "value": 8}]}],
-	[{"name": "Caballero Roto",   "hp": 38, "pattern": [{"type": "attack", "value": 6}, {"type": "shield", "value": 8}, {"type": "attack", "value": 10}]}],
-	[{"name": "Inquisidor Ciego", "hp": 50, "pattern": [{"type": "attack", "value": 5}, {"type": "attack", "value": 5}, {"type": "shield", "value": 10}]}],
-	[{"name": "Caballero Caido",  "hp": 55, "pattern": [{"type": "attack", "value": 12}, {"type": "attack", "value": 4}]}],
-	[{"name": "Alfil Hereje",     "hp": 48, "pattern": [{"type": "insanity", "value": 8}, {"type": "attack", "value": 6}]}],
+	[{"name": "Avatar de Hastur", "hp": 350, "pattern": [{"type": "attack", "value": 15}, {"type": "insanity", "value": 10}, {"type": "shield", "value": 15}]}],
+	[{"name": "Torre Rota",       "hp": 65, "pattern": [{"type": "attack", "value": 12}]}],
+	[{"name": "Caballero Roto",   "hp": 55, "pattern": [{"type": "attack", "value": 8}, {"type": "shield", "value": 12}, {"type": "attack", "value": 14}]}],
+	[{"name": "Inquisidor Ciego", "hp": 70, "pattern": [{"type": "attack", "value": 8}, {"type": "attack", "value": 8}, {"type": "shield", "value": 15}]}],
 ]
 
 const BOSS_POOLS_W1 = [
-	[{"name": "EL CARCELERO",    "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "shield", "value": 10}]}],
-	[{"name": "LA DAMA DE CENIZA", "hp": 85,  "pattern": [{"type": "attack", "value": 8}, {"type": "attack", "value": 14}]}],
-	[{"name": "EL MARISCAL",     "hp": 110, "pattern": [{"type": "attack", "value": 12}, {"type": "attack", "value": 6}]}],
+	[{"name": "EL CARCELERO",    "hp": 120, "pattern": [{"type": "attack", "value": 12}, {"type": "shield", "value": 12}]}],
+	[{"name": "LA DAMA DE CENIZA", "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "attack", "value": 16}]}],
+]
+
+const BOSS_POOLS_W2 = [
+	[{"name": "EL ARCHIVERO DE CENIZA", "hp": 160, "pattern": [{"type": "insanity", "value": 12}, {"type": "attack", "value": 14}]}],
+	[{"name": "EL HERALDO DE ORO",      "hp": 185, "pattern": [{"type": "attack", "value": 18}, {"type": "shield", "value": 20}]}],
 ]
 
 # ── Diálogos y barks ───────────────────────────────────────────────────────────

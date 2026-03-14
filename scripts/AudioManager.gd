@@ -87,13 +87,20 @@ func play(sound_name: String) -> void:
 func stop_all() -> void:
 	for p in _players:
 		p.stop()
-	for s_name in _active_loops.keys():
+	# Copiar llaves para evitar error de modificación durante iteración
+	var keys = _active_loops.keys()
+	for s_name in keys:
 		stop_loop(s_name)
 
 func play_loop(sound_name: String) -> void:
 	if _active_loops.has(sound_name): return
 	var stream = _get_stream(sound_name)
 	if stream:
+		# Si es una canción nueva, a veces queremos detener las otras
+		if "song" in sound_name:
+			# Opcional: detener otras canciones si es necesario
+			pass
+			
 		# Forzar loop según el formato ANTES de reproducir
 		if stream is AudioStreamMP3: 
 			stream.loop = true
@@ -130,10 +137,16 @@ func _get_stream(sound_name: String) -> AudioStream:
 		var found: AudioStream = null
 		for p in paths:
 			for ext in [".wav", ".mp3", ".ogg"]:
-				if FileAccess.file_exists(p + ext):
-					found = load(p + ext); break
+				var full_path = p + ext
+				if ResourceLoader.exists(full_path):
+					found = load(full_path)
+					if found: break
 			if found: break
+		
 		_external_cache[sound_name] = found
+		if not found:
+			print("AudioManager: No se pudo cargar: ", sound_name)
+			
 	return _external_cache.get(sound_name)
 
 # ─── Generadores de onda ──────────────────────────────────────────────────────

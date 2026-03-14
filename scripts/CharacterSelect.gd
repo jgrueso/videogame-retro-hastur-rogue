@@ -54,6 +54,7 @@ const CHARACTERS = [
 	}
 ]
 
+var available_characters: Array = []
 var selected_idx: int = 0
 var title_lbl: Label
 var lore_lbl: Label
@@ -65,6 +66,24 @@ var portrait_container: Control
 var portrait_tween: Tween
 
 func _ready() -> void:
+	# Filtrar personajes disponibles
+	available_characters = CHARACTERS.duplicate()
+	if GameManager.prince_unlocked:
+		available_characters.append({
+			"id": "prince",
+			"name": "EL PRÍNCIPE DE CARCOSA",
+			"style": "Senda del Abismo — LOCURA",
+			"hp": 45,
+			"lore": "Un antiguo heredero de un reino que ya no existe. Su cuerpo es un receptáculo de la estática abisal.\n\n'No me liberaste para salvarme, sino para que termine lo que el Rey empezó.'",
+			"passive": "RESONANCIA: Si tu Cordura es inferior a 35, tus efectos de Daño y Escudo se duplican.",
+			"color": Color(0.5, 0.2, 0.8),
+			"symbol": "♔",
+			"deck": CardData.PRINCE_DECK.duplicate(true)
+		})
+	
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.stop_all()
+		AudioManager.play_loop("map_ambient_song")
 	var bg = ColorRect.new()
 	bg.color = Color(0.02, 0.02, 0.04)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -97,10 +116,22 @@ func _build_ui() -> void:
 
 	var btn_prev = Button.new(); btn_prev.text = " < "; btn_prev.position = Vector2(100, 300); btn_prev.size = Vector2(60, 60); btn_prev.pressed.connect(func(): _change_selection(-1)); add_child(btn_prev)
 	var btn_next = Button.new(); btn_next.text = " > "; btn_next.position = Vector2(992, 300); btn_next.size = Vector2(60, 60); btn_next.pressed.connect(func(): _change_selection(1)); add_child(btn_next)
+	
+	# --- BOTÓN DEV DESBLOQUEO ---
+	var btn_dev_prince = Button.new()
+	btn_dev_prince.text = "[DEV] Habilitar Príncipe"
+	btn_dev_prince.position = Vector2(20, vp.y - 50)
+	btn_dev_prince.add_theme_font_size_override("font_size", 10)
+	btn_dev_prince.pressed.connect(func(): 
+		GameManager.prince_unlocked = !GameManager.prince_unlocked
+		get_tree().reload_current_scene()
+	)
+	add_child(btn_dev_prince)
+	
 	var btn_select = Button.new(); btn_select.text = "ACEPTAR ESTE DESTINO"; btn_select.position = Vector2(vp.x/2 - 150, 560); btn_select.size = Vector2(300, 60); btn_select.add_theme_font_size_override("font_size", 20); btn_select.pressed.connect(_on_select_pressed); add_child(btn_select); _style_main_button(btn_select)
 
 func _update_display() -> void:
-	var c_data = CHARACTERS[selected_idx]
+	var c_data = available_characters[selected_idx]
 	title_lbl.text = c_data["name"]; title_lbl.modulate = c_data["color"]; style_lbl.text = c_data["style"]; lore_lbl.text = c_data["lore"]
 	passive_lbl.text = "PASIVA: " + c_data["passive"]; stats_lbl.text = "VIDA: " + str(c_data["hp"]); symbol_lbl.text = c_data["symbol"]; symbol_lbl.modulate = c_data["color"]
 	_draw_portrait(c_data["id"])
@@ -119,14 +150,18 @@ func _draw_portrait(char_id: String) -> void:
 		"guardian":
 			colors = [Color(0.05, 0.1, 0.05), Color(0.3, 0.5, 0.3), Color(0.5, 0.5, 0.5)]
 			pixels = [[1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1],[1,2,2,2,2,2,2,2,2,1],[1,2,0,0,0,0,0,0,2,1],[1,2,2,2,2,2,2,2,2,1],[1,1,1,1,2,2,1,1,1,1],[1,1,1,1,2,2,1,1,1,1],[0,1,1,1,2,2,1,1,1,0],[0,0,1,1,1,1,1,1,0,0]]
+		"prince":
+			colors = [Color(0.1, 0.05, 0.15), Color(0.5, 0.2, 0.8), Color(0.8, 0.8, 1.0)]
+			pixels = [[0,0,1,1,1,1,1,1,0,0],[0,1,1,2,2,2,2,1,1,0],[1,1,2,2,2,2,2,2,1,1],[1,2,2,0,0,0,0,2,2,1],[1,2,0,2,0,0,2,0,2,1],[1,2,2,0,0,0,0,2,2,1],[0,1,2,2,2,2,2,2,1,0],[0,0,1,1,2,2,1,1,0,0],[0,0,0,1,1,1,1,0,0,0]]
 	var p_size = 18
 	for y in range(pixels.size()):
 		for x in range(pixels[y].size()):
-			var val = pixels[y][x]; if val == 0 and char_id == "estratega": continue 
+			var val = pixels[y][x]; if val == 0 and (char_id == "estratega" or char_id == "prince"): continue 
 			var p = ColorRect.new(); p.size = Vector2(p_size - 1, p_size - 1); p.position = Vector2(x * p_size, y * p_size)
 			if char_id == "conquistador" and val == 0 and y == 4: p.color = Color(0.2, 0, 0); eye_pixels.append(p)
 			elif char_id == "estratega" and val == 2: p.color = colors[val]; eye_pixels.append(p)
 			elif char_id == "guardian" and val == 0: p.color = Color(0.1, 0.1, 0.1); eye_pixels.append(p)
+			elif char_id == "prince" and val == 0: p.color = Color(0.3, 0.1, 0.4); eye_pixels.append(p)
 			else: p.color = colors[val]
 			portrait_container.add_child(p)
 	_animate_portrait_features(char_id, eye_pixels)
@@ -140,28 +175,28 @@ func _animate_portrait_features(char_id: String, eyes: Array) -> void:
 			for p in eyes: portrait_tween.parallel().tween_property(p, "modulate", Color(1.5, 1.5, 1.5), 1.2); portrait_tween.tween_property(p, "modulate", Color(1.0, 1.0, 1.0), 1.2)
 		"guardian":
 			for p in eyes: portrait_tween.parallel().tween_property(p, "color", Color(0.4, 0.4, 0.4), 0.8); portrait_tween.tween_property(p, "color", Color(0.1, 0.1, 0.1), 0.8)
+		"prince":
+			for p in eyes: portrait_tween.parallel().tween_property(p, "modulate", Color(2.0, 1.5, 2.5), 1.5); portrait_tween.parallel().tween_property(p, "scale", Vector2(1.2, 1.2), 1.5); portrait_tween.tween_property(p, "modulate", Color(1.0, 1.0, 1.0), 1.5); portrait_tween.parallel().tween_property(p, "scale", Vector2(1.0, 1.0), 1.5)
 
 func _change_selection(dir: int) -> void:
-	selected_idx = posmod(selected_idx + dir, CHARACTERS.size()); if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_hover")
+	selected_idx = posmod(selected_idx + dir, available_characters.size()); if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_hover")
 	_update_display()
 
 func _on_select_pressed() -> void:
-	var c_data = CHARACTERS[selected_idx]
+	var c_data = available_characters[selected_idx]
 	var char_id = c_data["id"]
+	
+	# Reiniciar estado global para nueva partida
+	GameManager.reset_run()
+	
 	GameManager.selected_character = char_id
 	GameManager.player_hp = c_data["hp"]
 	GameManager.player_max_hp = c_data["hp"]
-	GameManager.has_eternal_fragment = false # Se reinicia el objeto en cada run
 	
-	# Copia profunda del mazo base
+	# Copia profunda del mazo base (Siempré limpio al empezar)
 	var new_deck = []
 	for card in c_data["deck"]:
 		new_deck.append(card.duplicate())
-	
-	# --- AÑADIR MEJORAS PERMANENTES ---
-	if GameManager.permanent_deck_upgrades.has(char_id):
-		for perm_card in GameManager.permanent_deck_upgrades[char_id]:
-			new_deck.append(perm_card.duplicate())
 	
 	GameManager.player_deck = new_deck
 	

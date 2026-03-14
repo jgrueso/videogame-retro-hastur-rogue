@@ -1,10 +1,9 @@
 extends Node2D
 
 var shop_items: Array = [
-	{"label": "Astilla de Esperanza (Carta comun)", "cost": 5, "action": "draft_common", "desc": "Una pieza tallada en hueso que aun vibra."},
-	{"label": "Sangre Embalsamada (+15 HP max)", "cost": 10, "action": "max_hp", "desc": "Sabe a ceniza y a un pasado que no es tuyo."},
-	{"label": "Elixir de la Agonia (Cura 20 HP)", "cost": 7, "action": "heal", "desc": "Dormira tu dolor, pero no tus pesadillas."},
-	{"label": "Sello de la Dama (Reliquia)", "cost": 14, "action": "relic", "desc": "Un objeto que el Rey dio por perdido."},
+	{"label": "Sangre Embalsamada (+15 HP max)", "cost": 25, "action": "max_hp", "desc": "Sabe a ceniza y a un pasado que no es tuyo."},
+	{"label": "Elixir de la Agonia (Cura 20 HP)", "cost": 15, "action": "heal", "desc": "Dormira tu dolor, pero no tus pesadillas."},
+	{"label": "Sello de la Dama (Reliquia)", "cost": 30, "action": "relic", "desc": "Un objeto que el Rey dio por perdido."},
 ]
 
 var greeting: String = ""
@@ -15,8 +14,25 @@ const GREETINGS = [
 	"\"Tengo cosas que te harian llorar sangre. ¿Quieres verlas?\""
 ]
 
+var shop_content: Control
+var purchase_buttons: Array = []
+var btn_sell_mem: Button
+var btn_sell_future: Button
+var offered_cards: Array = []
+var card_shelf_container: HBoxContainer # Referencia para refrescar
+
 func _ready() -> void:
 	greeting = GREETINGS[randi() % GREETINGS.size()]
+	
+	# Generar cartas aleatorias una sola vez al entrar
+	# EXCLUSIÓN: No vender cartas legendarias en la tienda normal
+	var pool = CardData.ALL_CARDS.filter(func(c): return not c.get("legendary", false))
+	pool.shuffle()
+	for i in range(3):
+		var card = pool[i].duplicate()
+		card["price"] = randi_range(6, 14) # Precio individual
+		card["sold"] = false
+		offered_cards.append(card)
 	
 	# Fondo
 	var bg = ColorRect.new()
@@ -25,8 +41,7 @@ func _ready() -> void:
 	add_child(bg)
 	
 	build_ui()
-
-var shop_content: Control
+	_update_info()
 
 func build_ui() -> void:
 	var vp = get_viewport_rect().size
@@ -70,44 +85,56 @@ func build_ui() -> void:
 	# Stats Info
 	var info = Label.new()
 	info.name = "PlayerInfo"
-	info.text = "◈ MONEDAS: %d   ◈ VIDA: %d/%d   ◈ ENERGÍA: %d" % [GameManager.coins, GameManager.player_hp, GameManager.player_max_hp, GameManager.player_max_energy]
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info.position = Vector2(0, 220); info.size = Vector2(vp.x, 30)
 	info.modulate = Color(0.9, 0.9, 0.9)
 	shop_content.add_child(info)
 
-	# --- GRID DE ITEMS ---
+	# --- GRID DE ITEMS (Consumibles y Reliquias) ---
 	var grid = GridContainer.new()
-	grid.columns = 2
+	grid.columns = 1
 	grid.position = Vector2(vp.x * 0.1, 270)
-	grid.size = Vector2(vp.x * 0.5, 300)
-	grid.add_theme_constant_override("h_separation", 30)
-	grid.add_theme_constant_override("v_separation", 30)
+	grid.size = Vector2(vp.x * 0.25, 300)
+	grid.add_theme_constant_override("v_separation", 15)
 	shop_content.add_child(grid)
 
+	purchase_buttons.clear()
 	for item in shop_items:
 		var item_box = _create_shop_item_box(item)
 		grid.add_child(item_box)
+		purchase_buttons.append({"btn": item_box, "data": item})
+
+	# --- SECCION CARTAS (Centro) ---
+	var card_lbl = Label.new()
+	card_lbl.text = "✦  PIEZAS EN VENTA  ✦"
+	card_lbl.modulate = Color(0.4, 0.7, 0.9)
+	card_lbl.position = Vector2(vp.x * 0.35, 270); card_lbl.size = Vector2(400, 30)
+	card_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	shop_content.add_child(card_lbl)
+	
+	card_shelf_container = HBoxContainer.new()
+	card_shelf_container.position = Vector2(vp.x * 0.32, 310); card_shelf_container.size = Vector2(450, 200)
+	card_shelf_container.add_theme_constant_override("separation", 15)
+	shop_content.add_child(card_shelf_container)
+	_build_card_shop(card_shelf_container)
 
 	# --- SECCION SACRIFICIO (Derecha) ---
 	var sac_container = VBoxContainer.new()
-	sac_container.position = Vector2(vp.x * 0.65, 270); sac_container.size = Vector2(300, 300)
+	sac_container.position = Vector2(vp.x * 0.75, 270); sac_container.size = Vector2(220, 300)
 	sac_container.add_theme_constant_override("separation", 20)
 	shop_content.add_child(sac_container)
 
 	var sac_lbl = Label.new()
-	sac_lbl.text = "✦  TRUEQUES OSCUROS  ✦"
+	sac_lbl.text = "💀  TRUEQUES  💀"
 	sac_lbl.modulate = Color(0.8, 0.2, 0.2)
 	sac_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sac_container.add_child(sac_lbl)
 
-	var btn_sell_mem = _create_sac_button("Vender un Recuerdo\n(+8 Monedas)", "Elimina una carta al azar de tu mazo.")
-	btn_sell_mem.disabled = GameManager.player_deck.size() <= 3
+	btn_sell_mem = _create_sac_button("Vender un Recuerdo\n(+8 Monedas)", "Elimina una carta al azar de tu mazo.")
 	btn_sell_mem.pressed.connect(_on_sell_memory)
 	sac_container.add_child(btn_sell_mem)
 
-	var btn_sell_future = _create_sac_button("Vender tu Mañana\n(+15 Monedas)", "-10 Vida Máxima permanentemente.")
-	btn_sell_future.disabled = GameManager.player_max_hp <= 20
+	btn_sell_future = _create_sac_button("Vender tu Mañana\n(+12 Monedas)", "-10 Vida Máxima permanentemente.")
 	btn_sell_future.pressed.connect(_on_sell_future)
 	sac_container.add_child(btn_sell_future)
 
@@ -118,21 +145,63 @@ func build_ui() -> void:
 	btn_exit.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
 	_style_main_button(btn_exit, Color(0.15, 0.1, 0.05))
 	shop_content.add_child(btn_exit)
+	
+	# Boton Ver Mazo
+	var btn_view = Button.new()
+	btn_view.text = "🎴 VER MAZO"
+	btn_view.size = Vector2(180, 45)
+	btn_view.position = Vector2(vp.x - 220, 40)
+	btn_view.add_theme_font_size_override("font_size", 14)
+	btn_view.pressed.connect(func(): GameManager.show_deck_overlay(self))
+	shop_content.add_child(btn_view)
+
+func _build_card_shop(container: Control) -> void:
+	for c in container.get_children(): c.queue_free()
+	
+	var card_scene = load("res://scenes/combat/Card.tscn")
+	for i in range(offered_cards.size()):
+		var card_data = offered_cards[i]
+		if card_data["sold"]: continue
+		
+		var vbox = VBoxContainer.new()
+		container.add_child(vbox)
+		
+		var card_node = card_scene.instantiate()
+		vbox.add_child(card_node)
+		card_node.setup(card_data)
+		card_node.scale = Vector2(0.7, 0.7)
+		card_node.custom_minimum_size = Vector2(130, 195)
+		
+		var buy_btn = Button.new()
+		buy_btn.text = "COMPRAR: %d" % card_data["price"]
+		buy_btn.disabled = GameManager.coins < card_data["price"]
+		vbox.add_child(buy_btn)
+		
+		var idx = i
+		buy_btn.pressed.connect(func():
+			if GameManager.coins >= offered_cards[idx]["price"]:
+				GameManager.spend_coins(offered_cards[idx]["price"])
+				GameManager.add_card(offered_cards[idx])
+				offered_cards[idx]["sold"] = true
+				if get_node_or_null("/root/AudioManager"): AudioManager.play("button_click")
+				_build_card_shop(container) # Refrescar esta seccion
+				_update_info()
+		)
 
 func _create_shop_item_box(item: Dictionary) -> Button:
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(260, 120)
-	btn.disabled = GameManager.coins < item["cost"]
+	btn.custom_minimum_size = Vector2(240, 80)
 	
 	var vbox = VBoxContainer.new()
 	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(vbox)
 	
 	var label = Label.new()
 	label.text = item["label"].to_upper()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 13)
+	label.add_theme_font_size_override("font_size", 11)
 	vbox.add_child(label)
 	
 	var cost_lbl = Label.new()
@@ -142,9 +211,6 @@ func _create_shop_item_box(item: Dictionary) -> Button:
 	vbox.add_child(cost_lbl)
 	
 	btn.tooltip_text = item["desc"]
-	if item["action"] == "relic":
-		btn.tooltip_text += "\n[Contiene un misterio]"
-	
 	_style_item_button(btn)
 	btn.pressed.connect(func(): _on_buy_pressed(item))
 	return btn
@@ -172,56 +238,155 @@ func _style_main_button(btn: Button, color: Color) -> void:
 	var n = StyleBoxFlat.new()
 	n.bg_color = color; n.border_width_bottom = 2; n.border_color = color.lightened(0.2); n.set_corner_radius_all(6)
 	btn.add_theme_stylebox_override("normal", n)
-	var h = n.duplicate(); h.bg_color = color.lightened(0.1)
+	var h = n.duplicate(); h.bg_color = Color(0.15, 0.12, 0.05)
 	btn.add_theme_stylebox_override("hover", h)
 
 func _update_info() -> void:
-	var info = get_node_or_null("PlayerInfo")
+	var info = shop_content.get_node_or_null("PlayerInfo")
 	if info:
-		info.text = "◈ MONEDAS: %d   ◈ VIDA: %d/%d   ◈ ENERGÍA: %d" % [GameManager.coins, GameManager.player_hp, GameManager.player_max_hp, GameManager.player_max_energy]
+		info.text = "◈ MONEDAS: %d   ◈ VIDA: %d/%d   ◈ ENERGÍA: %d   📖 LORE: %d" % [GameManager.coins, GameManager.player_hp, GameManager.player_max_hp, GameManager.player_max_energy, GameManager.lore_progress]
+	
+	# Refrescar estantería de cartas para actualizar botones de compra según el oro nuevo
+	if card_shelf_container:
+		_build_card_shop(card_shelf_container)
+	
+	# Actualizar botones de compra
+	for entry in purchase_buttons:
+		var data = entry["data"]
+		var btn = entry["btn"]
+		var can_afford = GameManager.coins >= data["cost"]
+		var is_full_hp = (data["action"] == "heal" and GameManager.player_hp >= GameManager.player_max_hp)
+		
+		btn.disabled = not can_afford or is_full_hp
+		if is_full_hp:
+			btn.tooltip_text = "Vida al maximo."
+		else:
+			btn.tooltip_text = data["desc"]
+	
+	# Actualizar botones de sacrificio
+	if btn_sell_mem:
+		btn_sell_mem.disabled = mem_sold or GameManager.player_deck.size() <= 3
+		if mem_sold: btn_sell_mem.text = "VENDER RECUERDO\n(AGOTADO)"
+	if btn_sell_future:
+		btn_sell_future.disabled = future_sold or GameManager.player_max_hp <= 20
+		if future_sold: btn_sell_future.text = "VENDER MAÑANA\n(AGOTADO)"
 
 func _on_buy_pressed(item: Dictionary) -> void:
-	if GameManager.spend_coins(item["cost"]):
+	if GameManager.coins >= item["cost"]:
 		match item["action"]:
-			"draft_common":
-				var draft_scene = load("res://scenes/ui/CardDraft.tscn")
-				var draft = draft_scene.instantiate()
-				add_child(draft)
-				# Ocultar SOLO el contenido de la tienda
-				shop_content.visible = false
-				draft.connect("draft_completed", func():
-					shop_content.visible = true
-					_update_info() 
-				)
-				return
 			"max_hp":
+				GameManager.spend_coins(item["cost"])
 				GameManager.player_max_hp += 15
 				GameManager.player_hp += 15
 			"heal":
-				GameManager.heal(20)
+				if GameManager.player_hp < GameManager.player_max_hp:
+					GameManager.spend_coins(item["cost"])
+					GameManager.heal(20)
+				else:
+					return
 			"relic":
 				var available = GameManager.RELIC_DATA.keys().filter(func(r): return not GameManager.has_relic(r))
 				if not available.is_empty():
+					GameManager.spend_coins(item["cost"])
 					available.shuffle()
-					GameManager.add_relic(available[0])
+					var r_id = available[0]
+					GameManager.add_relic(r_id)
+					_show_relic_modal(r_id)
+					return
 		
 		if get_node_or_null("/root/AudioManager"):
 			AudioManager.play("button_click")
-		get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")
+		_update_info()
+
+var mem_sold: bool = false
+var future_sold: bool = false
 
 func _on_sell_memory() -> void:
-	# Eliminar una carta aleatoria
-	var idx = randi() % GameManager.player_deck.size()
-	GameManager.player_deck.remove_at(idx)
-	GameManager.add_coins(8)
-	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")
+	if mem_sold: return
+	if GameManager.player_deck.size() > 3:
+		mem_sold = true
+		var idx = randi() % GameManager.player_deck.size()
+		var card_name = GameManager.player_deck[idx].get("name", "Pieza")
+		GameManager.player_deck.remove_at(idx)
+		GameManager.add_coins(8)
+		
+		var vp = get_viewport_rect().size
+		var lbl = Label.new()
+		lbl.text = "Recuerdo Olvidado: " + card_name
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.position = Vector2(0, vp.y/2); lbl.size = Vector2(vp.x, 40)
+		add_child(lbl)
+		var tw = create_tween()
+		tw.tween_property(lbl, "position:y", lbl.position.y - 100, 2.0)
+		tw.parallel().tween_property(lbl, "modulate:a", 0.0, 2.0)
+		tw.tween_callback(lbl.queue_free)
+
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play("button_click")
+		_update_info()
 
 func _on_sell_future() -> void:
-	GameManager.player_max_hp -= 10
-	GameManager.player_hp = min(GameManager.player_hp, GameManager.player_max_hp)
-	GameManager.add_coins(15)
+	if future_sold: return
+	if GameManager.player_max_hp > 20:
+		future_sold = true
+		GameManager.player_max_hp -= 10
+		GameManager.player_hp = min(GameManager.player_hp, GameManager.player_max_hp)
+		GameManager.add_coins(12)
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play("agony_shriek")
+		_update_info()
+
+
+func _show_relic_modal(r_id: String) -> void:
+	var vp = get_viewport_rect().size
+	var r_data = GameManager.RELIC_DATA[r_id]
+	
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.8)
+	overlay.size = vp
+	overlay.z_index = 100
+	add_child(overlay)
+	
+	var modal = Panel.new()
+	modal.size = Vector2(400, 300)
+	modal.position = (vp - modal.size) / 2
+	var ms = StyleBoxFlat.new(); ms.bg_color = Color(0.1, 0.08, 0.05); ms.set_border_width_all(2); ms.border_color = Color(0.8, 0.7, 0.2); ms.set_corner_radius_all(10)
+	modal.add_theme_stylebox_override("panel", ms)
+	overlay.add_child(modal)
+	
+	var title = Label.new()
+	title.text = "¡NUEVA RELIQUIA!"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 20); title.size = Vector2(400, 40)
+	title.modulate = Color(1, 0.9, 0.4)
+	modal.add_child(title)
+	
+	var r_name = Label.new()
+	r_name.text = r_data["name"].to_upper()
+	r_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	r_name.position = Vector2(0, 70); r_name.size = Vector2(400, 30)
+	modal.add_child(r_name)
+	
+	var r_desc = Label.new()
+	r_desc.text = r_data["desc"]
+	r_desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	r_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	
+	var est_lines = r_desc.text.length() / 35 + r_desc.text.count("\n") + 1
+	var desc_h = max(100, est_lines * 18)
+	r_desc.position = Vector2(40, 110); r_desc.size = Vector2(320, desc_h)
+	r_desc.modulate = Color(0.8, 0.8, 0.8)
+	modal.add_child(r_desc)
+	
+	var btn = Button.new()
+	btn.text = "ACEPTAR"
+	btn.position = Vector2(125, 230); btn.size = Vector2(150, 40)
+	modal.add_child(btn)
+	
+	btn.pressed.connect(func():
+		overlay.queue_free()
+		_update_info()
+	)
+	
 	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")
+		AudioManager.play("relic_get")

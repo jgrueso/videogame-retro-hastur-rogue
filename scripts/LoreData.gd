@@ -11,16 +11,32 @@ static func get_lore_stage() -> int:
 	return 4              # Confrontacion
 
 # ─── PENSAMIENTOS DEL JUGADOR al entrar en combate ────────────────────────────
+static var _thought_history: Array = []
+
 static func get_player_thought(char_id: String, sanity: int, enemy_name: String) -> String:
+	var thought = ""
 	if sanity < 30:
-		return _get_low_sanity_thought(char_id, enemy_name)
+		thought = _get_low_sanity_thought(char_id, enemy_name)
 	elif sanity < 70:
-		return _get_mid_sanity_thought(char_id, enemy_name)
+		thought = _get_mid_sanity_thought(char_id, enemy_name)
 	else:
-		return _get_high_sanity_thought(char_id, enemy_name)
+		thought = _get_high_sanity_thought(char_id, enemy_name)
+	
+	# Sistema anti-repetición: si la frase ya salió recientemente, buscar otra una vez
+	if thought in _thought_history:
+		if sanity < 30: thought = _get_low_sanity_thought(char_id, enemy_name)
+		elif sanity < 70: thought = _get_mid_sanity_thought(char_id, enemy_name)
+		else: thought = _get_high_sanity_thought(char_id, enemy_name)
+	
+	_thought_history.append(thought)
+	if _thought_history.size() > 5:
+		_thought_history.remove_at(0)
+		
+	return thought
 
 static func _get_high_sanity_thought(char_id: String, enemy_name: String) -> String:
 	var has_trans = GameManager.has_relic("lengua_tablero")
+	var is_w2 = GameManager.current_world == 1
 	
 	match char_id:
 		"conquistador":
@@ -30,7 +46,9 @@ static func _get_high_sanity_thought(char_id: String, enemy_name: String) -> Str
 					return "Un cobarde que se rinde ante el tablero. Mi acero no conoce la piedad."
 				"EL CARCELERO": return "Un obstáculo digno. Tomaré sus llaves y su corona de ceniza."
 				"Avatar de Hastur": return "¿Un dios? He quemado templos más grandes que este ser."
-				_: return ["Otra pieza que se interpone en mi conquista.", "El tablero se teñirá de rojo hoy.", "Mi nombre será ley en Carcosa."].pick_random()
+				_: 
+					var pool = ["Otra pieza que se interpone en mi conquista.", "El tablero se teñirá de rojo hoy.", "Este mundo se doblegará ante mi voluntad."]
+					return pool.pick_random()
 		
 		"estratega":
 			match enemy_name:
@@ -64,7 +82,7 @@ static func _get_mid_sanity_thought(char_id: String, enemy_name: String) -> Stri
 			if enemy_name == "El Penitente" and has_trans: return "El Penitente afirma que los datos se resetean, pero el trauma permanece en el código."
 			return ["Hay un error en la suma total de este universo. Los números no mienten.", "Las variables están cambiando de forma no lineal. El tablero parece respirar.", "¿Quién mueve mi lógica? Mi mente procesa pensamientos ajenos."].pick_random()
 		"guardian":
-			if enemy_name == "El Penitente" and has_trans: return "Susurra que el Rey Amarillo me talló a partir de un recuerdo olvidado."
+			if enemy_name == "El Penitente" and has_trans: return "Susurra que fui tallado a partir de un recuerdo que alguien no quiso conservar."
 			return ["Este escudo pesa más que ayer. Siento el dolor de todos los que han caído.", "¿Soy el guardián de este mundo o el carcelero de mi propia alma?", "Hay un susurro bajo la lluvia que conoce mi nombre real."].pick_random()
 	
 	return "Algo no encaja en esta realidad. Las sombras se mueven solas."
@@ -104,6 +122,9 @@ static func get_death_dialogue(enemy_name: String) -> String:
 		"Alfil Caido": return "No hay dioses aqui. Solo el juego."
 		"Torre Rota": return "Soy lo que queda cuando las reglas se rompen."
 		"Inquisidor Ciego": return "Buscaba la herejia. Era yo. Siempre fui yo."
+		"Espectro del Vacio": return ["Un principe... aun respira en el centro del vacio...", "La jaula del principe no tiene barrotes, solo olvido.", "Buscad al heredero... en el Mundo II..."].pick_random()
+		"Caballero de Carcosa": return ["Serviamos a una corona... ahora solo a la estatica.", "Hay algo... en el centro del vacio... que espera.", "No nos mateis... liberadle a el..."].pick_random()
+		"EL CENTINELA ABISAL": return "Mi vigilia termina... el secreto os pertenece..."
 		_: return "Se desintegra en el vacío."
 
 # ─── GARBLED ──────────────────────────────────────────────────────────────────
@@ -129,7 +150,60 @@ static func is_garbled(text: String) -> bool:
 static func get_post_combat_fragment() -> String:
 	var p = GameManager.lore_progress
 	match p:
-		8: return "[ Cronica ]\n'El Rey me guia.'"
+		8:  return "[ Cronica ]\n'El Rey me guia.'"
 		18: return "[ Diario ]\n'No recuerdo el nombre de mi madre.'"
-		30: return "[ Inscripcion ]\n'EL REY AMARILLO ENCONTRO EL MUNDO.'"
+		30: return "[ Inscripcion ]\n'Algo encontró este mundo. O este mundo lo encontró a él.'"
 	return ""
+
+const LORE_BOOK = {
+	"rey_marfil": {
+		"title": "EL REY Y EL MARFIL",
+		"text": "Se dice que el Rey Sin Corona no siempre fue un esqueleto. Antes de que el sol se volviera negro, gobernaba un reino de luz. Pero su obsesión por el juego perfecto lo llevó a apostar su alma contra el Silencio. El marfil de sus piezas se tornó hueso, y su trono, ceniza.",
+		"min_lore": 5
+	},
+	"memorias_carcosa": {
+		"title": "EL REINO DE LAS TORRES NEGRAS",
+		"text": "Hubo un reino, antes. El mapa no lo nombra.\n\nSus torres eran negras como el basalto y sus mares reflejaban una luz que ya no existe. Sus habitantes jugaban al ajedrez no como ritual, sino como arte. No como guerra, sino como conversación.\n\nTenía un rey. El rey tenía un hijo. El hijo nunca perdía, no porque fuera invencible, sino porque entendía algo que los demás no: perder una pieza no es perder. Es abrir un espacio.\n\nUn día llegó algo desde afuera del tablero. El rey tomó una decisión.\n\nEl príncipe nunca se lo perdonó.",
+		"min_lore": 35
+	},
+	"buhonero_rey": {
+		"title": "EL BUHONERO Y EL REY",
+		"text": "Hay una historia que los mercaderes se cuentan entre ellos, aunque ninguno puede verificarla:\n\nUn día, muy al principio, cuando el tablero era nuevo, el Buhonero se encontró con un Rey que no estaba en ningún mapa. Le preguntó qué vendería si pudiera vender cualquier cosa.\n\nEl Rey respondió: \"El final del juego.\"\n\nEl Buhonero reflexionó. \"¿Y a qué precio?\"\n\nEl Rey sonrió con una boca que tenía demasiados dientes: \"A cualquier precio que el comprador no pueda pagar.\"\n\nEl Buhonero todavía está pensando en esa respuesta.",
+		"min_lore": 12
+	},
+	"capitulo_prohibido": {
+		"title": "EL CAPÍTULO PROHIBIDO",
+		"text": "En un reino que el mapa no nombra, un Rey buscó la eternidad en el reflejo de una pieza de marfil. No entendió que el tablero no era su dominio, sino su celda.\n\nAhora aguarda en el tramo final del Tablero Dorado. Primer velo antes de algo que este códice no tiene permiso para nombrar.",
+		"min_lore": 15
+	},
+	"grieta_habitantes": {
+		"title": "LA GRIETA Y SUS HABITANTES",
+		"text": "La Grieta no tiene nombre en el idioma del tablero porque el tablero se niega a reconocer que existe.\n\nPero los ecos que habitan en ella lo saben todo. Son los fragmentos de piezas que llegaron demasiado lejos, que entendieron demasiado, que el tablero no pudo reciclar limpiamente. Sus voces se oyen en los momentos de baja cordura.\n\nUn eco dijo una vez, a través de la boca de una pieza que cruzó la Grieta: \"El Príncipe respira. El Príncipe espera. El Príncipe sabe el nombre de cada uno de nosotros.\"\n\nNadie sabe el nombre del eco que lo dijo.",
+		"min_lore": 25
+	},
+	"penitente_rendicion": {
+		"title": "EL PENITENTE Y LA RENDICIÓN",
+		"text": "En el idioma del tablero, \"rendición\" y \"pieza capturada\" son la misma palabra.\n\nHay una figura que los Siervos del tablero conocen como la Sombra Arrodillada. Aparece al final de los caminos imposibles, donde los héroes ya no pueden seguir. Les ofrece una tercera opción: no ganar, no morir, sino detenerse.\n\nLos que aceptan no desaparecen. Se convierten en parte del tablero.\n\nSi alguna vez enfrentas a un ser que te reconoce antes de atacar, que duda tres turnos antes de levantar la mano... ya sabes quién fue.",
+		"min_lore": 999
+	},
+	"hastur_eco": {
+		"title": "EL ARQUITECTO DEL TABLERO",
+		"text": "Hay algo detrás del tablero. No dentro de él, detrás.\n\nNo tiene forma propia. Toma prestadas las formas de lo que el jugador espera ver. Vive en los espacios entre los cuadros, en el silencio entre un movimiento y el siguiente.\n\nNo busca ganar. Busca que el juego nunca termine.\n\nLa locura no es el castigo por jugar. Es simplemente la comprensión de sus reglas.",
+		"min_lore": 45
+	},
+	"tres_sellos": {
+		"title": "LOS TRES SELLOS",
+		"text": "El sello original tenía tres partes: una firma, una canción y una invitación.\n\nFirma: para identificar quién jugaba.\nCanción: para mantener el juego en movimiento.\nInvitación: para asegurarse de que siempre llegara alguien a jugar.\n\nCuando el Príncipe de Carcosa rompió el sello, pensó que estaba liberando a las almas atrapadas en él. Lo que hizo fue dispersar sus piezas por el tablero, donde eventualmente serían encontradas por las piezas jugables.\n\nEl Príncipe no consideró que quizás el sello no era solo una trampa.\n\nQuizás era también la única forma de cerrarla.",
+		"min_lore": 999
+	},
+	"carta_sin_destinatario": {
+		"title": "CARTA SIN DESTINATARIO",
+		"text": "Encontrado en las paredes de la Grieta, grabado con algo que no es una herramienta:\n\n\"Si lees esto, llegas tarde o llegas a tiempo, nunca los dos. El tablero tiene un defecto que Hastur no puede reparar sin destruirlo: en el espacio entre la última nota de la Canción y el primer movimiento del siguiente ciclo, hay un silencio.\n\nEn ese silencio, el tablero no sabe que existe.\n\nEse es el momento. Ese es el único momento.\n\n— P.C.\"",
+		"min_lore": 40
+	},
+	"centinela_nombre": {
+		"title": "EL CENTINELA Y SU NOMBRE",
+		"text": "El Centinela Abisal no siempre fue un monstruo.\n\nEra el último caballero de Carcosa. Siguió a su príncipe hasta la Grieta, jurando que no volvería sin él.\n\nSiglos de estática abisal borraron casi todo. Quedó solo la función: guardar. Guardar el lugar donde estaba el príncipe. Guardar el recuerdo de que había algo que valía la pena guardar.\n\nSu nombre era Aldric. En el idioma de Carcosa: \"aquel que sostiene lo que los demás sueltan.\"\n\nNunca supo si su príncipe estaba a un metro o a un universo de donde él montaba guardia.",
+		"min_lore": 999
+	}
+}

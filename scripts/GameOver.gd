@@ -1,6 +1,8 @@
 extends Node2D
 
 func _ready() -> void:
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.stop_all()
 	modulate.a = 0.0
 	build_ui()
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.6)

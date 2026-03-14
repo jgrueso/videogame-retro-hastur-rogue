@@ -66,6 +66,15 @@ var events: Array = [
 			{"label": "Escuchar los susurros (Reliquia, +2 Maldiciones)", "hp": 0, "coins": 0, "heal": 0, "relic": true, "double_curse": true},
 		]
 	},
+	{
+		"title": "El Espejo de las Vidas Pasadas",
+		"text": "Un espejo de plata empanada. Al mirarte, no ves tu rostro, sino una de tus piezas de ajedrez desvaneciéndose.\nUna voz susurra: 'Olvida una parte de ti, y tu mente será más ligera... o tal vez más vacía.'",
+		"options": [
+			{"label": "Sacrificar un recuerdo (Eliminar carta, -20 Cordura)", "remove_card_event": true, "sanity_loss": 20},
+			{"label": "Romper el espejo (-10 HP, +10 Monedas)", "hp": -10, "coins": 10},
+			{"label": "Alejarse (nada)", "hp": 0},
+		]
+	},
 ]
 
 var current_event: Dictionary = {}
@@ -113,7 +122,7 @@ func build_ui() -> void:
 	# Fondo abisal
 	var bg = ColorRect.new()
 	bg.color = Color(0.01, 0.01, 0.02)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.size = vp
 	add_child(bg)
 	
 	# Sol Negro sutil de fondo
@@ -160,6 +169,15 @@ func build_ui() -> void:
 	for i in range(options.size()):
 		var opt = options[i]
 		_create_option_button(i, opt)
+		
+	# --- BOTON VER MAZO ---
+	var btn_view = Button.new()
+	btn_view.text = "🎴 VER MAZO"
+	btn_view.size = Vector2(180, 45)
+	btn_view.position = Vector2(vp.x - 220, 20)
+	btn_view.add_theme_font_size_override("font_size", 14)
+	btn_view.pressed.connect(func(): GameManager.show_deck_overlay(self))
+	add_child(btn_view)
 
 func _create_background_sun(vp: Vector2) -> void:
 	var sun = Panel.new()
@@ -199,14 +217,15 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 	elif opt.get("sanity_gain", 0) > 0: label_text = "🕯 " + label_text
 	if opt.get("relic", false): label_text = "💍 " + label_text
 	if opt.get("add_curse", false) or opt.get("double_curse", false): label_text = "💀 " + label_text
-	if opt.get("remove_card_event", false): label_text = "✂ " + label_text
+	if opt.get("remove_card_event", false):
+		label_text = "✂ " + label_text
 
 	var btn = Button.new()
 	btn.text = label_text
 	btn.size = Vector2(560, 60)
 	btn.add_theme_font_size_override("font_size", 15)
 	
-	# --- Tooltip Dinamico ---
+	# Tooltip Dinamico
 	var tt = ""
 	var has_relic_info = false
 	var r_data_final = {}
@@ -229,7 +248,7 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 	if opt.get("add_curse", false):
 		tt += "[!] MALDICION: Recibes 1 carta de 'Peso de la Verdad'.\n"
 	
-	btn.tooltip_text = tt # Mantener solo lo basico en el nativo
+	btn.tooltip_text = tt
 	
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.08, 0.08, 0.12, 0.9)
@@ -240,11 +259,66 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 	var idx = i
 	btn.pressed.connect(func(): _on_option_selected(idx))
 	
-	if has_relic_info:
-		btn.mouse_entered.connect(func(): _show_relic_preview(btn, r_data_final))
-		btn.mouse_exited.connect(_hide_relic_preview)
+	var is_curse = opt.get("add_curse", false) or opt.get("double_curse", false)
+	var is_bonus = opt.get("bonus_card", false)
+	
+	btn.mouse_entered.connect(func():
+		if has_relic_info:
+			_show_relic_preview(btn, r_data_final)
+		if is_curse:
+			var curse_data = {"name": "Peso de la Verdad", "attack": 0, "defense": 0, "cost": 1, "curse": true}
+			_show_card_preview(btn, curse_data, has_relic_info)
+		elif is_bonus:
+			var card_data = {"name": "Reina", "attack": 6, "defense": 2, "cost": 4}
+			_show_card_preview(btn, card_data, has_relic_info)
+	)
+	
+	btn.mouse_exited.connect(func():
+		_hide_relic_preview()
+		_hide_card_preview()
+	)
 		
 	row.add_child(btn)
+
+var _card_preview: Control
+
+func _show_card_preview(target: Button, data: Dictionary, is_offset: bool = false) -> void:
+	if _card_preview: _card_preview.queue_free()
+	
+	var vp = get_viewport_rect().size
+	var card_scene = load("res://scenes/combat/Card.tscn")
+	_card_preview = card_scene.instantiate()
+	add_child(_card_preview)
+	_card_preview.setup(data)
+	
+	var card_w = 130 * 1.1
+	var relic_w = 300 if is_offset else 0
+	
+	# Determinar si hay espacio a la derecha
+	var space_right = vp.x - (target.global_position.x + target.size.x)
+	var required_w = relic_w + card_w + 40
+	
+	var final_pos = Vector2.ZERO
+	if space_right >= required_w:
+		# Lógica normal: a la derecha
+		final_pos = target.global_position + Vector2(target.size.x + 20 + relic_w, -50)
+	else:
+		# No hay espacio a la derecha: mover a la izquierda del botón
+		final_pos = target.global_position + Vector2(-card_w - 20, -50)
+		
+	_card_preview.global_position = final_pos
+	_card_preview.scale = Vector2(1.1, 1.1)
+	_card_preview.z_index = 150
+	
+	_card_preview.modulate.a = 0
+	var tw = create_tween().set_parallel(true)
+	tw.tween_property(_card_preview, "modulate:a", 1.0, 0.2)
+	tw.tween_property(_card_preview, "position:y", _card_preview.position.y + 20, 0.2).from(_card_preview.position.y)
+
+func _hide_card_preview() -> void:
+	if _card_preview:
+		_card_preview.queue_free()
+		_card_preview = null
 
 var _relic_preview: Panel
 
@@ -272,14 +346,17 @@ func _show_relic_preview(target: Button, data: Dictionary) -> void:
 	desc.text = data["desc"]
 	desc.add_theme_font_size_override("font_size", 12)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
-	desc.position = Vector2(12, 35); desc.size = Vector2(250, 60)
+	
+	var est_lines = desc.text.length() / 30 + desc.text.count("\n") + 1
+	var desc_h = max(60, est_lines * 16)
+	desc.position = Vector2(12, 35); desc.size = Vector2(250, desc_h)
 	_relic_preview.add_child(desc)
 	
-	# Posicionar a la derecha o izquierda del boton
+	_relic_preview.size = Vector2(280, 45 + desc_h)
+	
 	_relic_preview.global_position = target.global_position + Vector2(target.size.x + 15, -20)
 	add_child(_relic_preview)
 	
-	# Animacion Rapida
 	_relic_preview.modulate.a = 0
 	_relic_preview.scale = Vector2(0.9, 0.9)
 	var tw = create_tween().set_parallel(true)
@@ -290,6 +367,66 @@ func _hide_relic_preview() -> void:
 	if _relic_preview:
 		_relic_preview.queue_free()
 		_relic_preview = null
+
+func _show_lore_modal() -> void:
+	var vp = get_viewport_rect().size
+	# Usar CanvasLayer para asegurar prioridad sobre los otros elementos de Evento
+	var layer = CanvasLayer.new()
+	layer.layer = 150
+	add_child(layer)
+	
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.96)
+	overlay.size = vp
+	layer.add_child(overlay)
+	
+	# Efecto de pergamino antiguo (estilizado con Panel)
+	var scroll_panel = Panel.new()
+	scroll_panel.size = Vector2(vp.x * 0.75, vp.y * 0.75)
+	scroll_panel.position = (vp - scroll_panel.size) / 2
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.1, 0.08, 0.05) # Sepia abisal
+	s.set_border_width_all(3)
+	s.border_color = Color(0.5, 0.4, 0.1)
+	s.set_corner_radius_all(4)
+	scroll_panel.add_theme_stylebox_override("panel", s)
+	overlay.add_child(scroll_panel)
+	
+	var title = Label.new()
+	title.text = "--- EL CAPÍTULO PROHIBIDO ---"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	title.modulate = Color(0.9, 0.8, 0.3)
+	title.position = Vector2(0, 40); title.size = Vector2(scroll_panel.size.x, 50)
+	scroll_panel.add_child(title)
+	
+	var lore_text = Label.new()
+	lore_text.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lore_text.add_theme_font_size_override("font_size", 18)
+	lore_text.modulate = Color(0.85, 0.85, 0.8)
+	lore_text.position = Vector2(60, 110); lore_text.size = Vector2(scroll_panel.size.x - 120, scroll_panel.size.y - 220)
+	scroll_panel.add_child(lore_text)
+	
+	var content = "En un reino que el mapa no nombra, un Rey buscó la eternidad en el reflejo de una pieza de marfil. No entendió que el tablero no era su dominio, sino su celda.\n\nAhora, el Rey Sin Corona aguarda en el tramo final del Tablero Dorado. Es el guardián de una puerta que no debe abrirse, el primer velo antes de la Perdida Carcosa.\n\n'Incluso los reyes lloran cuando el Amarillo viste su piel...'"
+	
+	var cont_btn = Button.new()
+	cont_btn.text = "VOLVER AL MAPA"
+	cont_btn.size = Vector2(240, 50)
+	cont_btn.position = Vector2(scroll_panel.size.x/2 - 120, scroll_panel.size.y - 80)
+	cont_btn.visible = false
+	scroll_panel.add_child(cont_btn)
+	cont_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
+	
+	await _typewrite(lore_text, content)
+	cont_btn.visible = true
+
+func _typewrite(lbl: Label, text: String, base_delay: float = 0.015) -> void:
+	lbl.text = ""
+	for i in range(text.length()):
+		lbl.text = text.substr(0, i + 1)
+		if get_node_or_null("/root/AudioManager") and i % 6 == 0:
+			AudioManager.play("menu_hover") # Sonido de escritura
+		await get_tree().create_timer(base_delay).timeout
 
 func _on_option_selected(idx: int) -> void:
 	var opt = current_event["options"][idx]
@@ -326,11 +463,8 @@ func _on_option_selected(idx: int) -> void:
 		GameManager.add_card(bonus)
 
 	if opt.get("remove_card_event", false):
-		# Eliminar un Siervo Quebrado (la carta mas debil por defecto)
-		for i in range(GameManager.player_deck.size()):
-			if GameManager.player_deck[i]["name"] == "Siervo Quebrado":
-				GameManager.player_deck.remove_at(i)
-				break
+		_show_card_removal_screen()
+		return
 
 	if opt.get("add_curse", false):
 		var curse = {"name": "Peso de la Verdad", "attack": 0, "defense": 0, "cost": 1, "curse": true}
@@ -349,6 +483,9 @@ func _on_option_selected(idx: int) -> void:
 
 	if opt.get("lore_hint_big", false):
 		GameManager.lore_progress += 15
+		GameManager.unlock_lore("capitulo_prohibido")
+		_show_lore_modal()
+		return
 
 	if opt.get("relic", false) and relic_assignments.has(idx):
 		GameManager.add_relic(relic_assignments[idx])
@@ -365,10 +502,8 @@ func _on_option_selected(idx: int) -> void:
 
 	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
 
-# ─── Minijuego del dado ───────────────────────────────────────────────────────
-
+# Dice game
 func _show_dice_game() -> void:
-	# Ocultar las opciones del evento
 	for i in range(current_event["options"].size()):
 		var row = get_node_or_null("OptionRow" + str(i))
 		if row:
@@ -383,8 +518,7 @@ func _show_dice_game() -> void:
 	var ps = StyleBoxFlat.new()
 	ps.bg_color = Color(0.05, 0.04, 0.09, 0.98)
 	ps.set_corner_radius_all(10)
-	ps.border_width_left = 2;  ps.border_width_right  = 2
-	ps.border_width_top  = 2;  ps.border_width_bottom = 2
+	ps.set_border_width_all(2)
 	ps.border_color = Color(0.55, 0.45, 0.1)
 	_dice_panel.add_theme_stylebox_override("panel", ps)
 	add_child(_dice_panel)
@@ -430,14 +564,12 @@ func _show_dice_game() -> void:
 	_dice_status_lbl.size = Vector2(700, 26)
 	_dice_panel.add_child(_dice_status_lbl)
 
-	# Separador
 	var sep = ColorRect.new()
 	sep.color = Color(0.25, 0.22, 0.12, 0.6)
 	sep.position = Vector2(40, 322)
 	sep.size = Vector2(620, 1)
 	_dice_panel.add_child(sep)
 
-	# Boton inicial: tirar gratis
 	var roll_btn = Button.new()
 	roll_btn.name = "InitialRollBtn"
 	roll_btn.text = "Tirar el dado"
@@ -448,7 +580,6 @@ func _show_dice_game() -> void:
 	roll_btn.pressed.connect(func(): _do_dice_roll(roll_btn))
 	_dice_panel.add_child(roll_btn)
 
-	# Boton re-tirar (oculto hasta el primer lanzamiento)
 	_dice_reroll_btn = Button.new()
 	_dice_reroll_btn.name = "RerollBtn"
 	_dice_reroll_btn.text = "Lanzar de nuevo  (-%d HP)" % DICE_REROLL_COST
@@ -460,7 +591,6 @@ func _show_dice_game() -> void:
 	_dice_reroll_btn.pressed.connect(func(): _do_dice_reroll())
 	_dice_panel.add_child(_dice_reroll_btn)
 
-	# Boton continuar (oculto hasta el primer lanzamiento)
 	var cont_btn = Button.new()
 	cont_btn.name = "ContinueBtn"
 	cont_btn.text = "Continuar"
@@ -498,7 +628,6 @@ func _start_roll_animation() -> void:
 
 	var final_roll = randi_range(1, 6)
 
-	# Animacion: rapido al principio, lento al final
 	var steps_fast = 8
 	var steps_slow = 4
 	var total_steps = steps_fast + steps_slow
@@ -508,7 +637,7 @@ func _start_roll_animation() -> void:
 		var delay = 0.06 if step < steps_fast else 0.14
 		var face_idx = randi() % 6
 		if step == total_steps - 1:
-			face_idx = final_roll - 1  # asegurar que el ultimo muestre el resultado final
+			face_idx = final_roll - 1
 		tween.tween_callback(func(): _dice_face_lbl.text = DICE_FACES[face_idx])
 		tween.tween_interval(delay)
 
@@ -521,14 +650,12 @@ func _on_roll_settled(roll: int) -> void:
 	var outcome = _dice_outcome(roll)
 	_apply_dice_outcome(outcome)
 
-	# Mostrar resultado
 	_dice_face_lbl.text = DICE_FACES[roll - 1]
 	_dice_result_lbl.text = outcome["text"]
 	_dice_result_lbl.modulate = outcome["color"]
 	_dice_detail_lbl.text = outcome["detail"]
 	_update_dice_status()
 
-	# Efecto visual en el panel segun tipo
 	var border_color: Color
 	match outcome["type"]:
 		"curse":   border_color = Color(0.75, 0.15, 0.15)
@@ -538,16 +665,13 @@ func _on_roll_settled(roll: int) -> void:
 	var ps = StyleBoxFlat.new()
 	ps.bg_color = Color(0.05, 0.04, 0.09, 0.98)
 	ps.set_corner_radius_all(10)
-	ps.border_width_left = 2;  ps.border_width_right  = 2
-	ps.border_width_top  = 2;  ps.border_width_bottom = 2
+	ps.set_border_width_all(2)
 	ps.border_color = border_color
 	_dice_panel.add_theme_stylebox_override("panel", ps)
 
-	# Pulso de opacidad en el resultado
 	_dice_result_lbl.modulate.a = 0.0
 	create_tween().tween_property(_dice_result_lbl, "modulate:a", 1.0, 0.35)
 
-	# Mostrar botones post-roll
 	var cont_btn = _dice_panel.get_node_or_null("ContinueBtn")
 	if cont_btn:
 		cont_btn.visible = true
@@ -645,7 +769,6 @@ func _update_dice_status() -> void:
 	if _dice_roll_count > 0:
 		base += "   |   Lanzamientos: %d" % _dice_roll_count
 	_dice_status_lbl.text = base
-	# Actualizar tambien el label de HP global
 	var info = get_node_or_null("InfoLabel")
 	if info:
 		info.text = "HP: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + "   Monedas: " + str(GameManager.coins)
@@ -654,10 +777,100 @@ func _style_btn(btn: Button, color: Color) -> void:
 	var s = StyleBoxFlat.new()
 	s.bg_color = color
 	s.set_corner_radius_all(6)
-	s.border_width_left = 1;  s.border_width_right  = 1
-	s.border_width_top  = 1;  s.border_width_bottom = 1
+	s.set_border_width_all(1)
 	s.border_color = color.lightened(0.3)
 	btn.add_theme_stylebox_override("normal", s)
 	var h = s.duplicate()
 	h.bg_color = color.lightened(0.15)
 	btn.add_theme_stylebox_override("hover", h)
+
+func _show_card_removal_screen() -> void:
+	var vp = get_viewport_rect().size
+	
+	# Contenedor principal (oscurecimiento)
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.0) # Empieza invisible
+	overlay.size = vp # Sizing manual
+	overlay.z_index = 100
+	add_child(overlay)
+	
+	# Tween para el fade-in del fondo
+	var tw_bg = create_tween()
+	tw_bg.tween_property(overlay, "color:a", 0.9, 0.4)
+	
+	# Panel Central Estilizado
+	var panel = Panel.new()
+	panel.size = Vector2(vp.x * 0.8, vp.y * 0.75)
+	panel.position = (vp - panel.size) / 2
+	panel.modulate.a = 0.0
+	panel.scale = Vector2(0.95, 0.95)
+	panel.pivot_offset = panel.size / 2
+	
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.04, 0.08, 0.98)
+	style.set_corner_radius_all(10)
+	style.set_border_width_all(2)
+	style.border_color = Color(0.85, 0.75, 0.2, 0.6) # Dorado tenue
+	style.shadow_size = 30
+	style.shadow_color = Color(0, 0, 0, 0.7)
+	panel.add_theme_stylebox_override("panel", style)
+	overlay.add_child(panel)
+	
+	# Tween para el panel
+	var tw_panel = create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw_panel.tween_property(panel, "modulate:a", 1.0, 0.5)
+	tw_panel.tween_property(panel, "scale", Vector2(1.0, 1.0), 0.5)
+	
+	var title = Label.new()
+	title.text = "ELIGE UNA PIEZA PARA OLVIDAR"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	title.modulate = Color(0.9, 0.8, 0.4)
+	title.position = Vector2(0, 30); title.size = Vector2(panel.size.x, 50)
+	panel.add_child(title)
+	
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(50, 100)
+	scroll.size = Vector2(panel.size.x - 100, panel.size.y - 200)
+	panel.add_child(scroll)
+	
+	var grid = GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 25)
+	grid.add_theme_constant_override("v_separation", 25)
+	scroll.add_child(grid)
+	
+	var card_scene = load("res://scenes/combat/Card.tscn")
+	for i in range(GameManager.player_deck.size()):
+		var idx = i
+		var card = card_scene.instantiate()
+		grid.add_child(card)
+		card.setup(GameManager.player_deck[i])
+		card.scale = Vector2(0.85, 0.85)
+		card.modulate.a = 0.0
+		
+		# Animación stagger para las cartas
+		create_tween().tween_property(card, "modulate:a", 1.0, 0.3).set_delay(0.2 + i * 0.05)
+		
+		card.gui_input.connect(func(event):
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				GameManager.player_deck.remove_at(idx)
+				if get_node_or_null("/root/AudioManager"): AudioManager.play("card_discard")
+				# Animación de salida
+				var tw_out = create_tween()
+				tw_out.tween_property(overlay, "modulate:a", 0.0, 0.3)
+				await tw_out.finished
+				get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		)
+	
+	var cancel_btn = Button.new()
+	cancel_btn.text = "RETROCEDER"
+	cancel_btn.size = Vector2(240, 50)
+	cancel_btn.position = Vector2(panel.size.x/2 - 120, panel.size.y - 70)
+	cancel_btn.pressed.connect(func(): 
+		var tw_out = create_tween()
+		tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
+		await tw_out.finished
+		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+	)
+	panel.add_child(cancel_btn)

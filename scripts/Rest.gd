@@ -1,16 +1,21 @@
 extends Node2D
 
+var btn_container: VBoxContainer
+
 func _ready() -> void:
 	var vp = get_viewport_rect().size
 	
 	# Fondo abisal
 	var bg = ColorRect.new()
 	bg.color = Color(0.01, 0.01, 0.02)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.size = vp
 	add_child(bg)
 	
-	# Efecto de fuego fatuo (ceniza)
-	_start_fire_effect(vp)
+	_start_ember_rain(vp)
+	
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.stop_loop("map_ambient_song")
+		AudioManager.play_loop("resting_song")
 	
 	build_ui()
 
@@ -20,143 +25,181 @@ func build_ui() -> void:
 	var title = Label.new()
 	title.text = "🕯 HOGUERA DE CENIZA 🕯"
 	title.add_theme_font_size_override("font_size", 42)
-	title.modulate = Color(0.4, 0.7, 0.8)
+	title.modulate = Color(0.85, 0.75, 0.2)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, 60); title.size = Vector2(vp.x, 60)
 	add_child(title)
 
 	var sub = Label.new()
-	sub.text = "El calor es frio, pero reconfortante. ¿Que buscas en las brasas?"
+	sub.text = "Un momento de tregua antes de que el tablero se cierre sobre ti."
 	sub.add_theme_font_size_override("font_size", 18)
 	sub.modulate = Color(0.6, 0.6, 0.6)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.position = Vector2(0, 130); sub.size = Vector2(vp.x, 30)
 	add_child(sub)
-	
+
 	var info = Label.new()
-	info.text = "HP: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + "   |   Energia: " + str(GameManager.player_max_energy)
+	info.text = "HP: %d/%d   |   Cordura: %d%%" % [GameManager.player_hp, GameManager.player_max_hp, GameManager.sanity]
 	info.add_theme_font_size_override("font_size", 16)
 	info.modulate = Color(0.8, 0.8, 0.8)
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info.position = Vector2(0, 165); info.size = Vector2(vp.x, 30)
 	add_child(info)
 
-	var btn_container = VBoxContainer.new()
+	btn_container = VBoxContainer.new()
 	btn_container.position = Vector2(vp.x * 0.3, 220)
 	btn_container.size = Vector2(vp.x * 0.4, 300)
 	btn_container.add_theme_constant_override("separation", 25)
 	add_child(btn_container)
 
-	# --- BOTONES ---
-	var btn_rest = _make_rest_button("🩹 DESCANSAR (Recupera 30% HP)")
-	btn_rest.tooltip_text = "Tus heridas se cierran con ceniza fría.\nRecuperas vida según tu capacidad máxima."
-	btn_rest.pressed.connect(_on_rest_pressed)
-	btn_container.add_child(btn_rest)
+	# Opción 1: Descansar (Curar)
+	var btn_heal = _make_rest_button("🔥 DESCANSAR (+20 HP)")
+	btn_heal.pressed.connect(_on_heal_pressed)
+	btn_container.add_child(btn_heal)
 
-	var upgradeables = _get_upgradeable_cards()
-	var btn_forge = _make_rest_button("🔨 FORJAR (Mejora una carta)")
-	if upgradeables.is_empty():
-		btn_forge.disabled = true
-		btn_forge.text = "🔨 FORJA AGOTADA"
-		btn_forge.tooltip_text = "No quedan más piezas en tu mazo que puedan ser reforzadas."
-		btn_forge.modulate = Color(0.5, 0.5, 0.5)
-	else:
-		btn_forge.tooltip_text = "Refuerzas una de tus piezas que aún no ha sido mejorada.\nEfectos especiales según la carta elegida."
+	# Opción 2: Forjar (Mejorar carta aleatoria)
+	var btn_forge = _make_rest_button("⚒ FORJAR PIEZA (Mejora al azar)")
 	btn_forge.pressed.connect(_on_forge_pressed)
 	btn_container.add_child(btn_forge)
 
-	var btn_sac = _make_rest_button("🌑 SACRIFICIO OSCURO (+1 Energia Max / -25 HP Max)")
-	btn_sac.tooltip_text = "CAMBIO EQUIVALENTE.\nPierdes vitalidad permanente para ganar el poder de jugar más cartas cada turno."
+	# Opción 3: Sacrificio (Aumentar Cordura a cambio de HP Max)
+	var btn_sac = _make_rest_button("🩸 SACRIFICIO (+25 Cordura | -10 HP MAX)")
 	btn_sac.modulate = Color(0.8, 0.4, 0.4)
 	btn_sac.disabled = GameManager.player_max_hp <= 30
 	btn_sac.pressed.connect(_on_sacrifice_pressed)
 	btn_container.add_child(btn_sac)
+
+	# --- BOTON VER MAZO ---
+	var btn_view = _make_rest_button("🎴 VER MAZO")
+	btn_view.modulate = Color(0.6, 0.6, 0.9)
+	btn_view.pressed.connect(func(): GameManager.show_deck_overlay(self))
+	btn_container.add_child(btn_view)
 
 func _make_rest_button(txt: String) -> Button:
 	var btn = Button.new()
 	btn.text = txt
 	btn.custom_minimum_size = Vector2(0, 65)
 	btn.add_theme_font_size_override("font_size", 18)
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.1, 0.08, 0.05); s.set_border_width_all(3); s.border_color = Color(0.4, 0.3, 0.1); s.set_corner_radius_all(6)
+	btn.add_theme_stylebox_override("normal", s)
+	var h = s.duplicate(); h.bg_color = Color(0.15, 0.12, 0.08)
+	btn.add_theme_stylebox_override("hover", h)
 	return btn
 
-func _on_rest_pressed() -> void:
-	var amount = int(GameManager.player_max_hp * 0.3)
-	GameManager.player_hp = min(GameManager.player_hp + amount, GameManager.player_max_hp)
+func _on_heal_pressed() -> void:
+	GameManager.heal(20)
+	_finish_rest()
+
+func _on_sacrifice_pressed() -> void:
+	GameManager.player_max_hp -= 10
+	GameManager.player_hp = min(GameManager.player_hp, GameManager.player_max_hp)
+	GameManager.sanity = min(100, GameManager.sanity + 25)
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("agony_shriek")
 	_finish_rest()
 
 func _on_forge_pressed() -> void:
-	var upgradeables = _get_upgradeable_cards()
+	# No se pueden forjar leyendas ni cartas ya mejoradas
+	var upgradeables = []
+	for i in range(GameManager.player_deck.size()):
+		var c = GameManager.player_deck[i]
+		var is_legendary = c.get("legendary", false)
+		if not c.get("upgraded", false) and not is_legendary:
+			upgradeables.append(i)
+			
 	if upgradeables.is_empty():
 		_finish_rest()
 		return
 	
-	# Seleccionar una carta aleatoria de las que NO están mejoradas
 	upgradeables.shuffle()
-	var card = upgradeables[0]
+	var deck_idx = upgradeables[0]
+	var card = GameManager.player_deck[deck_idx]
 	
-	if card is Dictionary:
-		var c_name = str(card.get("name", "")).to_upper()
-		
-		# Marcar como mejorada
-		card["upgraded"] = true
-		
-		# --- LÓGICA DE MEJORA INTELIGENTE ---
-		if "SUSURRO" in c_name:
-			card["attack"] = int(card.get("attack", 0)) + 4
-		elif "ECO" in c_name:
-			card["attack"] = int(card.get("attack", 0)) + 4
-		elif int(card.get("cost", 0)) >= 3:
-			if randf() < 0.5:
-				card["cost"] = max(1, int(card["cost"]) - 1)
-			else:
-				if card.has("attack"): card["attack"] = int(card["attack"]) + 4
-				if card.has("defense"): card["defense"] = int(card["defense"]) + 4
-		else:
-			if card.has("attack"): card["attack"] = int(card["attack"]) + 3
-			if card.has("defense"): card["defense"] = int(card["defense"]) + 3
-		
-		if card.has("name"):
-			var raw_name = str(card["name"])
-			if not "+" in raw_name:
-				card["name"] = raw_name + "+1"
-		
-		# --- META PROGRESO: FRAGMENTO ETERNO ---
-		if GameManager.has_eternal_fragment:
-			# Guardar en el mazo permanente del personaje seleccionado
-			var char_id = GameManager.selected_character
-			GameManager.permanent_deck_upgrades[char_id].append(card.duplicate())
-			GameManager.save_meta_progress()
-			print("Carta trascendida (permanente): ", card.get("name"))
-		
-		print("Carta reforzada: ", card.get("name"))
+	# --- NUEVA ANIMACIÓN DE FORJA ---
+	btn_container.visible = false
+	var vp = get_viewport_rect().size
 	
-	_finish_rest()
+	# Fondo oscuro bloqueante
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.85); overlay.size = vp; overlay.z_index = 150
+	add_child(overlay)
+	
+	var card_scene = load("res://scenes/combat/Card.tscn")
+	var card_node = card_scene.instantiate()
+	overlay.add_child(card_node)
+	card_node.setup(card)
+	card_node.position = vp / 2 - Vector2(65, 97)
+	card_node.scale = Vector2(1.5, 1.5)
+	
+	# El Martillo
+	var hammer = Label.new()
+	hammer.text = "🔨"
+	hammer.add_theme_font_size_override("font_size", 100)
+	hammer.pivot_offset = Vector2(50, 50)
+	hammer.position = Vector2(vp.x/2 - 50, vp.y/2 - 300)
+	hammer.rotation = -0.6
+	overlay.add_child(hammer)
+	
+	var tw = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.tween_property(hammer, "position:y", vp.y/2 - 120, 0.45)
+	tw.parallel().tween_property(hammer, "rotation", 0.0, 0.45)
+	
+	# Impacto y chispas
+	tw.tween_callback(func():
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("shield_block")
+		_spawn_forge_sparks(vp/2, overlay)
+		card_node.scale = Vector2(1.8, 1.8)
+		create_tween().tween_property(card_node, "scale", Vector2(1.5, 1.5), 0.2)
+		
+		# Aplicar mejora al original en el deck (Duplicando para que sea mutable)
+		var target = GameManager.player_deck[deck_idx].duplicate()
+		target["upgraded"] = true
+		if target.get("attack", 0) > 0: target["attack"] += 3
+		if target.get("defense", 0) > 0: target["defense"] += 3
+		if not "+" in str(target.get("name", "")): target["name"] = str(target.get("name", "")) + "+1"
+		
+		# Reemplazar en el mazo con la versión mutable mejorada
+		GameManager.player_deck[deck_idx] = target
+		
+		card_node.setup(target) # Refrescar visual
+	)
+	
+	tw.tween_property(hammer, "modulate:a", 0.0, 0.3).set_delay(0.2)
+	
+	# Boton Continuar
+	var cont_btn = Button.new()
+	cont_btn.text = "ACEPTAR Y CONTINUAR"
+	cont_btn.size = Vector2(280, 60)
+	cont_btn.position = Vector2(vp.x/2 - 140, vp.y - 120)
+	cont_btn.modulate.a = 0
+	overlay.add_child(cont_btn)
+	cont_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
+	
+	create_tween().tween_property(cont_btn, "modulate:a", 1.0, 0.5).set_delay(1.2)
 
-func _get_upgradeable_cards() -> Array:
-	var list = []
-	for card in GameManager.player_deck:
-		# Una carta es mejorable si no tiene el flag 'upgraded' y no tiene '+' en el nombre
-		var already_upgraded = card.get("upgraded", false) or "+" in str(card.get("name", ""))
-		if not already_upgraded:
-			list.append(card)
-	return list
-
-func _on_sacrifice_pressed() -> void:
-	GameManager.player_max_energy += 1
-	GameManager.player_max_hp -= 25
-	GameManager.player_hp = min(GameManager.player_hp, GameManager.player_max_hp)
-	_finish_rest()
+func _spawn_forge_sparks(pos: Vector2, parent: Node) -> void:
+	for i in range(20):
+		var p = ColorRect.new()
+		p.size = Vector2(4, 4)
+		p.color = Color(1, 0.9, 0.3)
+		p.position = pos + Vector2(randf_range(-30, 30), randf_range(-30, 30))
+		parent.add_child(p)
+		var angle = randf() * TAU
+		var dist = randf_range(60, 180)
+		var tw = create_tween().set_parallel(true)
+		tw.tween_property(p, "position", p.position + Vector2(cos(angle), sin(angle)) * dist, 0.6)
+		tw.tween_property(p, "modulate:a", 0.0, 0.6)
+		tw.chain().tween_callback(p.queue_free)
 
 func _finish_rest() -> void:
-	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("button_click")
 	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
 
-func _start_fire_effect(vp: Vector2) -> void:
-	for i in range(40):
+func _start_ember_rain(vp: Vector2) -> void:
+	for i in range(30):
 		var p = ColorRect.new()
-		p.size = Vector2(randf_range(2, 5), randf_range(2, 5))
-		p.color = Color(0.4, 0.7, 0.9, randf_range(0.1, 0.4)) # Fuego azul frio
+		p.size = Vector2(3, 3)
+		p.color = Color(1, 0.4, 0.1, 0.3)
 		p.position = Vector2(randf_range(0, vp.x), vp.y + 10)
 		add_child(p)
 		var dur = randf_range(2.0, 4.0)

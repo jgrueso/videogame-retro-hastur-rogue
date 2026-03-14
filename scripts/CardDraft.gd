@@ -81,8 +81,15 @@ func build_ui() -> void:
 	panel.add_child(skip_btn)
 
 func show_draft() -> void:
-	var pool = card_pool.duplicate()
+	# FILTRAR: Usar CardData central y excluir legendarias
+	var pool = CardData.ALL_CARDS.filter(func(c): 
+		return not c.get("legendary", false)
+	)
+	
+	# Opcional: Priorizar cartas del personaje actual
+	var char_id = GameManager.selected_character
 	pool.shuffle()
+	
 	var choices = pool.slice(0, 3)
 
 	var epic_names = ["Jaque Eterno", "Rompetablero", "Gran Maestro", "Sacrificio del Rey"]

@@ -9,6 +9,9 @@ const ROOM_FINAL    = "final"
 const ROOM_FINAL_W2 = "final_w2"
 const ROOM_SECRET   = "secret"
 const ROOM_REST     = "rest"
+const ROOM_TREASURE = "treasure"
+const ROOM_VOID_COMBAT = "void_combat"
+const ROOM_VOID_BOSS   = "void_boss"
 
 const ROOM_COLORS = {
 	ROOM_COMBAT:   Color(0.3, 0.3, 0.7),
@@ -20,6 +23,9 @@ const ROOM_COLORS = {
 	ROOM_FINAL_W2: Color(0.55, 0.4, 0.0),
 	ROOM_SECRET:   Color(0.45, 0.38, 0.04),
 	ROOM_REST:     Color(0.4, 0.7, 0.8),
+	ROOM_TREASURE: Color(0.8, 0.6, 0.1),
+	ROOM_VOID_COMBAT: Color(0.1, 0.4, 0.6),
+	ROOM_VOID_BOSS: Color(0.2, 0.8, 1.0),
 }
 
 const ROOM_LABELS = {
@@ -27,16 +33,31 @@ const ROOM_LABELS = {
 	ROOM_ELITE:    "☠ Presencia Voraz",
 	ROOM_EVENT:    "♄ Augurio",
 	ROOM_SHOP:     "☤ El Buhonero",
-	ROOM_BOSS:     "★ EL CARCELERO",
+	ROOM_BOSS:     "★ JEFE DE MUNDO",
 	ROOM_FINAL:    "♔ EL REY SIN CORONA",
 	ROOM_FINAL_W2: "♔ EL REY AMARILLO",
 	ROOM_SECRET:   "✦ Fragmento de Realidad",
 	ROOM_REST:     "🕯 Hoguera de Ceniza",
+	ROOM_TREASURE: "📦 Cofre Olvidado",
+	ROOM_VOID_COMBAT: "🌀 Grieta del Vacío",
+	ROOM_VOID_BOSS: "✦ Centinela del Abismo",
 }
 
 func _ready() -> void:
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.stop_loop("Glith_distorsion_noised_sound")
+		AudioManager.stop_loop("Cry_whisper_woman_sound")
+		AudioManager.stop_loop("resting_song")
+		AudioManager.stop_loop("intro_title_song")
+		AudioManager.play_loop("map_ambient_song")
 	if GameManager.map_graph.is_empty():
 		GameManager.map_graph = _generate_map()
+	# Guardar solo al volver de una sala completada (nunca al cargar partida guardada)
+	if GameManager.came_from_room:
+		if GameManager.current_map_col >= 0:
+			GameManager.save_path_node(GameManager.current_map_floor - 1, GameManager.current_map_col)
+		GameManager.save_run()
+		GameManager.came_from_room = false
 	modulate.a = 0.0
 	build_ui()
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.4)
@@ -65,16 +86,22 @@ func _generate_map() -> Array:
 			floor_nodes.append({"type": final_room, "connections": []})
 			graph.append(floor_nodes)
 			continue
+		
+		# MEJORA: Penúltimo piso siempre con 2-3 Hogueras (Rest)
 		if f == num_floors - 2:
-			# Siempre un descanso antes del final
-			floor_nodes.append({"type": ROOM_REST, "connections": []})
+			var n_rests = randi_range(2, 3)
+			for i in range(n_rests):
+				floor_nodes.append({"type": ROOM_REST, "connections": []})
 			graph.append(floor_nodes)
 			continue
+			
 		if f == num_floors - 3:
-			# El Jefe de Mundo es una opcion, pero podria haber otros caminos
+			# El Jefe de Mundo es una opción central, pero con caminos laterales
 			floor_nodes.append({"type": ROOM_BOSS, "connections": []})
-			if randf() < 0.5: # 50% de probabilidad de tener un camino alternativo (Elite o Evento)
-				floor_nodes.append({"type": ROOM_ELITE if randf() < 0.5 else ROOM_EVENT, "connections": []})
+			# Añadir nodos laterales para dar más opciones
+			floor_nodes.append({"type": ROOM_TREASURE if randf() < 0.5 else ROOM_ELITE, "connections": []})
+			if randf() < 0.4:
+				floor_nodes.append({"type": ROOM_EVENT, "connections": []})
 			graph.append(floor_nodes)
 			continue
 		if f == num_floors - 4:
@@ -96,7 +123,17 @@ func _generate_map() -> Array:
 		for c in range(num_cols):
 			var t = _pick_room_type(f, num_floors, prev_type)
 			prev_type = t
-			floor_nodes.append({"type": t, "connections": []})
+			var node_data = {"type": t, "connections": [], "has_rift": false}
+			
+			# Probabilidad de generar una GRIETA (Camino secreto lateral)
+			var has_relics = GameManager.relics.size() > 0
+			# La grieta aparece 2 pisos por delante de donde se descubre
+			var is_target_floor = (f == GameManager.current_map_floor + 2)
+			if not GameManager.rift_visited and is_target_floor and c == num_cols - 1:
+				if randf() < 0.25 and GameManager.lore_progress >= 25 and has_relics:
+					node_data["has_rift"] = true
+					
+			floor_nodes.append(node_data)
 
 		graph.append(floor_nodes)
 
@@ -143,14 +180,16 @@ func _pick_room_type(f_idx: int, total: int, prev_type: String) -> String:
 	var t: String
 	if f_idx >= mid_start and f_idx < mid_end:
 		# Zona media: mas elites y eventos
-		if roll < 0.30:   t = ROOM_COMBAT
-		elif roll < 0.60: t = ROOM_ELITE
-		else:             t = ROOM_EVENT
+		if roll < 0.25:   t = ROOM_COMBAT
+		elif roll < 0.50: t = ROOM_ELITE
+		elif roll < 0.85: t = ROOM_EVENT
+		else:             t = ROOM_TREASURE
 	else:
 		# Zona inicial/final: mas combate normal
-		if roll < 0.50:   t = ROOM_COMBAT
-		elif roll < 0.75: t = ROOM_EVENT
-		elif roll < 0.90: t = ROOM_ELITE
+		if roll < 0.45:   t = ROOM_COMBAT
+		elif roll < 0.70: t = ROOM_EVENT
+		elif roll < 0.85: t = ROOM_ELITE
+		elif roll < 0.95: t = ROOM_TREASURE
 		else:             t = ROOM_COMBAT
 
 	# Evitar dos elites seguidas en el mismo piso
@@ -204,6 +243,10 @@ func _connect_floors(graph: Array, f: int) -> void:
 					break
 
 # ─── UI ──────────────────────────────────────────────────────────────────────
+var ui_layer: CanvasLayer
+var lbl_info: Label
+var dev_panel: Panel
+
 func build_ui() -> void:
 	var vp = get_viewport_rect().size
 
@@ -211,12 +254,12 @@ func build_ui() -> void:
 	bg.color = Color(0.04, 0.04, 0.08)
 	bg.position = Vector2.ZERO
 	bg.size = vp
+	bg.z_index = -100 # Muy al fondo
 	add_child(bg)
-	
-	# Capa superior para que el HUD no haga scroll y los tooltips funcionen
-	var ui_layer = CanvasLayer.new()
-	add_child(ui_layer)
 
+	# Capa superior para que el HUD no haga scroll y los tooltips funcionen
+	ui_layer = CanvasLayer.new()
+	add_child(ui_layer)
 	var world_name = "Mundo II — El Tablero Dorado" if GameManager.current_world == 1 else "Mundo I — La Caida del Rey"
 
 	var title = Label.new()
@@ -237,15 +280,24 @@ func build_ui() -> void:
 	ui_layer.add_child(world_lbl)
 
 	var graph = GameManager.map_graph
-	var info = Label.new()
-	info.text = "HP: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + \
-		"   Energia: " + str(GameManager.player_max_energy) + \
-		"   Monedas: " + str(GameManager.coins) + \
-		"   Piso: " + str(GameManager.current_map_floor + 1) + "/" + str(graph.size())
-	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info.position = Vector2(0, 56)
-	info.size = Vector2(vp.x, 24)
-	ui_layer.add_child(info)
+	lbl_info = Label.new()
+	update_ui()
+	lbl_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_info.position = Vector2(0, 56)
+	lbl_info.size = Vector2(vp.x, 24)
+	ui_layer.add_child(lbl_info)
+
+	# Boton DEV
+	var dev_toggle = Button.new()
+	dev_toggle.text = "[DEV]"
+	dev_toggle.position = Vector2(10, 10); dev_toggle.size = Vector2(60, 30)
+	dev_toggle.add_theme_font_size_override("font_size", 10)
+	ui_layer.add_child(dev_toggle)
+	
+	dev_panel = _build_dev_panel(vp)
+	dev_panel.visible = false
+	ui_layer.add_child(dev_panel)
+	dev_toggle.pressed.connect(func(): dev_panel.visible = not dev_panel.visible)
 
 	# Reliquias activas
 	if not GameManager.relics.is_empty():
@@ -269,7 +321,15 @@ func build_ui() -> void:
 	deck_btn.position = Vector2(vp.x - 160, 10); deck_btn.size = Vector2(150, 40)
 	deck_btn.add_theme_font_size_override("font_size", 14)
 	ui_layer.add_child(deck_btn)
-	deck_btn.pressed.connect(_show_deck_viewer)
+	deck_btn.pressed.connect(func(): GameManager.show_deck_overlay(self))
+
+	# Boton Códice
+	var codex_btn = Button.new()
+	codex_btn.text = "📜 CÓDICE"
+	codex_btn.position = Vector2(vp.x - 320, 10); codex_btn.size = Vector2(150, 40)
+	codex_btn.add_theme_font_size_override("font_size", 14)
+	ui_layer.add_child(codex_btn)
+	codex_btn.pressed.connect(func(): GameManager.show_codex_overlay(self))
 
 	# Indicador de objetos misteriosos
 	if GameManager.secret_items.size() > 0 or _map_has_secret_rooms():
@@ -402,29 +462,37 @@ func draw_map() -> void:
 				var p1 = positions[f + 1][nc]
 				
 				# Una linea es del camino recorrido si ambos nodos están en map_path
-				var is_taken_path = GameManager.map_path.get(f) == c and GameManager.map_path.get(f+1) == nc
-				
+				var is_taken_path = false
+				if GameManager.map_path.has(f) and GameManager.map_path.has(f+1):
+					if int(GameManager.map_path[f]) == c and int(GameManager.map_path[f+1]) == nc:
+						is_taken_path = true
+
 				# Una linea es reachable si sale del nodo actual del jugador
 				var is_player_node = (f == GameManager.current_map_floor - 1 and c == GameManager.current_map_col)
 				if f == 0 and GameManager.current_map_col == -1: is_player_node = true
-				
+				if GameManager.current_map_col == -1 and f < GameManager.current_map_floor: # Salida de grieta
+					if GameManager.map_path.get(f) == c: is_player_node = true
+
 				var reachable = is_player_node and _is_node_reachable(f + 1, nc)
-				
-				var line = Line2D.new()
-				line.add_point(p0)
-				line.add_point(p1)
-				
+
+				var line_node = Line2D.new()
+				line_node.add_point(p0)
+				line_node.add_point(p1)
+
 				if is_taken_path:
-					line.width = 3.5
-					line.default_color = Color(0.9, 0.8, 0.2, 0.9) # Amarillo brillante (camino hecho)
-					map_content.add_child(line)
+					line_node.width = 3.5
+					line_node.default_color = Color(0.9, 0.8, 0.2, 0.9) # Amarillo brillante
+					line_node.z_index = -5 # Sobre el fondo, bajo los nodos
+					map_content.add_child(line_node)
 				elif reachable:
-					# Usar linea punteada para caminos disponibles
+					# Caminos futuros disponibles desde mi posición actual
 					_add_dashed_line(map_content, p0, p1, Color(0.8, 0.7, 0.2, 0.6), 2.5)
 				else:
-					line.width = 1.0
-					line.default_color = Color(0.3, 0.3, 0.4, 0.2) # Oscuro
-					map_content.add_child(line)
+					# Caminos que no tomé o que aún no puedo tomar
+					line_node.width = 1.0
+					line_node.default_color = Color(0.3, 0.3, 0.4, 0.2)
+					line_node.z_index = -10 # Al fondo
+					map_content.add_child(line_node)
 
 	# Dibujar nodos
 	for f in range(num_floors):
@@ -439,8 +507,18 @@ func draw_map() -> void:
 			
 			var was_visited = GameManager.map_path.get(f) == c
 
+			# Lógica de Desorientación por Locura (MÁXIMA)
+			# Si cordura < 40, TODO lo que no sea el nodo actual o el pasado se vuelve un misterio
+			var is_obfuscated = GameManager.sanity < 40 and not is_current and not was_visited and not already_done
+			# Los jefes solo se revelan si estás cerca o tienes cordura
+			if is_obfuscated and (room_type == ROOM_BOSS or room_type == ROOM_FINAL or room_type == ROOM_FINAL_W2):
+				if f > GameManager.current_map_floor + 1: # Si faltan más de 2 pisos, ocultar incluso al jefe
+					is_obfuscated = true
+				else:
+					is_obfuscated = false # Revelar jefe cuando estás a punto de llegar
+			
 			var btn = Button.new()
-			btn.text = ROOM_LABELS[room_type]
+			btn.text = "??? (¿...)" if is_obfuscated else ROOM_LABELS[room_type]
 			btn.position = Vector2(pos.x - 55, pos.y - 20)
 			btn.size = Vector2(110, 40)
 			btn.disabled = not reachable or already_done
@@ -448,7 +526,7 @@ func draw_map() -> void:
 
 			var style = StyleBoxFlat.new()
 			style.set_corner_radius_all(4)
-			
+
 			if is_current:
 				style.bg_color = ROOM_COLORS[room_type].lightened(0.2)
 				style.border_width_left = 2; style.border_width_right = 2
@@ -467,26 +545,285 @@ func draw_map() -> void:
 			elif already_done:
 				style.bg_color = Color(0.02, 0.02, 0.04, 0.6)
 				btn.modulate.a = 0.4
-			elif reachable:
-				style.bg_color = ROOM_COLORS[room_type]
-				# Borde punteado manual para salas alcanzables
-				_add_dashed_rect(btn, Color(1, 1, 1, 0.8), 2.0)
-			else:
-				style.bg_color = Color(0.05, 0.05, 0.07)
-				btn.modulate.a = 0.7
+			else: # SALAS FUTURAS O ADYACENTES
+				if is_obfuscated:
+					style.bg_color = Color(0.05, 0.05, 0.06)
+					btn.modulate.a = 0.5
+					if GameManager.sanity < 25:
+						_start_shaking_node(btn)
+				else:
+					style.bg_color = ROOM_COLORS[room_type]
+					btn.modulate.a = 1.0 if reachable else 0.7
+				
+				if reachable:
+					_add_dashed_rect(btn, Color(1, 1, 1, 0.8), 2.0)
 
 			btn.add_theme_stylebox_override("normal", style)
 			btn.add_theme_stylebox_override("disabled", style)
 
 			var fi = f
 			var ci = c
+			var node_data = graph[f][c] # Declarar node_data aquí
 			btn.pressed.connect(func(): _on_room_selected(fi, ci))
 			map_content.add_child(btn)
-	
+
+			# RENDERIZAR GRIETA (Camino Secreto de 4 salas)
+			if node_data.get("has_rift", false):
+
+					var rift_pos = Vector2(pos.x + 140, pos.y)
+					var rift_btn = Button.new()
+					rift_btn.text = "✦ GRIETA"
+					rift_btn.size = Vector2(100, 40)
+					rift_btn.position = rift_pos - Vector2(50, 20)
+					rift_btn.add_theme_font_size_override("font_size", 10)
+					var rs = StyleBoxFlat.new(); rs.bg_color = Color(0.05, 0.2, 0.3); rs.set_border_width_all(2); rs.border_color = Color(0.2, 0.8, 1.0)
+					rift_btn.add_theme_stylebox_override("normal", rs)
+					map_content.add_child(rift_btn)
+					_add_glow_effect(rift_btn, Color(0.2, 0.6, 1.0))
+
+					# Dibujar linea de conexion a la grieta
+					var l = Line2D.new()
+					l.add_point(pos)
+					l.add_point(rift_pos)
+					l.width = 2.0
+					l.default_color = Color(0.2, 0.8, 1.0, 0.4)
+					l.z_index = -1
+					map_content.add_child(l)
+
+					rift_btn.disabled = not reachable or already_done
+					rift_btn.pressed.connect(func():
+						_show_rift_confirmation()
+					)
+
 	# Auto-scroll al piso actual
 	await get_tree().process_frame
 	var scroll_target = total_h - (GameManager.current_map_floor * floor_h) - (vp.y / 2.0)
 	scroll.set_v_scroll(clamp(scroll_target, 0, total_h))
+	
+	_start_void_mist(ui_layer, vp) # Capa de niebla sobre el mapa
+	
+	# EVENTO: Descubrimiento de Grieta
+	_check_rift_discovery_event(vp)
+
+func _check_rift_discovery_event(vp: Vector2) -> void:
+	if GameManager.rift_notified or GameManager.rift_visited: return
+	
+	# Verificar condiciones (Misma lógica que el generador)
+	var has_relics = GameManager.relics.size() > 0
+	if GameManager.lore_progress >= 25 and has_relics:
+		GameManager.rift_notified = true
+		
+		# 1. Esperar un momento tras cargar
+		await get_tree().create_timer(0.8).timeout
+		
+		# 2. Sonido de derrumbe profundo (usando defeat ralentizado)
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play("defeat")
+			# Bajamos el tono para que suene a terremoto/escombros
+			# Nota: el AudioManager usará el pitch_scale si lo permitimos
+		
+		# 3. Temblor de pantalla VIOLENTO
+		var tw = create_tween().set_parallel(false)
+		for i in range(20):
+			var intensity = 15 - i * 0.5 # Empieza fuerte, baja poco a poco
+			var off = Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity))
+			tw.tween_property(self, "position", off, 0.04)
+		tw.tween_property(self, "position", Vector2.ZERO, 0.1)
+		
+		# 4. Pensamiento del personaje (Personalizado)
+		await get_tree().create_timer(0.5).timeout
+		var char_id = GameManager.selected_character
+		var char_col = Color(0.8, 0.8, 0.8)
+		var msg = ""
+
+		match char_id:
+			"conquistador":
+				char_col = Color(0.9, 0.4, 0.4)
+				msg = "[CONQUISTADOR]: Un estruendo... el tablero se quiebra ante mi paso. ¿Acaso el Vacío intenta desafiarme?"
+			"estratega":
+				char_col = Color(0.4, 0.6, 1.0)
+				msg = "[ESTRATEGA]: Interesante... la estática ha fracturado la geometría del mapa. Se ha abierto una anomalía."
+			"guardian":
+				char_col = Color(0.4, 0.9, 0.4)
+				msg = "[GUARDIÁN]: He escuchado un derrumbe. El tablero ya no es seguro... algo antiguo está emergiendo."
+			"prince":
+				char_col = Color(0.7, 0.4, 1.0)
+				msg = "[PRÍNCIPE]: Esa vibración... conozco este pulso. Es el aliento de Carcosa filtrándose por una grieta."
+			_:
+				msg = "[HÉROE]: He escuchado un estruendo... juraría que el tablero se ha fracturado en alguna parte."
+
+		_show_map_thought(msg, char_col, vp)
+
+
+func _show_map_thought(text: String, col: Color, vp: Vector2) -> void:
+	# Contenedor con fondo
+	var panel = Panel.new()
+	panel.size = Vector2(600, 80)
+	panel.position = Vector2(vp.x/2 - 300, vp.y - 140)
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.02, 0.02, 0.04, 0.85) # Fondo oscuro
+	s.set_border_width_all(2); s.border_color = col; s.border_color.a = 0.5
+	s.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", s)
+	panel.modulate.a = 0
+	ui_layer.add_child(panel)
+
+	var lbl = Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.size = panel.size - Vector2(40, 20)
+	lbl.position = Vector2(20, 10)
+	lbl.modulate = col
+	panel.add_child(lbl)
+	
+	var tw = create_tween().set_parallel(true)
+	tw.tween_property(panel, "modulate:a", 1.0, 0.5)
+	tw.tween_property(panel, "position:y", panel.position.y - 20, 0.5)
+	
+	await get_tree().create_timer(4.5).timeout
+	
+	var tw2 = create_tween().set_parallel(true)
+	tw2.tween_property(panel, "modulate:a", 0.0, 1.0)
+	tw2.tween_property(panel, "position:y", panel.position.y - 20, 1.0)
+	await tw2.finished
+	panel.queue_free()
+
+func _show_rift_confirmation() -> void:
+	var vp = get_viewport_rect().size
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.9); overlay.size = vp; overlay.z_index = 500
+	ui_layer.add_child(overlay)
+	
+	var panel = Panel.new()
+	panel.size = Vector2(500, 300); panel.position = (vp - panel.size) / 2
+	var s = StyleBoxFlat.new(); s.bg_color = Color(0.05, 0.08, 0.1); s.set_border_width_all(2); s.border_color = Color(0.2, 0.7, 1.0)
+	panel.add_theme_stylebox_override("panel", s)
+	overlay.add_child(panel)
+	
+	var title = Label.new(); title.text = "✦ LA GRIETA ABISAL ✦"; title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 30); title.size = Vector2(500, 40); title.modulate = Color(0.4, 0.9, 1.0)
+	panel.add_child(title)
+	
+	var desc = Label.new()
+	desc.text = "Este camino no pertenece a este mundo. Las piezas que entren aquí podrían no regresar jamás. El aire vibra con estática y peligro.\n\n¿Deseas adentrarte en el Vacío?"
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD; desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.position = Vector2(40, 80); desc.size = Vector2(420, 120); desc.add_theme_font_size_override("font_size", 14)
+	panel.add_child(desc)
+	
+	var btn_enter = Button.new(); btn_enter.text = "ADENTRARSE"; btn_enter.size = Vector2(180, 45)
+	btn_enter.position = Vector2(50, 220); panel.add_child(btn_enter)
+	btn_enter.pressed.connect(func(): GameManager.enter_void_path())
+	
+	var btn_leave = Button.new(); btn_leave.text = "MARCHARSE"; btn_leave.size = Vector2(180, 45)
+	btn_leave.position = Vector2(270, 220); panel.add_child(btn_leave)
+	btn_leave.pressed.connect(overlay.queue_free)
+
+func update_ui() -> void:
+	if not lbl_info: return
+	var graph = GameManager.map_graph
+	lbl_info.text = "HP: %d/%d   " % [GameManager.player_hp, GameManager.player_max_hp]
+	lbl_info.text += "%s: %d/%d   " % [GameManager.get_sanity_label(), GameManager.sanity, GameManager.max_sanity]
+	lbl_info.text += "📖 LORE: %d   " % GameManager.lore_progress
+	lbl_info.text += "◈: %d   " % GameManager.coins
+	lbl_info.text += "Piso: %d/%d" % [GameManager.current_map_floor + 1, graph.size()]
+
+func _build_dev_panel(vp: Vector2) -> Panel:
+	var p = Panel.new()
+	p.position = Vector2(20, 50)
+	p.size = Vector2(200, 300)
+	p.z_index = 100
+	var st = StyleBoxFlat.new()
+	st.bg_color = Color(0.1, 0.1, 0.1, 0.9)
+	st.set_border_width_all(2)
+	st.border_color = Color(0.5, 0.5, 0.5)
+	p.add_theme_stylebox_override("panel", st)
+	
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 10)
+	p.add_child(vbox)
+	
+	var btns = [
+		["+100 Oro", func(): GameManager.add_coins(100); update_ui()],
+		["-20 Cordura", func(): GameManager.sanity = max(0, GameManager.sanity - 20); update_ui()],
+		["+20 Cordura", func(): GameManager.sanity = min(100, GameManager.sanity + 20); update_ui()],
+		["Curar Todo", func(): GameManager.player_hp = GameManager.player_max_hp; update_ui()],
+		["Ir a Tesoro", func(): get_tree().change_scene_to_file("res://scenes/ui/Treasure.tscn")],
+		["Ir a Tienda", func(): get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")],
+		["GRIETA MUNDO I", func(): 
+			GameManager.current_world = 0
+			GameManager.enter_void_path()],
+		["GRIETA MUNDO II", func(): 
+			GameManager.current_world = 1
+			GameManager.enter_void_path()],
+		["TEST: EVENTO GRIETA", func():
+			GameManager.add_relic("ficha_marfil")
+			GameManager.lore_progress = 25
+			GameManager.rift_notified = false
+			# Forzar que el piso actual + 2 tenga una grieta
+			var target_f = clamp(GameManager.current_map_floor + 2, 0, GameManager.map_graph.size() - 1)
+			var target_floor_nodes = GameManager.map_graph[target_f]
+			target_floor_nodes[target_floor_nodes.size()-1]["has_rift"] = true
+			get_tree().reload_current_scene()],
+		["Reset Mapa", func(): GameManager.map_graph = []; get_tree().reload_current_scene()],
+	]
+	
+	for b_data in btns:
+		var b = Button.new()
+		b.text = b_data[0]
+		b.pressed.connect(b_data[1])
+		vbox.add_child(b)
+		
+	return p
+
+func _add_glow_effect(target: Control, col: Color) -> void:
+	var g = ColorRect.new()
+	g.size = target.size + Vector2(10, 10)
+	g.position = Vector2(-5, -5)
+	g.color = col
+	g.color.a = 0.3
+	g.show_behind_parent = true
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	target.add_child(g)
+	
+	var tw = g.create_tween().set_loops()
+	tw.tween_property(g, "modulate:a", 0.6, 1.0)
+	tw.tween_property(g, "modulate:a", 0.1, 1.0)
+
+func _start_shaking_node(node: Control) -> void:
+	var base_pos = node.position
+	var tw = node.create_tween().set_loops()
+	tw.tween_callback(func():
+		var offset = Vector2(randf_range(-2, 2), randf_range(-2, 2))
+		node.position = base_pos + offset
+	)
+	tw.tween_interval(0.05)
+
+func _start_void_mist(container: Node, vp: Vector2) -> void:
+	if GameManager.sanity > 50: return
+	
+	var intensity = clamp((50.0 - GameManager.sanity) / 50.0, 0.0, 1.0)
+	var count = int(35 * intensity) # Un poco más de densidad
+	
+	for i in range(count):
+		var mist = ColorRect.new()
+		mist.size = Vector2(randf_range(150, 400), randf_range(150, 400))
+		# Usar un color púrpura/negro muy oscuro
+		mist.color = Color(0.02, 0.0, 0.03, 0.0) 
+		mist.position = Vector2(randf_range(0, vp.x), randf_range(0, vp.y))
+		mist.mouse_filter = Control.MOUSE_FILTER_IGNORE # ¡CRÍTICO: No bloquear clics!
+		container.add_child(mist)
+		
+		# Animación de deriva y pulsación
+		var tw = mist.create_tween().set_loops()
+		var next_pos = mist.position + Vector2(randf_range(-150, 150), randf_range(-150, 150))
+		var dur = randf_range(5.0, 10.0)
+		
+		tw.parallel().tween_property(mist, "position", next_pos, dur).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(mist, "modulate:a", 0.4 * intensity, dur/2.0)
+		tw.chain().tween_property(mist, "modulate:a", 0.1 * intensity, dur/2.0)
 
 func _add_dashed_line(container: Control, p0: Vector2, p1: Vector2, color: Color, width: float) -> void:
 	var dist = p0.distance_to(p1)
@@ -565,15 +902,28 @@ func _add_map_decorations(container: Control, total_h: float, vp_x: float) -> vo
 
 # ─── Logica de rutas ─────────────────────────────────────────────────────────
 func _is_node_reachable(floor_idx: int, col_idx: int) -> bool:
+	# Solo el piso inmediatamente siguiente al actual es elegible
 	if floor_idx != GameManager.current_map_floor:
 		return false
-	if floor_idx == 0:
-		return true  # Todo el primer piso es accesible
+
+	# Caso 1: Inicio del juego o salida de grieta (col_idx -1)
+	# Todo el piso actual es elegible
+	if GameManager.current_map_col < 0:
+		return true
+
+	# Caso 2: Navegación normal
+	# Buscar si este nodo (floor_idx, col_idx) está conectado desde nuestra posición actual
+	var prev_floor_idx = floor_idx - 1
 	var prev_col = GameManager.current_map_col
-	if prev_col < 0:
-		return false
-	var prev_connections = GameManager.map_graph[floor_idx - 1][prev_col].connections
-	return col_idx in prev_connections
+	var graph = GameManager.map_graph
+
+	if prev_floor_idx >= 0 and prev_floor_idx < graph.size():
+		var p_nodes = graph[prev_floor_idx]
+		if prev_col >= 0 and prev_col < p_nodes.size():
+			var connections = p_nodes[prev_col].get("connections", [])
+			return col_idx in connections
+
+	return false
 
 # Devuelve true si este nodo fue parte del camino ya recorrido por el jugador
 func _is_on_chosen_path(floor_idx: int, _col_idx: int) -> bool:
@@ -586,12 +936,6 @@ func _is_on_chosen_path(floor_idx: int, _col_idx: int) -> bool:
 
 func _on_room_selected(floor_idx: int, col_idx: int) -> void:
 	var room_type = GameManager.map_graph[floor_idx][col_idx].type
-	
-	# Guardar el camino recorrido ANTES de avanzar el piso
-	GameManager.save_path_node(floor_idx, col_idx)
-	
-	GameManager.current_map_floor = floor_idx + 1
-	GameManager.current_map_col   = col_idx
 
 	# Resetear todos los flags antes de setear el correcto
 	GameManager.is_boss_fight  = false
@@ -599,6 +943,12 @@ func _on_room_selected(floor_idx: int, col_idx: int) -> void:
 	GameManager.is_final_boss  = false
 	GameManager.is_hastur_fight = false
 
+	# Avanzar el piso para que al volver al mapa se muestren los nodos correctos
+	GameManager.current_map_floor = floor_idx + 1
+	GameManager.current_map_col   = col_idx
+
+	# Marcar que venimos de una sala: Map._ready() guardará al regresar
+	GameManager.came_from_room = true
 	match room_type:
 		ROOM_COMBAT:
 			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
@@ -611,6 +961,8 @@ func _on_room_selected(floor_idx: int, col_idx: int) -> void:
 			get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")
 		ROOM_REST:
 			get_tree().change_scene_to_file("res://scenes/ui/Rest.tscn")
+		ROOM_TREASURE:
+			get_tree().change_scene_to_file("res://scenes/ui/Treasure.tscn")
 		ROOM_BOSS:
 			GameManager.is_boss_fight = true
 			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")

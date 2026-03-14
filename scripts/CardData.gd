@@ -1,0 +1,36 @@
+extends Node
+class_name CardData
+
+const ALL_CARDS = [
+	# Conquistador
+	{"name": "Cabalgante del Vacio", "attack": 4, "defense": 0, "cost": 2, "char": "conquistador"},
+	{"name": "Ofrenda de Carne", "attack": 8, "defense": 0, "cost": 2, "char": "conquistador"},
+	{"name": "Baluarte de Hueso", "attack": 3, "defense": 3, "cost": 2, "char": "conquistador"},
+	
+	# Estratega
+	{"name": "Inquisidor Ciego", "attack": 2, "defense": 0, "cost": 2, "char": "estratega"},
+	{"name": "Dama del Tablero", "attack": 6, "defense": 2, "cost": 3, "char": "estratega"},
+	{"name": "Analisis Profundo", "attack": 0, "defense": 0, "cost": 1, "char": "estratega", "draw": 2},
+	
+	# Guardian
+	{"name": "Idolo Inerte", "attack": 0, "defense": 8, "cost": 3, "char": "guardian"},
+	{"name": "Muro de Ceniza", "attack": 0, "defense": 12, "cost": 4, "char": "guardian"},
+	{"name": "Contraataque", "attack": 4, "defense": 4, "cost": 2, "char": "guardian"},
+	
+	# Legendarias (Solo via Grieta)
+	{"name": "Apocalipsis", "attack": 30, "defense": 0, "cost": 4, "legendary": true},
+	{"name": "Signo Amarillo", "attack": 0, "defense": 0, "cost": 0, "legendary": true, "sanity_gain": 50},
+	{"name": "Trono de Carcosa", "attack": 10, "defense": 12, "cost": 3, "legendary": true},
+]
+
+const PRINCE_DECK = [
+	{"name": "Susurro del Vacio", "attack": 4, "defense": 0, "cost": 1, "scaling_sanity": true},
+	{"name": "Daga de Cristal", "attack": 2, "defense": 0, "cost": 0},
+	{"name": "Espejo Roto", "attack": 0, "defense": 5, "cost": 1, "scaling_sanity": true},
+	{"name": "Abrazo de la Locura", "attack": 8, "defense": 0, "cost": 2, "sanity_cost": 10},
+]
+
+static func get_random_cards(count: int) -> Array:
+	var pool = ALL_CARDS.duplicate()
+	pool.shuffle()
+	return pool.slice(0, count)
