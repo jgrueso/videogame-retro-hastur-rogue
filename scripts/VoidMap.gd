@@ -94,10 +94,10 @@ func _on_node_selected(idx: int) -> void:
 	if idx == 3: # El Tesoro final
 		GameManager.is_in_void_path = false
 		GameManager.is_vault_room = true
-		get_tree().change_scene_to_file("res://scenes/ui/Treasure.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")
 	else:
 		# Combate o Jefe
-		get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
+		GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 
 func _add_pulse_effect(node: Control) -> void:
 	var tw = node.create_tween().set_loops()

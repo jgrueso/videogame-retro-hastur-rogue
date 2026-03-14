@@ -202,7 +202,7 @@ func _on_select_pressed() -> void:
 	
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.play("button_click")
-	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+	GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 
 func _style_main_button(btn: Button) -> void:
 	var s = StyleBoxFlat.new(); s.bg_color = Color(0.12, 0.1, 0.05); s.set_corner_radius_all(6); s.border_width_bottom = 4; s.border_color = Color(0.85, 0.75, 0.1); btn.add_theme_stylebox_override("normal", s)

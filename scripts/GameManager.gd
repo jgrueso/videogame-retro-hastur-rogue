@@ -46,7 +46,33 @@ func enter_void_path() -> void:
 	is_in_void_path = true
 	rift_visited = true
 	void_path_step = 0
-	get_tree().change_scene_to_file("res://scenes/ui/VoidMap.tscn")
+	go_to_scene("res://scenes/ui/VoidMap.tscn")
+
+var _transitioning: bool = false
+
+func go_to_scene(path: String) -> void:
+	if _transitioning: return
+	_transitioning = true
+	var layer = CanvasLayer.new()
+	layer.layer = 500
+	add_child(layer)
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(overlay)
+	var tree = get_tree()
+	var tw = create_tween()
+	tw.tween_property(overlay, "color:a", 1.0, 0.18)
+	tw.tween_callback(func():
+		tree.change_scene_to_file(path)
+		var tw2 = create_tween()
+		tw2.tween_property(overlay, "color:a", 0.0, 0.28)
+		tw2.tween_callback(func():
+			layer.queue_free()
+			_transitioning = false
+		)
+	)
 
 const META_SAVE_PATH = "user://meta_progression.dat"
 const RUN_SAVE_PATH = "user://current_run.dat"
@@ -246,8 +272,13 @@ func _show_lore_popup(lore_id: String) -> void:
 	text_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text_lbl.custom_minimum_size.x = scroll.size.x - 10
 	text_lbl.add_theme_font_size_override("font_size", 15)
-	text_lbl.modulate = Color(0.85, 0.82, 0.75)
+	text_lbl.modulate = Color(0.85, 0.82, 0.75, 0.0)
 	scroll.add_child(text_lbl)
+
+	# Revelar texto con desvanecimiento de opacidad (aplazado para que el panel aparezca primero)
+	var tw_txt = scene.create_tween()
+	tw_txt.tween_interval(0.3)
+	tw_txt.tween_property(text_lbl, "modulate:a", 1.0, 0.7)
 
 	# Botón cerrar
 	var close_btn = Button.new()
@@ -385,6 +416,18 @@ const RELIC_DATA = {
 	"lengua_tablero": {
 		"name": "Lengua del Tablero",
 		"desc": "Entiendes a los enemigos que hablan en idioma desconocido.\nMaldicion: una carta 'Peso de la Verdad' aparece en tu mano cada combate.",
+	},
+	"ojo_grito": {
+		"name": "Ojo del Grito",
+		"desc": "Al inicio del combate con Cordura < 40, todos los enemigos pierden su primer ataque.",
+	},
+	"manual_anatomista": {
+		"name": "Manual del Anatomista",
+		"desc": "Al inicio de cada combate, las intenciones enemigas son visibles desde el primer turno.",
+	},
+	"ojo_arrancado": {
+		"name": "Ojo Arrancado",
+		"desc": "Cada vez que recibes daño de un enemigo, ese enemigo sufre 2 de daño de retorno.",
 	},
 }
 
@@ -548,7 +591,12 @@ func show_codex_overlay(parent_node: Node) -> void:
 		list_vbox.add_child(btn)
 		
 		if is_unlocked:
-			btn.pressed.connect(func(): content_text.text = data["text"])
+			btn.pressed.connect(func():
+				content_text.modulate.a = 0.0
+				content_text.text = data["text"]
+				var tw_ct = parent_node.create_tween()
+				tw_ct.tween_property(content_text, "modulate:a", 1.0, 0.5)
+			)
 	
 	var close_btn = Button.new(); close_btn.text = "CERRAR"; close_btn.size = Vector2(200, 50)
 	close_btn.position = Vector2(panel.size.x/2 - 100, panel.size.y - 70); panel.add_child(close_btn)

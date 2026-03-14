@@ -89,6 +89,21 @@ func _ready() -> void:
 	update_intent_labels()
 	_start_enemy_idle_bobs()
 
+	# Sinergia Reliquia: Ojo del Grito
+	if GameManager.has_relic("ojo_grito") and GameManager.sanity < 40:
+		for e_g in enemies:
+			e_g["atk_reduction"] = e_g.get("atk_reduction", 0) + 999
+		flash_small("Ojo del Grito: el miedo inmoviliza a los enemigos 1 turno.", Color(0.8, 0.2, 0.3))
+		_flash_relic("ojo_grito")
+		await get_tree().create_timer(0.1).timeout
+		# Se limpia al finalizar el primer turno enemigo (atk_reduction se resetea en _on_end_turn)
+
+	# Sinergia Reliquia: Manual del Anatomista — intenciones visibles desde el primer turno
+	if GameManager.has_relic("manual_anatomista"):
+		for e_m in enemies:
+			e_m["intent_visible"] = true
+		flash_small("Manual del Anatomista: intenciones enemigas reveladas.", Color(0.55, 0.75, 0.55))
+
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.45)
 
 	# Despertar del Ojo (si es la primera vez con baja cordura)
@@ -172,20 +187,32 @@ func _show_avatar_intro() -> void:
 	curtain.size = vp # Forzar tamaño manual
 	layer.add_child(curtain)
 	
+	var chambers_quote = "Canto de mi alma, se me ha muerto la voz. Muere, sin ser cantada, como las lágrimas no derramadas se secan y mueren en la Perdida Carcosa..."
+
+	# Panel clip para revelar de arriba hacia abajo
+	var clip_lbl = Panel.new()
+	clip_lbl.clip_contents = true
+	clip_lbl.position = Vector2(vp.x * 0.2, vp.y * 0.3)
+	clip_lbl.size = Vector2(vp.x * 0.6, 0)
+	var empty_s = StyleBoxEmpty.new()
+	clip_lbl.add_theme_stylebox_override("panel", empty_s)
+	layer.add_child(clip_lbl)
+
 	var quote_lbl = Label.new()
 	quote_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	quote_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	quote_lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	quote_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	quote_lbl.position = Vector2(vp.x * 0.2, vp.y * 0.3)
+	quote_lbl.text = chambers_quote
+	quote_lbl.position = Vector2(0, 0)
 	quote_lbl.size = Vector2(vp.x * 0.6, vp.y * 0.4)
 	quote_lbl.add_theme_font_size_override("font_size", 22)
 	quote_lbl.modulate = Color(0.9, 0.8, 0.3)
-	layer.add_child(quote_lbl)
-	
-	var chambers_quote = "Canto de mi alma, se me ha muerto la voz. Muere, sin ser cantada, como las lágrimas no derramadas se secan y mueren en la Perdida Carcosa..."
-	
-	# Typewriter mucho más lento y solemne
-	await _typewrite(quote_lbl, chambers_quote, 0.08)
+	clip_lbl.add_child(quote_lbl)
+
+	# Revelar de arriba hacia abajo
+	var reveal_tw = create_tween()
+	reveal_tw.tween_property(clip_lbl, "size:y", vp.y * 0.4, 1.8)
+	await reveal_tw.finished
 	await get_tree().create_timer(2.0).timeout
 	
 	# --- EFECTO ROTOSCOPIA / GLITCH / FLASH ---
@@ -927,6 +954,35 @@ func _resolve_card(card, enemy_idx: int) -> void:
 		flash_small("¡ANÁLISIS PROFUNDO! Robas 2 piezas.")
 		await draw_hand(2) # Robar 2 cartas extra inmediatamente
 		update_ui(); update_intent_labels()
+
+	elif "CENIZA PREVENTIVA" in card.card_name:
+		var discarded = hand.size()
+		for c in hand_container.get_children(): c.queue_free()
+		for h in hand: discard_pile.append(h)
+		hand.clear()
+		var shield_gain = discarded * 3
+		player_shield += shield_gain
+		flash_small("Ceniza Preventiva: +" + str(shield_gain) + " Escudo (" + str(discarded) + " cartas)")
+		update_ui()
+
+	elif "INCISION PRECISA" in card.card_name:
+		if enemy_idx >= 0:
+			var e_inc = enemies[enemy_idx]
+			var frac_dmg = int(e_inc.max_hp * 0.25)
+			e_inc.hp -= frac_dmg
+			flash_small("Incisión Precisa: " + str(frac_dmg) + " de daño (ignora escudo)")
+			_spawn_damage_number(e_inc.panel.global_position + Vector2(100, 60), frac_dmg, Color(0.5, 1.0, 0.6))
+			_animate_enemy_hit(e_inc)
+			if e_inc.get("sprite_label"): e_inc.sprite_label.play_hit()
+			check_combat_end(); update_ui()
+
+	elif "MIRADA QUE DEVORA" in card.card_name:
+		if enemy_idx >= 0:
+			var e_mir = enemies[enemy_idx]
+			e_mir["bleed"] = e_mir.get("bleed", 0) + 3
+			flash_small("Mirada que Devora: " + e_mir.name + " sangrará 3 HP/turno")
+			_spawn_damage_number(e_mir.panel.global_position + Vector2(100, 60), 0, Color(0.8, 0.1, 0.3))
+			update_intent_labels()
 		
 	elif "FORMACION" in card.card_name:
 		flash_small("¡FORMACIÓN! Defensa absoluta.")
@@ -1636,7 +1692,7 @@ func check_combat_end() -> void:
 		# Final secreto — Hastur derrotado: victoria real
 		GameManager.player_won = true
 		_show_victory_cinematic(true)
-		get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
+		GameManager.go_to_scene("res://scenes/ui/GameOver.tscn")
 	elif GameManager.is_final_boss:
 		if GameManager.current_world == 0:
 			# REY SIN CORONA caído → Mundo 2
@@ -1650,12 +1706,12 @@ func check_combat_end() -> void:
 				await _show_carcosa_transition()
 				GameManager.is_final_boss = false
 				GameManager.is_hastur_fight = true
-				get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
+				GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 			else:
 				# Victoria normal sin secreto
 				GameManager.player_won = true
 				await _show_victory_cinematic(false)
-				get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
+				GameManager.go_to_scene("res://scenes/ui/GameOver.tscn")
 	elif GameManager.is_boss_fight:
 		# EL CARCELERO → reliquia → mapa
 		_show_relic_reward("res://scenes/ui/Map.tscn")
@@ -1715,10 +1771,10 @@ func _show_loot_screen() -> void:
 				GameManager.unlock_lore("centinela_nombre")
 			GameManager.void_path_step += 1
 			# Siempre volver al mapa de la grieta para ver el progreso
-			get_tree().change_scene_to_file("res://scenes/ui/VoidMap.tscn")
+			GameManager.go_to_scene("res://scenes/ui/VoidMap.tscn")
 		else:
 			# Progresión normal del mapa (NO sumar piso aquí, Map.gd ya lo hizo al elegir)
-			get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+			GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)
 	loot_panel.add_child(cont_btn)
 
@@ -2023,9 +2079,9 @@ func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void
 				GameManager.player_hp = GameManager.player_max_hp
 				GameManager.sanity = 100
 				
-				get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+				GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 			else:
-				get_tree().change_scene_to_file(next_scene)
+				GameManager.go_to_scene(next_scene)
 		)
 
 # ── Recompensa del Penitente ───────────────────────────────────────────────────
@@ -2092,7 +2148,7 @@ func _show_single_reward_modal(title_text: String, item_data: Dictionary, next_s
 	dim.add_child(cont_btn)
 	
 	cont_btn.pressed.connect(func():
-		get_tree().change_scene_to_file(next_scene)
+		GameManager.go_to_scene(next_scene)
 	)
 
 # ── Turno enemigo ──────────────────────────────────────────────────────────────
@@ -2104,7 +2160,20 @@ func _on_end_turn_button_pressed() -> void:
 
 	for e in enemies:
 		if e.hp <= 0: continue
-		
+
+		# Bleed (Mirada que Devora)
+		if e.get("bleed", 0) > 0:
+			var bleed_dmg = e["bleed"]
+			e.hp -= bleed_dmg
+			e["bleed"] = max(0, e["bleed"] - 1)
+			_spawn_damage_number(e.panel.global_position + Vector2(100, 60), bleed_dmg, Color(0.8, 0.1, 0.3))
+			if e.get("sprite_label"): e.sprite_label.play_hit()
+			log_message(e.name, "Sangra por %d de daño" % bleed_dmg, Color(0.8, 0.1, 0.3))
+			update_ui()
+			if e.hp <= 0:
+				await _kill_enemy(e)
+				continue
+
 		# Probabilidad de soltar un diálogo de lore (bark) al iniciar turno
 		if "AVATAR" in e.name.to_upper() and randf() < 0.4:
 			_show_avatar_bark()
@@ -2182,6 +2251,12 @@ func _on_end_turn_button_pressed() -> void:
 				_animate_player_hit()
 				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), dmg, Color(1, 0.3, 0.3))
 				if get_node_or_null("/root/AudioManager"): AudioManager.play("player_hit")
+
+				# Sinergia Reliquia: Ojo Arrancado — contraataque 2 de daño
+				if GameManager.has_relic("ojo_arrancado"):
+					e.hp -= 2
+					_spawn_damage_number(e.panel.global_position + Vector2(100, 60), 2, Color(0.9, 0.55, 0.1))
+					_flash_relic("ojo_arrancado")
 				
 				# Pasiva Guardian: Furia (Acumulativa: 1 por cada 5 de daño total recibido)
 				if GameManager.selected_character == "guardian":
@@ -2379,10 +2454,10 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		["Ganar combate", func(): _dev_force_win()],
 		["FORZAR AVATAR", func():
 			GameManager.dev_force_avatar = true
-			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")],
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")],
 		["FORZAR PENITENTE", func():
 			GameManager.dev_force_penitente = true
-			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")],
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")],
 		["+ Fragmentos x3", func():
 			GameManager.add_secret_item("simbolo_amarillo")
 			GameManager.add_secret_item("cancion_amarilla")
@@ -2415,7 +2490,7 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		["BOSS: MUNDO I", func():
 			GameManager.is_boss_fight = true
 			GameManager.current_world = 0
-			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")],
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")],
 		["ACTIVA FASE 2", func():
 			if not enemies.is_empty(): _trigger_boss_phase_2(enemies[0])],
 		["CURAR TODO", func():
@@ -2432,8 +2507,8 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		["SAN: 35 (Parpadeo)", func(): GameManager.sanity = 35; update_ui()],
 		["SAN: 15 (Ceguera)", func(): GameManager.sanity = 15; update_ui()],
 		["SAN: 0 (Muerte)", func(): GameManager.sanity = 0; check_combat_end()],
-		["HOGUERA (Rest)", func(): get_tree().change_scene_to_file("res://scenes/ui/Rest.tscn")],
-		["TESORO (Cofre)", func(): get_tree().change_scene_to_file("res://scenes/ui/Treasure.tscn")],
+		["HOGUERA (Rest)", func(): GameManager.go_to_scene("res://scenes/ui/Rest.tscn")],
+		["TESORO (Cofre)", func(): GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")],
 	]
 
 	for i in range(btns.size()):
@@ -2834,74 +2909,69 @@ func _show_yellow_truth_cinematic(lines: Array) -> void:
 	var layer = CanvasLayer.new()
 	layer.layer = 150
 	add_child(layer)
-	
-	# Nodo raíz para poder desvanecer todo el contenido
+
 	var root = Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(root)
-	
-	# Fondo Negro Profundo
+
 	var bg = ColorRect.new()
 	bg.color = Color(0, 0, 0, 1.0)
 	bg.size = vp
 	root.add_child(bg)
-	
-	# Ruido visual
-	var noise = ColorRect.new()
-	noise.color = Color(0.1, 0.1, 0.1, 0.1)
-	noise.size = vp
-	root.add_child(noise)
-	
-	var lbl = Label.new()
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	lbl.position = Vector2(vp.x * 0.1, vp.y * 0.2)
-	lbl.size = Vector2(vp.x * 0.8, vp.y * 0.6)
-	lbl.add_theme_font_size_override("font_size", 26)
-	lbl.modulate = Color(0.4, 0.35, 0.1)
-	root.add_child(lbl)
-	
+
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.play("ambient_hum")
 
-	for text in lines:
-		if not is_instance_valid(self): break
-		lbl.text = ""
-		lbl.modulate = Color(0.4, 0.35, 0.1)
-		lbl.modulate.a = 1.0 # Asegurar visibilidad al inicio de cada frase
-		
-		var text_tw = create_tween()
-		text_tw.tween_property(lbl, "modulate", Color(1.2, 1.0, 0.2), 2.5)
-		
-		await _typewrite(lbl, text, 0.06)
-		await get_tree().create_timer(1.5).timeout
-		
-		# Efecto Rotoscopia
-		for i in range(4):
-			if not is_instance_valid(bg): break
-			bg.color = Color(0.1, 0.08, 0.0) if i % 2 == 0 else Color(0,0,0)
-			lbl.visible = !lbl.visible
-			await get_tree().create_timer(0.05).timeout
-		
-		lbl.visible = true
-		bg.color = Color.BLACK
-		
-		# Desvanecer frase actual
-		var fade = create_tween()
-		fade.tween_property(lbl, "modulate:a", 0.0, 0.8)
-		await fade.finished
-		# NO reseteamos alpha a 1.0 aquí para que no "salte" el texto
-	
-	print("Combat: Iniciando desvanecimiento final de cinemática...")
-	
+	# Combinar todas las líneas en un solo bloque de texto
+	var full_text = "\n\n".join(lines)
+
+	# Contenedor con clip para revelar de arriba hacia abajo
+	var text_x = vp.x * 0.1
+	var text_y = vp.y * 0.15
+	var text_w = vp.x * 0.8
+	var text_h = vp.y * 0.7
+
+	var clip = Panel.new()
+	clip.clip_contents = true
+	clip.position = Vector2(text_x, text_y)
+	clip.size = Vector2(text_w, 0)  # Empieza sin altura visible
+	var empty_style = StyleBoxEmpty.new()
+	clip.add_theme_stylebox_override("panel", empty_style)
+	root.add_child(clip)
+
+	var lbl = Label.new()
+	lbl.text = full_text
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.position = Vector2(0, 0)
+	lbl.size = Vector2(text_w, text_h)
+	lbl.add_theme_font_size_override("font_size", 26)
+	lbl.modulate = Color(1.2, 1.0, 0.2)
+	clip.add_child(lbl)
+
+	# Revelar de arriba hacia abajo expandiendo el clip
+	var reveal = create_tween()
+	reveal.tween_property(clip, "size:y", text_h, 2.2)
+	await reveal.finished
+
+	await get_tree().create_timer(3.0).timeout
+
+	# Efecto rotoscopia
+	for i in range(4):
+		if not is_instance_valid(bg): break
+		bg.color = Color(0.1, 0.08, 0.0) if i % 2 == 0 else Color.BLACK
+		lbl.visible = !lbl.visible
+		await get_tree().create_timer(0.05).timeout
+
+	lbl.visible = true
+	bg.color = Color.BLACK
+
+	# Desvanecer todo
 	var out = create_tween()
 	out.tween_property(root, "modulate:a", 0.0, 1.0)
-	
-	# Si en 2 segundos no ha terminado, forzamos la salida
 	await get_tree().create_timer(1.2).timeout
-	
-	print("Combat: Cinemática concluida. Liberando recursos y volviendo al mapa.")
+
 	layer.queue_free()
 
 func _show_avatar_defeat_lore() -> void:
@@ -2944,6 +3014,5 @@ func _check_player_death() -> void:
 		AudioManager.stop_loop("Cry_whisper_woman_sound")
 		AudioManager.play("defeat")
 		
-	var tree = get_tree()
-	await tree.create_timer(2.5).timeout
-	tree.change_scene_to_file("res://scenes/ui/GameOver.tscn")
+	await get_tree().create_timer(2.5).timeout
+	GameManager.go_to_scene("res://scenes/ui/GameOver.tscn")

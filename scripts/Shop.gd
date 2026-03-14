@@ -142,7 +142,7 @@ func build_ui() -> void:
 	var btn_exit = Button.new()
 	btn_exit.text = "DEJAR EL MERCADO"
 	btn_exit.position = Vector2(vp.x/2 - 120, 585); btn_exit.size = Vector2(240, 50)
-	btn_exit.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
+	btn_exit.pressed.connect(func(): GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
 	_style_main_button(btn_exit, Color(0.15, 0.1, 0.05))
 	shop_content.add_child(btn_exit)
 	

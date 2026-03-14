@@ -140,7 +140,11 @@ func setup(data: Dictionary) -> void:
 	is_upgraded = data.get("upgraded", false) or "+" in raw_name
 	
 	var real_name = raw_name.split("+")[0].strip_edges()
-	description = DESCRIPTIONS.get(real_name, "Sin descripcion.")
+	if data.has("description"):
+		description = data.get("description")
+	else:
+		description = DESCRIPTIONS.get(real_name, "Sin descripcion.")
+
 	if description == "Sin descripcion.":
 		for key in DESCRIPTIONS.keys():
 			if key.to_lower() == real_name.to_lower():

@@ -3,25 +3,31 @@ extends Panel
 var relic_id: String = ""
 
 const RELIC_COLORS = {
-	"ficha_marfil":     Color(0.9, 0.85, 0.4),
-	"escudo_astillado": Color(0.4, 0.6, 0.9),
-	"ojo_oraculo":      Color(0.7, 0.3, 0.9),
-	"sangre_caido":     Color(0.8, 0.2, 0.2),
-	"velo_dama":        Color(0.8, 0.5, 0.9),
+	"ficha_marfil":       Color(0.9, 0.85, 0.4),
+	"escudo_astillado":   Color(0.4, 0.6, 0.9),
+	"ojo_oraculo":        Color(0.7, 0.3, 0.9),
+	"sangre_caido":       Color(0.8, 0.2, 0.2),
+	"velo_dama":          Color(0.8, 0.5, 0.9),
 	"espejo_fragmentado": Color(0.5, 0.9, 0.9),
-	"corona_espinas":   Color(0.6, 0.15, 0.15),
-	"reloj_roto":       Color(0.6, 0.8, 0.5),
+	"corona_espinas":     Color(0.6, 0.15, 0.15),
+	"reloj_roto":         Color(0.6, 0.8, 0.5),
+	"ojo_grito":          Color(0.8, 0.2, 0.3),
+	"manual_anatomista":  Color(0.55, 0.75, 0.55),
+	"ojo_arrancado":      Color(0.9, 0.55, 0.1),
 }
 
 const RELIC_ICONS = {
-	"ficha_marfil":     "F",
-	"escudo_astillado": "E",
-	"ojo_oraculo":      "O",
-	"sangre_caido":     "S",
-	"velo_dama":        "V",
+	"ficha_marfil":       "F",
+	"escudo_astillado":   "E",
+	"ojo_oraculo":        "O",
+	"sangre_caido":       "S",
+	"velo_dama":          "V",
 	"espejo_fragmentado": "M",
-	"corona_espinas":   "C",
-	"reloj_roto":       "R",
+	"corona_espinas":     "C",
+	"reloj_roto":         "R",
+	"ojo_grito":          "G",
+	"manual_anatomista":  "A",
+	"ojo_arrancado":      "J",
 }
 
 var tooltip_panel: Panel

@@ -190,7 +190,7 @@ func _make_stat_row(label_text: String, value_text: String) -> Node2D:
 
 func _on_retry() -> void:
 	GameManager.reset_run()
-	get_tree().change_scene_to_file("res://scenes/ui/CharacterSelect.tscn")
+	GameManager.go_to_scene("res://scenes/ui/CharacterSelect.tscn")
 
 func _on_quit() -> void:
 	get_tree().quit()

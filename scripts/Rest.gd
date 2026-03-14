@@ -174,7 +174,7 @@ func _on_forge_pressed() -> void:
 	cont_btn.position = Vector2(vp.x/2 - 140, vp.y - 120)
 	cont_btn.modulate.a = 0
 	overlay.add_child(cont_btn)
-	cont_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
+	cont_btn.pressed.connect(func(): GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
 	
 	create_tween().tween_property(cont_btn, "modulate:a", 1.0, 0.5).set_delay(1.2)
 
@@ -193,7 +193,7 @@ func _spawn_forge_sparks(pos: Vector2, parent: Node) -> void:
 		tw.chain().tween_callback(p.queue_free)
 
 func _finish_rest() -> void:
-	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+	GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 
 func _start_ember_rain(vp: Vector2) -> void:
 	for i in range(30):

@@ -14,9 +14,14 @@ const ALL_CARDS = [
 	
 	# Guardian
 	{"name": "Idolo Inerte", "attack": 0, "defense": 8, "cost": 3, "char": "guardian"},
-	{"name": "Muro de Ceniza", "attack": 0, "defense": 12, "cost": 4, "char": "guardian"},
+	{"name": "Muro de Ceniza", "attack": 0, "defense": 12, "cost": 4, "char": "guardian", "description": "Otorga 12 de [Escudo]."},
 	{"name": "Contraataque", "attack": 4, "defense": 4, "cost": 2, "char": "guardian"},
 	
+	# Cartas de Evento
+	{"name": "Ceniza Preventiva", "attack": 0, "defense": 0, "cost": 1, "discard_for_shield": true, "description": "Descarta tu mano. Ganas 3 de [Escudo] por cada carta descartada."},
+	{"name": "Incision Precisa",  "attack": 0, "defense": 0, "cost": 2, "max_hp_fraction_dmg": 0.25},
+	{"name": "Mirada que Devora", "attack": 0, "defense": 0, "cost": 0, "apply_bleed": 3, "description": "Aplica 3 de [Sangrado] a un enemigo. El sangrado inflige daño al inicio de su turno."},
+
 	# Legendarias (Solo via Grieta)
 	{"name": "Apocalipsis", "attack": 30, "defense": 0, "cost": 4, "legendary": true},
 	{"name": "Signo Amarillo", "attack": 0, "defense": 0, "cost": 0, "legendary": true, "sanity_gain": 50},

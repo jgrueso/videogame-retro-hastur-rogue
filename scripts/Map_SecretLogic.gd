@@ -6,7 +6,7 @@ func _ready() -> void:
 func setup_item_event(item_id: String) -> void:
 	var item_data = GameManager.SECRET_ITEM_DATA.get(item_id, {})
 	if item_data.is_empty():
-		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 		return
 
 	var vp = get_viewport_rect().size
@@ -78,12 +78,12 @@ func setup_item_event(item_id: String) -> void:
 	if already_have:
 		take_btn.disabled = true; take_btn.text = "Ya lo posees"
 
-	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
+	back_btn.pressed.connect(func(): GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
 	take_btn.pressed.connect(func():
 		match sit["type"]:
 			"blood": GameManager.player_hp = max(1, GameManager.player_hp * 0.8)
 			"max_hp": GameManager.player_max_hp = max(10, GameManager.player_max_hp - 6)
 			"curse": GameManager.add_card({"name": "Peso de la Verdad", "attack": 0, "defense": 0, "cost": 1, "curse": true})
 		GameManager.add_secret_item(item_id)
-		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)

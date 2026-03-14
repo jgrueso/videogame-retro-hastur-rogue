@@ -67,6 +67,33 @@ var events: Array = [
 		]
 	},
 	{
+		"title": "El Susurro en la Galería",
+		"text": "La galería huele a cera quemada y a algo más antiguo.\n\nEn el centro, colgado con una cadena demasiado gruesa para un simple lienzo, un cuadro cubierto por una tela de lino.\n\nLa tela se mueve. No hay corriente de aire.",
+		"options": [
+			{"label": "Levantar la tela (-20 Cordura, Reliquia)", "sanity_loss": 20, "specific_relic": "ojo_grito"},
+			{"label": "Quemarla (-8 HP, carta Ceniza Preventiva)", "hp": -8, "add_specific_card": "Ceniza Preventiva"},
+			{"label": "Marcharse sin mirar (+10 Cordura)", "sanity_gain": 10},
+		]
+	},
+	{
+		"title": "La Lección del Anatomista",
+		"text": "Una figura con máscara de plumas doradas sostiene un bisturí.\n\nSu voz suena como si viniera de más lejos que la distancia que os separa.\n\n'Llevas tanto tiempo atravesando cuerpos. ¿Nunca has querido entender lo que hay dentro?'",
+		"options": [
+			{"label": "Extender el brazo (-15 HP max, Reliquia + carta)", "max_hp": -15, "specific_relic": "manual_anatomista", "add_specific_card": "Incision Precisa"},
+			{"label": "Ofrecer una carta como sujeto (+1 ATK en mazo)", "remove_card_event": true, "boost_attack_cards": true},
+			{"label": "Tomar el bisturí antes (miniboss)", "miniboss": true},
+		]
+	},
+	{
+		"title": "El Jardín de los Ojos",
+		"text": "Un patio imposible. Hileras ordenadas de pólipos de carne que terminan en ojos.\n\nOjos reales. Con iris. Con ese brillo húmedo de algo vivo.\n\nTodos te miran. En el centro, una fuente de agua que parece clara.",
+		"options": [
+			{"label": "Beber de la fuente (-25 Cordura, carta Mirada que Devora)", "sanity_loss": 25, "add_specific_card": "Mirada que Devora"},
+			{"label": "Arrancar uno de los pólipos (-10 HP, Reliquia)", "hp": -10, "specific_relic": "ojo_arrancado"},
+			{"label": "Cruzar sin tocar nada (depende de Cordura)", "sanity_conditional": true},
+		]
+	},
+	{
 		"title": "El Espejo de las Vidas Pasadas",
 		"text": "Un espejo de plata empanada. Al mirarte, no ves tu rostro, sino una de tus piezas de ajedrez desvaneciéndose.\nUna voz susurra: 'Olvida una parte de ti, y tu mente será más ligera... o tal vez más vacía.'",
 		"options": [
@@ -415,7 +442,7 @@ func _show_lore_modal() -> void:
 	cont_btn.position = Vector2(scroll_panel.size.x/2 - 120, scroll_panel.size.y - 80)
 	cont_btn.visible = false
 	scroll_panel.add_child(cont_btn)
-	cont_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
+	cont_btn.pressed.connect(func(): GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
 	
 	await _typewrite(lore_text, content)
 	cont_btn.visible = true
@@ -451,11 +478,11 @@ func _on_option_selected(idx: int) -> void:
 	if opt.get("miniboss", false):
 		GameManager.is_miniboss_fight = true
 		GameManager.is_boss_fight = false
-		get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
+		GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 		return
 
 	if opt.get("goto_shop", false):
-		get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Shop.tscn")
 		return
 
 	if opt.get("bonus_card", false):
@@ -500,7 +527,23 @@ func _on_option_selected(idx: int) -> void:
 	if opt.get("lore_hint", false):
 		GameManager.lore_progress += 1
 
-	get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+	if opt.get("add_specific_card", "") != "":
+		var card_name = opt["add_specific_card"]
+		var found = CardData.ALL_CARDS.filter(func(c): return c["name"] == card_name)
+		if not found.is_empty():
+			GameManager.add_card(found[0].duplicate())
+
+	if opt.get("boost_attack_cards", false):
+		for c in GameManager.player_deck:
+			if c.get("attack", 0) > 0:
+				c["attack"] += 1
+		flash_small_event("Tus cartas de Ataque ganan +1 de daño.")
+
+	if opt.get("sanity_conditional", false):
+		_resolve_sanity_conditional(opt)
+		return
+
+	GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 
 # Dice game
 func _show_dice_game() -> void:
@@ -599,7 +642,7 @@ func _show_dice_game() -> void:
 	cont_btn.add_theme_font_size_override("font_size", 14)
 	_style_btn(cont_btn, Color(0.12, 0.12, 0.22))
 	cont_btn.visible = false
-	cont_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/ui/Map.tscn"))
+	cont_btn.pressed.connect(func(): GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
 	_dice_panel.add_child(cont_btn)
 
 	_update_dice_status()
@@ -773,6 +816,28 @@ func _update_dice_status() -> void:
 	if info:
 		info.text = "HP: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + "   Monedas: " + str(GameManager.coins)
 
+func flash_small_event(text: String) -> void:
+	var lbl = get_node_or_null("InfoLabel")
+	if lbl: lbl.text = text
+
+func _resolve_sanity_conditional(_opt: Dictionary) -> void:
+	var s = GameManager.sanity
+	if s > 60:
+		var available = GameManager.RELIC_DATA.keys().filter(func(r): return not GameManager.has_relic(r))
+		available.shuffle()
+		if not available.is_empty():
+			GameManager.add_relic(available[0])
+			if get_node_or_null("/root/AudioManager"): AudioManager.play("relic_get")
+	elif s >= 30:
+		var curse = {"name": "Peso de la Verdad", "attack": 0, "defense": 0, "cost": 1, "curse": true}
+		GameManager.add_card(curse)
+	else:
+		# Beber a la fuerza: -25 cordura + Mirada que Devora
+		GameManager.sanity = max(0, GameManager.sanity - 25)
+		var found = CardData.ALL_CARDS.filter(func(c): return c["name"] == "Mirada que Devora")
+		if not found.is_empty(): GameManager.add_card(found[0].duplicate())
+	GameManager.go_to_scene("res://scenes/ui/Map.tscn")
+
 func _style_btn(btn: Button, color: Color) -> void:
 	var s = StyleBoxFlat.new()
 	s.bg_color = color
@@ -860,7 +925,7 @@ func _show_card_removal_screen() -> void:
 				var tw_out = create_tween()
 				tw_out.tween_property(overlay, "modulate:a", 0.0, 0.3)
 				await tw_out.finished
-				get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+				GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 		)
 	
 	var cancel_btn = Button.new()
@@ -871,6 +936,6 @@ func _show_card_removal_screen() -> void:
 		var tw_out = create_tween()
 		tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
 		await tw_out.finished
-		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)
 	panel.add_child(cancel_btn)

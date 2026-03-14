@@ -750,8 +750,8 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		["-20 Cordura", func(): GameManager.sanity = max(0, GameManager.sanity - 20); update_ui()],
 		["+20 Cordura", func(): GameManager.sanity = min(100, GameManager.sanity + 20); update_ui()],
 		["Curar Todo", func(): GameManager.player_hp = GameManager.player_max_hp; update_ui()],
-		["Ir a Tesoro", func(): get_tree().change_scene_to_file("res://scenes/ui/Treasure.tscn")],
-		["Ir a Tienda", func(): get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")],
+		["Ir a Tesoro", func(): GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")],
+		["Ir a Tienda", func(): GameManager.go_to_scene("res://scenes/ui/Shop.tscn")],
 		["GRIETA MUNDO I", func(): 
 			GameManager.current_world = 0
 			GameManager.enter_void_path()],
@@ -951,24 +951,24 @@ func _on_room_selected(floor_idx: int, col_idx: int) -> void:
 	GameManager.came_from_room = true
 	match room_type:
 		ROOM_COMBAT:
-			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 		ROOM_ELITE:
 			GameManager.is_elite_fight = true
-			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 		ROOM_EVENT:
-			get_tree().change_scene_to_file("res://scenes/ui/Event.tscn")
+			GameManager.go_to_scene("res://scenes/ui/Event.tscn")
 		ROOM_SHOP:
-			get_tree().change_scene_to_file("res://scenes/ui/Shop.tscn")
+			GameManager.go_to_scene("res://scenes/ui/Shop.tscn")
 		ROOM_REST:
-			get_tree().change_scene_to_file("res://scenes/ui/Rest.tscn")
+			GameManager.go_to_scene("res://scenes/ui/Rest.tscn")
 		ROOM_TREASURE:
-			get_tree().change_scene_to_file("res://scenes/ui/Treasure.tscn")
+			GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")
 		ROOM_BOSS:
 			GameManager.is_boss_fight = true
-			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 		ROOM_FINAL, ROOM_FINAL_W2:
 			GameManager.is_final_boss = true
-			get_tree().change_scene_to_file("res://scenes/combat/Combat.tscn")
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 		ROOM_SECRET:
 			var item_id = GameManager.map_graph[floor_idx][col_idx].get("item_id", "")
 			_show_secret_item_overlay(item_id)
@@ -993,7 +993,7 @@ func _typewrite(lbl: Label, text: String, base_delay: float = 0.04) -> void:
 
 func _show_secret_item_overlay(item_id: String) -> void:
 	if item_id == "" or not GameManager.SECRET_ITEM_DATA.has(item_id):
-		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 		return
 
 	var already_have = GameManager.has_secret_item(item_id)
@@ -1124,7 +1124,7 @@ func _show_secret_item_overlay(item_id: String) -> void:
 	leave_btn.pressed.connect(func():
 		if state["picked"]: return
 		state["picked"] = true
-		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)
 
 	take_btn.pressed.connect(func():
@@ -1138,7 +1138,7 @@ func _show_secret_item_overlay(item_id: String) -> void:
 			"curse":
 				GameManager.add_card({"name": "Peso de la Verdad", "attack": 0, "defense": 0, "cost": 1, "curse": true})
 		GameManager.add_secret_item(item_id)
-		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)
 
 func _show_deck_viewer() -> void:

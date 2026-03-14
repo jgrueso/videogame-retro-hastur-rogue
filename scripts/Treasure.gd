@@ -201,7 +201,7 @@ func _show_reward_modal() -> void:
 					GameManager.current_map_floor = min(GameManager.current_map_floor + 1, GameManager.map_graph.size() - 1)
 					GameManager.current_map_col = -1
 					GameManager.is_vault_room = false
-				get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+				GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 			)
 		return
 
@@ -262,7 +262,7 @@ func _show_reward_modal() -> void:
 			GameManager.current_map_col = -1 # Resetear columna para que el nuevo piso sea accesible
 			GameManager.is_vault_room = false
 		GameManager.came_from_room = true
-		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)
 
 	var btn_leave = Button.new()
@@ -275,7 +275,7 @@ func _show_reward_modal() -> void:
 			GameManager.current_map_col = -1
 			GameManager.is_vault_room = false
 		GameManager.came_from_room = true
-		get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)
 
 func _start_treasure_rain(vp: Vector2) -> void:

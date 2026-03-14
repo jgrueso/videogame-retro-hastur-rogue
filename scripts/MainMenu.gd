@@ -91,7 +91,7 @@ func _ready() -> void:
 			AudioManager.play("button_click")
 			AudioManager.stop_loop("intro_title_song")
 		GameManager.delete_run_save()
-		get_tree().change_scene_to_file("res://scenes/ui/CharacterSelect.tscn")
+		GameManager.go_to_scene("res://scenes/ui/CharacterSelect.tscn")
 	)
 
 	btn_continue.pressed.connect(func():
@@ -99,7 +99,7 @@ func _ready() -> void:
 			AudioManager.play("button_click")
 			AudioManager.stop_loop("intro_title_song")
 		if GameManager.load_run():
-			get_tree().change_scene_to_file("res://scenes/ui/Map.tscn")
+			GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)
 
 	btn_delete.pressed.connect(func():
