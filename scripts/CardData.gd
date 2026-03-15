@@ -19,7 +19,7 @@ const ALL_CARDS = [
 	
 	# Cartas de Evento
 	{"name": "Ceniza Preventiva", "attack": 0, "defense": 0, "cost": 1, "discard_for_shield": true, "description": "Descarta tu mano. Ganas 3 de [Escudo] por cada carta descartada."},
-	{"name": "Incision Precisa",  "attack": 0, "defense": 0, "cost": 2, "max_hp_fraction_dmg": 0.25},
+	{"name": "Incision Precisa",  "attack": 0, "defense": 0, "cost": 2, "max_hp_fraction_dmg": 0.25, "exhaust": true, "description": "Inflige daño equivalente al 25% de la Vida Máxima del enemigo (ignora escudo). AGOTAR [color=#c380f0][solo se puede usar 1 vez por combate][/color]"},
 	{"name": "Mirada que Devora", "attack": 0, "defense": 0, "cost": 0, "apply_bleed": 3, "description": "Aplica 3 de [Sangrado] a un enemigo. El sangrado inflige daño al inicio de su turno."},
 
 	# Legendarias (Solo via Grieta)

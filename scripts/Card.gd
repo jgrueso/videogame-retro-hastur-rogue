@@ -5,6 +5,7 @@ var attack: int = 0
 var defense: int = 0
 var cost: int = 1
 var description: String = ""
+var exhaust: bool = false
 var is_disabled: bool = false
 var is_upgraded: bool = false
 var cost_modifier: int = 0
@@ -108,7 +109,7 @@ func _ready() -> void:
 	add_child(icon_lbl)
 
 	tooltip_panel = Panel.new()
-	tooltip_panel.size = Vector2(180, 110); tooltip_panel.position = Vector2(135, -5)
+	tooltip_panel.size = Vector2(200, 140); tooltip_panel.position = Vector2(135, -5)
 	tooltip_panel.visible = false; tooltip_panel.z_index = 10
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.05, 0.05, 0.08, 0.98)
@@ -116,11 +117,12 @@ func _ready() -> void:
 	style.border_width_left = 2; style.border_color = Color(0.7, 0.6, 0.2)
 	tooltip_panel.add_theme_stylebox_override("panel", style)
 
-	var tooltip_label = Label.new()
+	var tooltip_label = RichTextLabel.new()
 	tooltip_label.name = "TooltipLabel"
-	tooltip_label.position = Vector2(10, 8); tooltip_label.size = Vector2(160, 94)
-	tooltip_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	tooltip_label.add_theme_font_size_override("font_size", 12)
+	tooltip_label.position = Vector2(10, 8); tooltip_label.size = Vector2(180, 124)
+	tooltip_label.bbcode_enabled = true
+	tooltip_label.fit_content = false # Cambiamos a false para controlar el tamaño nosotros
+	tooltip_label.add_theme_font_size_override("normal_font_size", 12)
 	tooltip_panel.add_child(tooltip_label)
 	add_child(tooltip_panel)
 
@@ -137,6 +139,7 @@ func setup(data: Dictionary) -> void:
 	attack = data.get("attack", 0)
 	defense = data.get("defense", 0)
 	cost = data.get("cost", 1)
+	exhaust = data.get("exhaust", false)
 	is_upgraded = data.get("upgraded", false) or "+" in raw_name
 	
 	var real_name = raw_name.split("+")[0].strip_edges()
@@ -154,7 +157,7 @@ func setup(data: Dictionary) -> void:
 	if GameManager.selected_character == "estratega" and "INQUISIDOR" in card_name:
 		description += "\n\n[LÓGICA: Coste -1]"
 	
-	requires_target = (attack > 0 or "JAQUE ETERNO" in card_name) and not ("ECO" in card_name)
+	requires_target = (attack > 0 or "JAQUE ETERNO" in card_name or "INCISION PRECISA" in card_name or "MIRADA QUE DEVORA" in card_name) and not ("ECO" in card_name)
 	update_display()
 
 func update_display(force_upgrade_style: bool = false) -> void:
@@ -225,6 +228,7 @@ func update_display(force_upgrade_style: bool = false) -> void:
 			label_defense.modulate = Color(0.4, 0.6, 0.8)
 
 	tooltip_panel.get_node("TooltipLabel").text = description
+	print("DEBUG: Card tooltip updated: ", card_name, " -> ", description)
 	if "MARCADO" in description:
 		tooltip_panel.get_node("TooltipLabel").modulate = Color(1.0, 0.9, 0.2) # Amarillo para el estado
 	else:

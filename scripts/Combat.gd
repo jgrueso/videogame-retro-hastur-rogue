@@ -623,7 +623,7 @@ func _build_dynamic_background(vp: Vector2) -> void:
 func draw_hand(count: int = -1) -> void:
 	if count == -1:
 		# Lógica de inicio de turno
-		var keep_hand = GameManager.has_relic("reloj_roto") and turn_counter % 3 == 0
+		var keep_hand = GameManager.has_relic("reloj_circular") and turn_counter % 3 == 0
 		
 		if not keep_hand:
 			for c in hand_container.get_children(): c.queue_free()
@@ -631,7 +631,7 @@ func draw_hand(count: int = -1) -> void:
 			hand.clear()
 		else:
 			flash_small("RELOJ CIRCULAR: Mantienes tu mano.")
-			_flash_relic("reloj_roto")
+			_flash_relic("reloj_circular")
 
 		# Calcular robo base
 		count = 3
@@ -870,336 +870,177 @@ func _flash_relic(relic_id: String) -> void:
 func _resolve_card(card, enemy_idx: int) -> void:
 	var effective_cost = card.get_effective_cost()
 	
-	# Lógica del Espejo Fragmentado: Jugar la primera carta dos veces (COSTO <= 2)
-	if first_card_this_turn and GameManager.has_relic("espejo_fragmentado") and not _is_resolving_extra_mirror_card:
-		if effective_cost <= 2:
-			_is_resolving_extra_mirror_card = true
-			_resolve_card(card, enemy_idx)
-			_is_resolving_extra_mirror_card = false
-			
-			var is_curse = "PESO DE LA VERDAD" in card.card_name or "MALDICIÓN" in card.card_name
-			if is_curse:
-				flash_small("ESPEJO LÍMPIDO: Recuperas 5 Cordura.")
-				GameManager.sanity = min(100, GameManager.sanity + 5)
-			else:
-				flash_small("¡ESPEJO FRAGMENTADO! (+4 Locura)")
-				GameManager.sanity = max(0, GameManager.sanity - 4)
-				
-			_flash_relic("espejo_fragmentado")
-			update_ui()
-		else:
-			flash_small("Espejo: Demasiado pesado para duplicar.")
-
 	if player_energy < effective_cost: 
-		card.set_disabled(false)
-		return
+		card.set_disabled(false); return
 	
 	player_energy -= effective_cost
 	
-	# Efecto Cordura Baja: Desobediencia
-	if GameManager.sanity < 40 and "SIERVO QUEBRADO" in card.card_name and randf() < 0.20:
-		flash_small("Tus manos no te obedecen...")
-		card.queue_free()
-		update_ui(); update_card_states(); check_combat_end()
-		return
-
+	# 1. Quitar de la mano lógica
 	for i in range(hand.size()):
 		if hand[i].get("name", "").to_upper() == card.card_name:
 			hand.remove_at(i); break
-	discard_pile.append({"name": card.card_name, "attack": card.attack, "defense": card.defense, "cost": card.cost})
 
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_play")
 	log_message("TU", "Juegas " + card.card_name, Color(0.4, 0.8, 1.0))
 
-	# ── LÓGICA DE CARTAS LEGENDARIAS ──
-	if "APOCALIPSIS" in card.card_name:
-		flash_small("EL CIELO SE DERRUMBA. Apocalipsis.")
-		GameManager.sanity = max(0, GameManager.sanity - 5)
+	var card_handled = false
+	var target_e = null
+	if enemy_idx >= 0 and enemy_idx < enemies.size(): target_e = enemies[enemy_idx]
+	var c_upper = card.card_name.to_upper()
+
+	# ── LÓGICA DE CARTAS ESPECIALES ──
+	if "APOCALIPSIS" in c_upper:
+		card_handled = true
 		for e_aoe in enemies:
 			if e_aoe.hp > 0:
 				e_aoe.hp -= 30
-				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 30, Color(1.0, 0.1, 0.1))
-				_animate_enemy_hit(e_aoe)
-		_trigger_screen_blink()
-		check_combat_end(); update_ui(); update_intent_labels()
+				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 30, Color(1, 0, 0))
+				if e_aoe.hp <= 0: await _kill_enemy(e_aoe)
 		
-	elif "SIGNO AMARILLO" in card.card_name:
+	elif "SIGNO AMARILLO" in c_upper:
+		card_handled = true
 		GameManager.sanity = min(100, GameManager.sanity + 50)
 		GameManager.mark_level += 1
-		# Aumento permanente de energía en GameManager
 		GameManager.player_max_energy += 1
-		# Sincronizar local
 		player_max_energy = GameManager.player_max_energy
 		player_energy += 1 
 		
-		flash_small("LA MARCA CRECE (Nivel %d). +1 Energía Máxima." % GameManager.mark_level)
-		_trigger_screen_blink()
-		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-		update_ui()
-		
-	elif "TRONO DE CARCOSA" in card.card_name:
-		player_shield += 12
-		update_ui()
-		if enemy_idx >= 0:
-			var e_trono = enemies[enemy_idx]
-			e_trono.hp -= 10
-			# MECÁNICA: ATURDIMIENTO
-			e_trono["is_stunned"] = true
-			flash_small(e_trono.name + " HA SIDO ATURDIDO.")
-			_spawn_damage_number(e_trono.panel.global_position + Vector2(100, 60), 10, Color(0.9, 0.8, 0.2))
-			_animate_enemy_hit(e_trono)
-		check_combat_end(); update_intent_labels()
+	elif "INCISION PRECISA" in c_upper:
+		card_handled = true
+		if target_e:
+			var dmg = int(target_e.max_hp * 0.25)
+			target_e.hp -= dmg
+			flash_small("Incisión: " + str(dmg))
+			_spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(0.5, 1, 0.5))
+			_animate_enemy_hit(target_e)
+			if target_e.hp <= 0: await _kill_enemy(target_e)
+		else:
+			flash_small("Selecciona un objetivo")
+			# Devolver energia si falla el objetivo
+			player_energy += effective_cost
+			card.set_disabled(false)
+			return
 
-	elif "ANALISIS PROFUNDO" in card.card_name:
-		flash_small("¡ANÁLISIS PROFUNDO! Robas 2 piezas.")
-		await draw_hand(2) # Robar 2 cartas extra inmediatamente
-		update_ui(); update_intent_labels()
+	elif "MIRADA QUE DEVORA" in c_upper:
+		card_handled = true
+		if target_e:
+			target_e["bleed"] = target_e.get("bleed", 0) + 3
+			_animate_enemy_hit(target_e)
+			# Feedback visual directo de estado en lugar de un numero
+			var lbl = Label.new()
+			lbl.text = "🩸 SANGRADO"
+			lbl.modulate = Color(0.8, 0.1, 0.3)
+			lbl.add_theme_font_size_override("font_size", 20)
+			lbl.position = target_e.panel.global_position + Vector2(100, 60)
+			lbl.z_index = 20; add_child(lbl)
+			var t = create_tween().set_parallel(true)
+			t.tween_property(lbl, "position:y", lbl.position.y - 60, 0.8)
+			t.tween_property(lbl, "modulate:a", 0.0, 0.8)
+			t.chain().tween_callback(lbl.queue_free)
+		else:
+			flash_small("Selecciona un objetivo")
+			player_energy += effective_cost
+			card.set_disabled(false)
+			return
 
-	elif "CENIZA PREVENTIVA" in card.card_name:
+	elif "CENIZA PREVENTIVA" in c_upper:
+		card_handled = true
 		var discarded = hand.size()
-		for c in hand_container.get_children(): c.queue_free()
-		for h in hand: discard_pile.append(h)
+		for c_rem in hand_container.get_children(): c_rem.queue_free()
+		for h_rem in hand: discard_pile.append(h_rem)
 		hand.clear()
-		var shield_gain = discarded * 3
-		player_shield += shield_gain
-		flash_small("Ceniza Preventiva: +" + str(shield_gain) + " Escudo (" + str(discarded) + " cartas)")
-		update_ui()
+		player_shield += (discarded * 3)
 
-	elif "INCISION PRECISA" in card.card_name:
-		if enemy_idx >= 0:
-			var e_inc = enemies[enemy_idx]
-			var frac_dmg = int(e_inc.max_hp * 0.25)
-			e_inc.hp -= frac_dmg
-			flash_small("Incisión Precisa: " + str(frac_dmg) + " de daño (ignora escudo)")
-			_spawn_damage_number(e_inc.panel.global_position + Vector2(100, 60), frac_dmg, Color(0.5, 1.0, 0.6))
-			_animate_enemy_hit(e_inc)
-			if e_inc.get("sprite_label"): e_inc.sprite_label.play_hit()
-			check_combat_end(); update_ui()
+	elif "ANALISIS" in c_upper:
+		card_handled = true
+		await draw_hand(2)
 
-	elif "MIRADA QUE DEVORA" in card.card_name:
-		if enemy_idx >= 0:
-			var e_mir = enemies[enemy_idx]
-			e_mir["bleed"] = e_mir.get("bleed", 0) + 3
-			flash_small("Mirada que Devora: " + e_mir.name + " sangrará 3 HP/turno")
-			_spawn_damage_number(e_mir.panel.global_position + Vector2(100, 60), 0, Color(0.8, 0.1, 0.3))
-			update_intent_labels()
-		
-	elif "FORMACION" in card.card_name:
-		flash_small("¡FORMACIÓN! Defensa absoluta.")
-		update_ui()
+	elif "FORMACION" in c_upper:
+		card_handled = true
+		player_shield += card.defense
 
-	# ── LÓGICA DE CARTAS ESPECIALES (Independientes de ataque base) ──
-	
-	# Daño al jugador por usar cartas prohibidas
-	if "OFRENDA DE CARNE" in card.card_name:
-		player_hp -= 4
-		update_ui()
-		_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 4, Color(1, 0, 0))
-		flash_small("Ofrenda de Carne: Pagas con sangre (-4 HP)")
-		if player_hp <= 0:
-			_check_player_death() # Nueva función para centralizar la muerte
-			return
-	elif "PESO DE LA VERDAD" in card.card_name:
-		player_hp -= 6
-		update_ui()
-		_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 6, Color(1, 0, 0))
-		flash_small("Peso de la Verdad: Tu mente se quiebra (-6 HP)")
-		if player_hp <= 0:
-			_check_player_death()
-			return
-
-	# ECO DEL VACIO (AOE)
-	if "ECO" in card.card_name:
-		flash_small("¡ECO DEL VACÍO! Todos los enemigos sufren.")
+	elif "ECO" in c_upper:
+		card_handled = true
+		flash_small("¡ECO DEL VACÍO!")
 		for e_aoe in enemies:
 			if e_aoe.hp > 0:
-				var a_dmg = card.attack
-				e_aoe.hp -= a_dmg
-				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), a_dmg, Color(0.7, 0.7, 1.0))
+				e_aoe.hp -= 4
+				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 4, Color(0.7, 0.7, 1.0))
 				_animate_enemy_hit(e_aoe)
-		check_combat_end(); update_ui(); update_intent_labels()
+				if e_aoe.hp <= 0: await _kill_enemy(e_aoe)
+		update_ui()
 
-	# SUSURRO DEBILITANTE (Debuff AOE)
-	elif "SUSURRO DEBILITANTE" in card.card_name:
+	elif "SUSURRO DEBILITANTE" in c_upper:
+		card_handled = true
 		var is_last = hand.is_empty()
-		# Debilitamiento base 6 + bono de mejora (guardado en attack)
 		var base_red = 6 + card.attack
 		var reduction = base_red * 2 if is_last else base_red
-		
 		for e_deb in enemies:
 			if e_deb.hp > 0:
 				e_deb["atk_reduction"] = e_deb.get("atk_reduction", 0) + reduction
-		
 		if is_last:
 			flash_small("¡SUSURRO FINAL! Todos debilitados: -" + str(reduction))
 			_trigger_screen_blink()
 		else:
 			flash_small("Susurro: Todos -" + str(reduction) + " ATK")
-			# MECÁNICA: Descartar una carta aleatoria (con feedback y limpieza de hand)
 			var candidates = []
 			for c_node in hand_container.get_children():
 				if not c_node.is_queued_for_deletion() and c_node != card:
 					candidates.append(c_node)
-			
 			if not candidates.is_empty():
 				var to_discard = candidates[randi() % candidates.size()]
-				flash_small("El susurro consume: " + to_discard.card_name)
-				# Eliminar de la mano lógica
-				for i in range(hand.size()):
-					if hand[i]["name"].to_upper() == to_discard.card_name:
-						discard_pile.append(hand[i])
-						hand.remove_at(i)
-						break
+				for j in range(hand.size()):
+					if hand[j]["name"].to_upper() == to_discard.card_name:
+						discard_pile.append(hand[j]); hand.remove_at(j); break
 				to_discard.queue_free()
-				reorganize_hand()
-			
-		update_intent_labels(); update_ui()
+		update_intent_labels()
 
-	# ── LÓGICA DE CARTAS CON OBJETIVO Y ATAQUE ──
-	elif enemy_idx >= 0:
-		var e = enemies[enemy_idx]
-		
-		# El Penitente: atacarle lo hace agresivo
-		if e.peaceful and card.attack > 0:
-			e.peaceful = false
-			e.peaceful_turns = 0
-			_show_enemy_banter(e.panel, "...Asi lo quieres. Bien.", Color(0.9, 0.4, 0.4))
-			_set_enemy_aggressive(e)
+	# ── LÓGICA DE ATAQUE Y DEFENSA GENÉRICA ──
+	if not card_handled:
+		if target_e:
+			if target_e.peaceful and card.attack > 0: target_e.peaceful = false; _set_enemy_aggressive(target_e)
+			var dmg = card.attack
+			if "AVATAR" in target_e.name.to_upper(): dmg = int(dmg * (1.0 + (100 - GameManager.sanity) * 0.015))
+			if "JAQUE ETERNO" in c_upper: dmg = clamp(15 + int((player_max_hp - player_hp) * 0.4), 15, 40)
+			if GameManager.velo_broken: dmg += 2
+			if GameManager.selected_character == "guardian" and furia_points >= 3:
+				dmg *= 2; furia_points = 0; flash_small("¡RESILIENCIA!"); _trigger_screen_blink()
 
-		var dmg = card.attack
-		
-		# --- VULNERABILIDAD A LA LOCURA (Solo contra Avatar) ---
-		if "AVATAR" in e.name.to_upper():
-			var lost_sanity = 100 - GameManager.sanity
-			var multiplier = 1.0 + (lost_sanity * 0.015) # +1.5% por punto perdido
-			var old_dmg = dmg
-			dmg = int(dmg * multiplier)
-			if dmg > old_dmg:
-				flash_small("¡CONEXIÓN ABISAL! Daño aumentado por tu locura.")
+			var absorbed = min(target_e.shield, dmg)
+			if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; _animate_shield_block(target_e)
+			if dmg > 0:
+				target_e.hp -= dmg
+				_spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
+				_animate_enemy_hit(target_e)
+				if target_e.hp <= 0: await _kill_enemy(target_e)
 
-		# Lógica especial para JAQUE ETERNO (Canaliza tu dolor)
-		if "JAQUE ETERNO" in card.card_name.to_upper():
-			var health_lost = player_max_hp - player_hp
-			# Nerfeo final: 15 base + 40% de la vida perdida, tope 40
-			dmg = clamp(15 + int(health_lost * 0.4), 15, 40)
-			flash_small("¡JAQUE ETERNO! Dolor: " + str(dmg))
-			_trigger_screen_blink()
-			if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
+		if card.defense > 0:
+			player_shield += card.defense
+			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1))
 
-		# BONO VELO RASGADO (+2 ATK permanente tras morir una vez)
-		if GameManager.velo_broken:
-			dmg += 2
+	# ── COSTES Y LIMPIEZA ──
+	if "OFRENDA DE CARNE" in c_upper: player_hp -= 4
+	elif "PESO DE LA VERDAD" in c_upper: player_hp -= 6
+	if player_hp <= 0: _check_player_death(); return
 
-		# Pasiva Guardian: Furia (Daño x2)
-
-		if GameManager.selected_character == "guardian" and furia_points >= 3:
-			dmg = dmg * 2
-			furia_points = 0 # Furia consumida
-			flash_small("¡RESILIENCIA! Daño duplicado.")
-			_trigger_screen_blink()
-			update_ui()
-
-		var absorbed = min(e.shield, dmg)
-		if absorbed > 0:
-			e.shield -= absorbed; dmg -= absorbed
-			_animate_shield_block(e)
-			if get_node_or_null("/root/AudioManager"): AudioManager.play("shield_block")
-		if dmg > 0:
-			e.hp -= dmg
-			log_message("TU", "Infliges %d de daño a %s" % [dmg, e.name], Color(0.4, 0.8, 1.0))
-			_spawn_damage_number(e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
-			_animate_enemy_hit(e)
-			if e.sprite_label: e.sprite_label.play_hit()
-			if get_node_or_null("/root/AudioManager"): AudioManager.play("enemy_hit")
-			# Primer golpe al Rey Sin Corona: arranca la música y distorsiona los lamentos
-			if e.name == "EL REY SIN CORONA" and not rey_music_triggered:
-				rey_music_triggered = true
-				if get_node_or_null("/root/AudioManager"):
-					AudioManager.play_loop("intro_title_song")
-					AudioManager.update_loop_params("king_intro_sound", -6.0, 0.55)
-			
-			# Lógica de Fase 2
-			if e.has_phase_2 and not e.in_phase_2 and e.hp > 0 and e.hp <= (e.max_hp * 0.5):
-				_trigger_boss_phase_2(e)
-		
-		# Muerte de enemigo
-		if e.hp <= 0:
-			e.hp = 0
-			
-			# BOTÓN MISTERIOSO (15%): Fragmento Eterno
-			if "AVATAR" in e.name.to_upper():
-				await _show_avatar_defeat_lore()
-				
-				if randf() < 0.15:
-					GameManager.has_eternal_fragment = true
-					flash_small("✦ ¡HAS OBTENIDO UN FRAGMENTO DE ETERNIDAD! ✦")
-					flash_small("Tus cartas ahora pueden trascender el tiempo.")
-					GameManager.save_meta_progress()
-					if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-			
-			# Recuperación de Cordura al matar (Alivio en peligro)
-			if GameManager.sanity < 30:
-				GameManager.sanity = min(100, GameManager.sanity + 5)
-				flash_small("¡CLARIDAD! +5 Cordura")
-			
-			if GameManager.selected_character == "conquistador":
-				# CONQUISTA: Mejorar individualmente a los siervos que YA están en el mazo
-				for deck_card in GameManager.player_deck:
-					if "SIERVO" in str(deck_card.get("name", "")).to_upper():
-						deck_card["attack"] = deck_card.get("attack", 0) + 1
-				
-				GameManager.heal(3)
-				player_hp = GameManager.player_hp # Sincronizar vida local
-				flash_small("¡CONQUISTA! Tus piezas se curten en sangre (+1 ATK).")
-				
-				# Actualizar visualmente las cartas que están en mano en este momento
-				for c_node in hand_container.get_children():
-					if not c_node.is_queued_for_deletion() and "SIERVO" in c_node.card_name:
-						c_node.attack += 1
-						c_node.update_display()
-			
-			# Sinergia Reliquia: Sangre del Caido
-			if GameManager.has_relic("sangre_caido"):
-				# También mejorar mazo actual
-				for deck_card in GameManager.player_deck:
-					if "SIERVO" in str(deck_card.get("name", "")).to_upper():
-						deck_card["attack"] = deck_card.get("attack", 0) + 1
-				
-				flash_small("Sangre del Caido: +1 ATK extra a tus siervos!")
-				_flash_relic("sangre_caido")
-				
-				for c_node in hand_container.get_children():
-					if not c_node.is_queued_for_deletion() and "SIERVO" in c_node.card_name:
-						c_node.attack += 1
-						c_node.update_display()
-				
-			_kill_enemy(e) # async
-
-	if card.defense > 0:
-		player_shield += card.defense
-		_spawn_damage_number(player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1.0))
-		update_ui() # Actualizar inmediatamente para que el jugador vea su escudo
-
-	# Animación de gasto/ataque
 	var target_pos = Vector2.ZERO
-	if enemy_idx >= 0:
-		target_pos = enemies[enemy_idx].panel.global_position + Vector2(100, 100)
-	
+	if target_e: target_pos = target_e.panel.global_position + Vector2(100, 100)
 	await card.play_attack_animation(target_pos)
+
+	if not card.exhaust:
+		discard_pile.append({"name": card.card_name, "attack": card.attack, "defense": card.defense, "cost": card.cost})
+	else:
+		flash_small(card.card_name + " se agota.")
 
 	first_card_this_turn = false
 	card.queue_free()
-	
-	# Reorganizar la mano inmediatamente después de eliminar la carta
 	reorganize_hand()
-	# Logica Reloj de Arena Negra
 	cards_played_this_turn += 1
 	if GameManager.has_relic("reloj_negro") and cards_played_this_turn % 3 == 0:
-		player_energy = min(player_energy + 1, player_max_energy)
-		flash_small("Reloj: +1 Energia!")
-		_flash_relic("reloj_negro")
-
+		player_energy = min(player_energy + 1, player_max_energy); _flash_relic("reloj_negro")
+	
 	update_ui(); update_intent_labels(); check_combat_end()
+
 
 func _set_enemy_aggressive(e: Dictionary) -> void:
 	if e.get("sprite_label") and e.sprite_label.has_method("set_aggressive"):
@@ -1441,6 +1282,9 @@ func update_ui() -> void:
 		if e.lbl_shield: e.lbl_shield.text = "Escudo: %d" % e.shield if e.shield > 0 else ""
 		if e.hp_bar:     e.hp_bar.value = e.hp
 	
+	if end_turn_btn:
+		end_turn_btn.text = "TERMINAR TURNO " + str(turn_counter)
+	
 	_check_sanity_myths()
 	update_intent_labels()
 
@@ -1453,24 +1297,25 @@ func _trigger_screen_blink() -> void:
 	tw.tween_callback(func(): blink_overlay.visible = false)
 
 func update_intent_labels() -> void:
+	var has_manual = GameManager.has_relic("manual_anatomista")
 	for e in enemies:
 		if e.hp <= 0 or not e.lbl_intent_icon: continue
-		
-		# Logica de Intenciones Corruptas por Locura
-		if GameManager.sanity < 20:
+
+		# Logica de Intenciones Corruptas por Locura (Respetar Manual del Anatomista)
+		if GameManager.sanity < 20 and not has_manual:
 			var creepy = ["TE OBSERVA", "ACECHANDO", "...", "INEVITABLE"]
 			e.lbl_intent_icon.text = creepy[randi() % creepy.size()]
 			e.lbl_intent_icon.modulate = Color(0.8, 0.2, 0.2)
 			continue
-		
+
 		if e.peaceful:
 			if e.name == "El Penitente":
 				var thought = _get_penitente_thought()
 				var display_text = _get_deciphered_thought(thought)
-				
+
 				e.lbl_intent_icon.text = display_text + " (" + str(e.peaceful_turns) + ")"
 				e.lbl_intent_icon.modulate = Color(0.9, 0.8, 0.2) # Amarillo
-				
+
 				# Temblor de texto en cordura baja
 				if GameManager.sanity < 60:
 					var shake = (60.0 - GameManager.sanity) * 0.15
@@ -1483,7 +1328,7 @@ func update_intent_labels() -> void:
 				e.lbl_intent_icon.modulate = Color(0.6, 0.6, 0.8)
 		else:
 			var action = e.pattern[e.turn_index % e.pattern.size()]
-			
+
 			if action.type == "attack":
 				# CALCULO INTUITIVO: Base + Marca - Reduccion
 				var base_val = action.value
@@ -1495,9 +1340,9 @@ func update_intent_labels() -> void:
 				var final_dmg = max(0, (base_val + mark_bonus) - e.get("atk_reduction", 0))
 				var val_txt = str(final_dmg)
 
-				if GameManager.sanity < 40:
+				if GameManager.sanity < 40 and not has_manual:
 					val_txt = "???" if randf() < 0.5 else "▓"
-				
+
 				e.lbl_intent_icon.text = "⚔ Atacar " + val_txt
 				if e.get("atk_reduction", 0) > 0:
 					e.lbl_intent_icon.modulate = Color(0.4, 1.0, 0.4) # Verde si esta debilitado
@@ -1505,16 +1350,21 @@ func update_intent_labels() -> void:
 					e.lbl_intent_icon.modulate = Color(1, 0.5, 0.4)
 			elif action.type == "shield":
 				var val_txt = str(action.value)
-				if GameManager.sanity < 40:
+				if GameManager.sanity < 40 and not has_manual:
 					val_txt = "???" if randf() < 0.5 else "▓"
 				e.lbl_intent_icon.text = "🛡 Escudo " + val_txt
 				e.lbl_intent_icon.modulate = Color(0.4, 0.7, 1.0)
 			elif action.type == "insanity":
 				var val_txt = str(action.value)
-				if GameManager.sanity < 40:
+				if GameManager.sanity < 40 and not has_manual:
 					val_txt = "???" if randf() < 0.5 else "▓"
 				e.lbl_intent_icon.text = "👁 Corromper " + val_txt
 				e.lbl_intent_icon.modulate = Color(0.7, 0.4, 0.9) # Purpura
+		# Indicador de sangrado (Mirada que Devora)
+		if e.get("bleed", 0) > 0:
+			e.lbl_intent_icon.text += " [🩸" + str(e["bleed"]) + "]"
+			# Tinte rojizo a la etiqueta si está sangrando
+			e.lbl_intent_icon.modulate = e.lbl_intent_icon.modulate.lerp(Color(1, 0, 0), 0.3)
 
 func _trigger_boss_phase_2(e: Dictionary) -> void:
 	e.in_phase_2 = true
@@ -1644,13 +1494,18 @@ var _is_showing_death_dialogue: bool = false
 
 # ── Fin de combate ─────────────────────────────────────────────────────────────
 func check_combat_end() -> void:
-	if combat_ended or _is_ending or _is_showing_death_dialogue: return
+	# No terminar el combate si hay un dialogo de muerte activo o si ya se esta procesando el final
+	if combat_ended or _is_ending or _is_showing_death_dialogue: 
+		print("DEBUG: check_combat_end skipped. Dialogue: ", _is_showing_death_dialogue)
+		return
+		
 	var all_dead = true
 	for e in enemies:
 		if e.hp > 0: all_dead = false
 	if not all_dead: return
 
-
+	# Si llegamos aqui, todos estan muertos y no hay dialogos pendientes
+	print("DEBUG: ALL DEAD. Ending combat.")
 	_is_ending = true
 	combat_ended = true
 	
@@ -2414,6 +2269,10 @@ func _on_end_turn_button_pressed() -> void:
 
 	GameManager.player_hp = player_hp
 	cards_played_this_turn = 0
+	
+	# Incrementar turno para el jugador
+	turn_counter += 1
+	
 	update_ui(); update_intent_labels()
 	await draw_hand()
 	is_player_turn = true; end_turn_btn.disabled = false
@@ -2718,29 +2577,36 @@ func _show_enemy_intent_tooltip(idx: int) -> void:
 	if e.peaceful:
 		txt = "ESTADO: PACIFICO\nNo atacara mientras no sea provocado.\n\n\"" + _get_enemy_banter(e.name) + "\""
 	else:
+		var has_manual = GameManager.has_relic("manual_anatomista")
+		var is_insane = GameManager.sanity < 40 and not has_manual
+
 		# --- EFECTO OJO DEL ORÁCULO ---
 		if GameManager.has_relic("ojo_oraculo"):
 			txt = "[👁 PREDICCIÓN DEL ORÁCULO]\n"
-			# Solo mostrar el turno actual y el siguiente
 			var curr_idx = e.turn_index % e.pattern.size()
 			var next_idx = (e.turn_index + 1) % e.pattern.size()
-			
+
 			for i in [curr_idx, next_idx]:
 				var action = e.pattern[i]
 				var header = "TURNO ACTUAL: " if i == curr_idx else "PRÓXIMO TURNO: "
-				var act_name = "ATAQUE" if action.type == "attack" else action.type.to_upper()
-				
-				# BUG FIX: El oráculo también es afectado por la locura del jugador
+				var act_name = action.type.to_upper()
+
+				# Codificar tipo si hay locura y no hay manual
+				if is_insane and GameManager.sanity < 25:
+					act_name = "▓▓▓▓▓" if randf() < 0.7 else "???"
+				elif act_name == "ATTACK": act_name = "ATAQUE"
+
 				var val_str = str(action.value)
-				if GameManager.sanity < 40 and randf() < 0.5: val_str = "???"
-				
+				if is_insane:
+					if GameManager.sanity < 25: val_str = "░"
+					elif randf() < 0.5: val_str = "???"
+
 				txt += header + act_name + " (" + val_str + ")\n"
 			txt += "\n"
-		
+
 		var action = e.pattern[e.turn_index % e.pattern.size()]
+
 		txt += "--- DETALLES ---\n"
-		
-		var is_insane = GameManager.sanity < 40
 		
 		if action.type == "attack":
 			var reduction = e.get("atk_reduction", 0)
@@ -2761,12 +2627,16 @@ func _show_enemy_intent_tooltip(idx: int) -> void:
 			txt += "INTENCION: ESCUDO\nGanara " + val_str + " de proteccion."
 			if not is_insane:
 				txt += "\n\n[El escudo enemigo se resetea al inicio de su turno]"
+			else:
+				txt += "\n\n[▓▒░ ERROR DE PERCEPCIÓN ░▒▓]"
 				
 		elif action.type == "insanity":
 			var val_str = str(action.value) if not is_insane else "!!"
 			txt += "INTENCION: CORROMPER\nDrenara " + val_str + " de tu Cordura."
 			if not is_insane:
 				txt += "\n\n[La cordura baja distorsiona la realidad]"
+			else:
+				txt += "\n\n[▓▒░ ERROR DE PERCEPCIÓN ░▒▓]"
 				
 		elif action.type == "possession":
 			if not is_insane:
