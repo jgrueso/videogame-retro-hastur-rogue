@@ -8,7 +8,7 @@ var main: Node2D # Referencia al script principal de Combat
 # Referencias a nodos de UI (serán inicializados en build_ui)
 var player_panel: Panel
 var player_sprite_label: Label
-var lbl_player_hp: Label
+var lbl_player_hp: RichTextLabel
 var lbl_sanity: Label
 var hp_bar_player: ProgressBar
 var sanity_bar_player: ProgressBar
@@ -62,7 +62,12 @@ func build_ui(vp: Vector2) -> void:
 	sanity_bar_player.add_theme_stylebox_override("background", sb_style)
 	sanity_bar_player.add_theme_stylebox_override("fill", sb_fill)
 
-	lbl_player_hp = Label.new(); lbl_player_hp.position = Vector2(100, 10); player_panel.add_child(lbl_player_hp)
+	lbl_player_hp = RichTextLabel.new()
+	lbl_player_hp.position = Vector2(100, 10)
+	lbl_player_hp.size = Vector2(240, 24)
+	lbl_player_hp.bbcode_enabled = true
+	lbl_player_hp.fit_content = true
+	player_panel.add_child(lbl_player_hp)
 	
 	lbl_sanity = Label.new(); lbl_sanity.position = Vector2(350, 10); lbl_sanity.add_theme_font_size_override("font_size", 14); player_panel.add_child(lbl_sanity)
 
@@ -265,12 +270,11 @@ func _build_dynamic_background(vp: Vector2) -> void:
 		main.create_tween().set_loops().tween_property(p, "position:y", vp.y + 20, randf_range(0.8, 1.2)).from(-20)
 
 func update_ui() -> void:
-	lbl_player_hp.text = "SALUD: %d / %d" % [main.player_hp, main.player_max_hp]
-	lbl_player_hp.modulate = Color.WHITE
-	
+	var hp_text = "SALUD: %d / %d" % [main.player_hp, main.player_max_hp]
 	if main.player_shield > 0: 
-		lbl_player_hp.text += " (+%d ESCUDO)" % main.player_shield
-		lbl_player_hp.modulate = Color(0.5, 0.85, 1.0) # Tinte azulado para todo el texto si hay escudo
+		hp_text += " [color=#66ccff](+%d ESCUDO)[/color]" % main.player_shield
+	
+	lbl_player_hp.text = hp_text
 	
 	hp_bar_player.max_value = main.player_max_hp
 	hp_bar_player.value = main.player_hp

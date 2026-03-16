@@ -94,6 +94,7 @@ func _ready() -> void:
 			AudioManager.play_loop("intro_title_song")
 		elif is_rey_sin_corona:
 			AudioManager.stop_loop("map_ambient_song")
+			AudioManager.play_loop("king_intro_sound") # Lamento inicial
 	modulate.a = 0.0
 	player_hp = GameManager.player_hp
 	player_max_hp = GameManager.player_max_hp
@@ -158,9 +159,6 @@ func _ready() -> void:
 
 			# Sobrescribir pensamiento si es el Rey Sin Corona
 			if enemies[0].name == "EL REY SIN CORONA":
-				if get_node_or_null("/root/AudioManager"):
-					AudioManager.play_loop("king_intro_sound")
-
 				match char_id:
 					"conquistador": thought = "He servido a tronos de oro... pero este solo huele a muerte y polvo."
 					"estratega": thought = "Las crónicas hablaban de un soberano, no de esta aberración esquelética."
@@ -809,6 +807,16 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; _animate_shield_block(target_e)
 			if dmg > 0:
 				target_e.hp -= dmg
+				
+				# MECÁNICA: La música del Rey Sin Corona cambia al recibir el primer golpe
+				if "REY SIN CORONA" in target_e.name.to_upper() and not rey_music_triggered:
+					rey_music_triggered = true
+					if get_node_or_null("/root/AudioManager"):
+						# No detener el lamento, sino hacerlo más grave y añadir la música de batalla
+						AudioManager.update_loop_params("king_intro_sound", -12.0, 0.8) # Bajar mucho el pitch
+						AudioManager.play_loop("intro_title_song")
+						AudioManager.update_loop_params("intro_title_song", -6.0, 1.0) # Volumen moderado
+						
 				_spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
 				_animate_enemy_hit(target_e)
 				if target_e.hp <= 0: await _kill_enemy(target_e)
