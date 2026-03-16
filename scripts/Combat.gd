@@ -813,9 +813,8 @@ func _resolve_card(card, enemy_idx: int) -> void:
 					rey_music_triggered = true
 					if get_node_or_null("/root/AudioManager"):
 						# No detener el lamento, sino hacerlo más grave y añadir la música de batalla
-						AudioManager.update_loop_params("king_intro_sound", -12.0, 0.8) # Bajar mucho el pitch
+						AudioManager.stop_loop("king_intro_sound")
 						AudioManager.play_loop("intro_title_song")
-						AudioManager.update_loop_params("intro_title_song", -6.0, 1.0) # Volumen moderado
 						
 				_spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
 				_animate_enemy_hit(target_e)
@@ -1625,7 +1624,9 @@ func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void
 		rbtn.pressed.connect(func():
 			if picked: return
 			picked = true
-			GameManager.add_relic(relic_id)
+			
+			Events.relic_was_chosen.emit(relic_id)
+			
 			dim.queue_free(); title.queue_free(); panels_root.queue_free()
 			if next_scene == "__world2__":
 				# Cinemática del Falso Rey
@@ -1646,9 +1647,9 @@ func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void
 				GameManager.player_hp = GameManager.player_max_hp
 				GameManager.sanity = 100
 				
-				GameManager.go_to_scene("res://scenes/ui/Map.tscn")
+				Events.scene_change_requested.emit("res://scenes/ui/Map.tscn")
 			else:
-				GameManager.go_to_scene(next_scene)
+				Events.scene_change_requested.emit(next_scene)
 		)
 
 # ── Recompensa del Penitente ───────────────────────────────────────────────────
