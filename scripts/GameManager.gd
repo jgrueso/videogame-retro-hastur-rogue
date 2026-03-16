@@ -63,11 +63,11 @@ func go_to_scene(path: String) -> void:
 	layer.add_child(overlay)
 	var tree = get_tree()
 	var tw = create_tween()
-	tw.tween_property(overlay, "color:a", 1.0, 0.18)
+	tw.tween_property(overlay, "color:a", 1.0, 0.05)
 	tw.tween_callback(func():
 		tree.change_scene_to_file(path)
 		var tw2 = create_tween()
-		tw2.tween_property(overlay, "color:a", 0.0, 0.28)
+		tw2.tween_property(overlay, "color:a", 0.0, 0.1)
 		tw2.tween_callback(func():
 			layer.queue_free()
 			_transitioning = false
@@ -192,6 +192,8 @@ func reset_all_progress() -> void:
 	lore_progress = 0
 	reset_run()
 
+signal lore_popup_closed
+
 func unlock_lore(lore_id: String) -> void:
 	if not lore_id in unlocked_lore:
 		unlocked_lore.append(lore_id)
@@ -206,13 +208,17 @@ func _show_lore_popup(lore_id: String) -> void:
 
 	var vp = scene.get_viewport_rect().size
 
+	# Usar CanvasLayer para total aislamiento de entrada
+	var layer = CanvasLayer.new()
+	layer.layer = 200 # Muy por encima de todo
+	scene.add_child(layer)
+
 	# Fondo oscuro semitransparente
 	var overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.0)
 	overlay.size = vp
-	overlay.z_index = 900
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	scene.add_child(overlay)
+	layer.add_child(overlay)
 
 	var tw_bg = scene.create_tween()
 	tw_bg.tween_property(overlay, "color:a", 0.88, 0.35)
@@ -233,6 +239,7 @@ func _show_lore_popup(lore_id: String) -> void:
 	var tw_p = scene.create_tween()
 	tw_p.tween_property(panel, "modulate:a", 1.0, 0.35)
 
+	# ... (resto de la configuración de labels igual)
 	# Etiqueta "CÓDICE DESBLOQUEADO"
 	var header = Label.new()
 	header.text = "— CÓDICE DESBLOQUEADO —"
@@ -243,7 +250,6 @@ func _show_lore_popup(lore_id: String) -> void:
 	header.size = Vector2(panel.size.x, 24)
 	panel.add_child(header)
 
-	# Título del códice
 	var title_lbl = Label.new()
 	title_lbl.text = data["title"]
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -253,14 +259,12 @@ func _show_lore_popup(lore_id: String) -> void:
 	title_lbl.size = Vector2(panel.size.x, 36)
 	panel.add_child(title_lbl)
 
-	# Separador
 	var sep = ColorRect.new()
 	sep.color = Color(0.5, 0.4, 0.1, 0.5)
 	sep.size = Vector2(panel.size.x - 80, 1)
 	sep.position = Vector2(40, 96)
 	panel.add_child(sep)
 
-	# Texto scrollable
 	var scroll = ScrollContainer.new()
 	scroll.position = Vector2(30, 108)
 	scroll.size = Vector2(panel.size.x - 60, panel.size.y - 185)
@@ -275,7 +279,6 @@ func _show_lore_popup(lore_id: String) -> void:
 	text_lbl.modulate = Color(0.85, 0.82, 0.75, 0.0)
 	scroll.add_child(text_lbl)
 
-	# Revelar texto con desvanecimiento de opacidad (aplazado para que el panel aparezca primero)
 	var tw_txt = scene.create_tween()
 	tw_txt.tween_interval(0.3)
 	tw_txt.tween_property(text_lbl, "modulate:a", 1.0, 0.7)
@@ -289,8 +292,15 @@ func _show_lore_popup(lore_id: String) -> void:
 	close_btn.pressed.connect(func():
 		var tw_out = scene.create_tween()
 		tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
-		tw_out.finished.connect(overlay.queue_free)
+		tw_out.finished.connect(func():
+			layer.queue_free()
+			lore_popup_closed.emit()
+		)
 	)
+
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("lore_reveal")
+
 
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.play("lore_reveal")

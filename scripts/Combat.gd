@@ -22,27 +22,50 @@ var furia_points: int = 0
 var damage_received_pool: int = 0 # Acumulador para la pasiva del Guardián
  # Pasiva del Guardián: daño acumulado para el siguiente ataque
 
-# ── UI References ──────────────────────────────────────────────────────────────
-var player_panel: Panel
-var player_sprite_label: Label
-var lbl_player_hp: Label
-var hp_bar_player: ProgressBar
-var sanity_bar_player: ProgressBar
-var lbl_energy: Label
-var lbl_furia: Label
-var hand_container: Control
-var lbl_draw_pile: Label
-var lbl_discard_pile: Label
-var end_turn_btn: Button
-var relics_container: HBoxContainer
-var log_panel: Panel
-var log_vbox: VBoxContainer
-var lbl_message: Label
-var panel_message: Panel
-var vignette: ColorRect
-var eye_node: Control
-var blink_overlay: ColorRect
-var targeting_arrow: Line2D
+# ── UI & Visuals ──────────────────────────────────────────────────────────────
+var ui: Node # Instancia de CombatUI.gd
+
+# Atajos para evitar cambiar todo el código (Proxies con sintaxis correcta)
+var player_panel: Panel:
+	get: return ui.player_panel
+var player_sprite_label: Label:
+	get: return ui.player_sprite_label
+var lbl_player_hp: Label:
+	get: return ui.lbl_player_hp
+var hp_bar_player: ProgressBar:
+	get: return ui.hp_bar_player
+var sanity_bar_player: ProgressBar:
+	get: return ui.sanity_bar_player
+var lbl_energy: Label:
+	get: return ui.lbl_energy
+var lbl_furia: Label:
+	get: return ui.lbl_furia
+var hand_container: Control:
+	get: return ui.hand_container
+var lbl_draw_pile: Label:
+	get: return ui.lbl_draw_pile
+var lbl_discard_pile: Label:
+	get: return ui.lbl_discard_pile
+var end_turn_btn: Button:
+	get: return ui.end_turn_btn
+var relics_container: HBoxContainer:
+	get: return ui.relics_container
+var log_panel: Panel:
+	get: return ui.log_panel
+var log_vbox: VBoxContainer:
+	get: return ui.log_vbox
+var lbl_message: Label:
+	get: return ui.lbl_message
+var panel_message: Panel:
+	get: return ui.panel_message
+var vignette: ColorRect:
+	get: return ui.vignette
+var eye_node: Control:
+	get: return ui.eye_node
+var blink_overlay: ColorRect:
+	get: return ui.blink_overlay
+var targeting_arrow: Line2D:
+	get: return ui.targeting_arrow
 
 var targeting_active: bool = false
 var targeting_card = null
@@ -54,6 +77,13 @@ var rey_music_triggered: bool = false  # Si ya se activó la música al recibir 
 # ── Pools de encuentros ────────────────────────────────────────────────────────
 # ── Setup ──────────────────────────────────────────────────────────────────────
 func _ready() -> void:
+	# Cargar e instanciar CombatUI
+	var ui_script = load("res://scripts/CombatUI.gd")
+	ui = Node.new()
+	ui.set_script(ui_script)
+	add_child(ui)
+	ui.setup(self)
+
 	var vp = get_viewport_rect().size
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.stop_loop("resting_song")
@@ -367,257 +397,10 @@ func _setup_encounter() -> void:
 
 # ── Build UI ───────────────────────────────────────────────────────────────────
 func build_ui() -> void:
-	var vp = get_viewport_rect().size
-	_build_dynamic_background(vp)
+	ui.build_ui(get_viewport_rect().size)
 
-	player_panel = _make_panel(Vector2(20, 280), Vector2(560, 125), Color(0.06, 0.06, 0.1), Color(0.4, 0.4, 0.6))
-	add_child(player_panel)
-
-	var char_id = GameManager.selected_character
-	var char_info = CombatData.CHAR_DATA.get(char_id, {"symbol": "♟", "color": Color(0.8, 0.8, 0.8)})
-	player_sprite_label = Label.new()
-	player_sprite_label.text = char_info["symbol"]
-	player_sprite_label.modulate = char_info["color"]
-	player_sprite_label.add_theme_font_size_override("font_size", 60)
-	player_sprite_label.position = Vector2(10, 15)
-	player_sprite_label.size = Vector2(80, 90)
-	player_sprite_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	player_sprite_label.mouse_filter = Control.MOUSE_FILTER_STOP
-	player_panel.add_child(player_sprite_label)
-	
-	player_sprite_label.mouse_entered.connect(_show_player_passive_tooltip)
-	player_sprite_label.mouse_exited.connect(_hide_player_passive_tooltip)
-	
-	_start_player_idle_bob()
-
-	hp_bar_player = _make_hp_bar(player_max_hp, 440); hp_bar_player.position = Vector2(100, 40); player_panel.add_child(hp_bar_player)
-
-	sanity_bar_player = _make_hp_bar(100, 440); sanity_bar_player.position = Vector2(100, 58); player_panel.add_child(sanity_bar_player)
-	var sb_style = StyleBoxFlat.new(); sb_style.bg_color = Color(0.1, 0.05, 0.2); sb_style.set_corner_radius_all(4)
-	var sb_fill = StyleBoxFlat.new(); sb_fill.bg_color = Color(0.5, 0.3, 0.8)
-	sanity_bar_player.add_theme_stylebox_override("background", sb_style)
-	sanity_bar_player.add_theme_stylebox_override("fill", sb_fill)
-
-	lbl_player_hp = Label.new(); lbl_player_hp.position = Vector2(100, 15); player_panel.add_child(lbl_player_hp)
-
-	lbl_energy = Label.new(); lbl_energy.position = Vector2(100, 78); player_panel.add_child(lbl_energy)
-
-	if char_id == "guardian":
-		lbl_furia = Label.new()
-		lbl_furia.position = Vector2(300, 78)
-		lbl_furia.add_theme_font_size_override("font_size", 14)
-		lbl_furia.modulate = Color(0.4, 0.9, 0.4)
-		player_panel.add_child(lbl_furia)
-
-
-	hand_container = Control.new()
-	hand_container.position = Vector2(20, 418); hand_container.size = Vector2(1112, 195)
-	add_child(hand_container)
-
-	lbl_draw_pile    = _make_pile_label(Vector2(950, 540), Color(0.7, 0.7, 0.9))
-	lbl_discard_pile = _make_pile_label(Vector2(950, 575), Color(0.6, 0.5, 0.4))
-	add_child(lbl_draw_pile); add_child(lbl_discard_pile)
-
-	end_turn_btn = Button.new(); end_turn_btn.text = "TERMINAR TURNO"
-	end_turn_btn.position = Vector2(900, 480); end_turn_btn.size = Vector2(230, 50)
-	end_turn_btn.pressed.connect(_on_end_turn_button_pressed); add_child(end_turn_btn)
-
-	# Panel de Mensajes Lore/Pensamientos
-	panel_message = _make_panel(Vector2(100, 180), Vector2(952, 200), Color(0, 0, 0, 0.9), Color(0.3, 0.25, 0.1))
-	panel_message.z_index = 10
-	panel_message.visible = false
-	add_child(panel_message)
-
-	lbl_message = Label.new()
-	lbl_message.position = Vector2(20, 20)
-	lbl_message.size = Vector2(912, 160)
-	lbl_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl_message.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	lbl_message.autowrap_mode = TextServer.AUTOWRAP_WORD
-	panel_message.add_child(lbl_message)
-
-	# Paneles enemigos
-	for i in range(enemies.size()):
-		var is_peaceful = enemies[i].peaceful
-		var border_col = Color(0.2, 0.5, 0.2) if is_peaceful else Color(0.6, 0.2, 0.2)
-		var bg_col     = Color(0.04, 0.1, 0.04) if is_peaceful else Color(0.1, 0.05, 0.05)
-		var ep = _make_panel(Vector2(650 + i*220, 80), Vector2(200, 270), bg_col, border_col)
-		ep.mouse_filter = Control.MOUSE_FILTER_PASS
-		add_child(ep); enemies[i].panel = ep
-		
-		# Conectar señales para Tooltips de Intencion
-		var idx = i
-		ep.mouse_entered.connect(func(): _show_enemy_intent_tooltip(idx))
-		ep.mouse_exited.connect(func(): _hide_enemy_intent_tooltip(idx))
-
-		var en = Label.new(); en.text = enemies[i].name
-		en.position = Vector2(0, 8); en.size = Vector2(200, 30)
-		en.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		en.add_theme_font_size_override("font_size", 11)
-		en.modulate = Color(0.5, 1.0, 0.5) if is_peaceful else Color.WHITE
-		ep.add_child(en); enemies[i].lbl_name = en
-
-		var esl = EnemySprite.new()
-		esl.position = Vector2(0, 38)
-		esl.size = Vector2(200, 130)
-		esl.setup(enemies[i].name)
-		ep.add_child(esl); enemies[i].sprite_label = esl
-
-		var elh = Label.new(); elh.position = Vector2(10, 175); elh.size = Vector2(180, 20); ep.add_child(elh); enemies[i].lbl_hp = elh
-		var ebl = Label.new(); ebl.position = Vector2(10, 195); ebl.size = Vector2(180, 20)
-		ebl.modulate = Color(0.4, 0.7, 1.0); ep.add_child(ebl); enemies[i].lbl_shield = ebl
-		var eh = _make_hp_bar(enemies[i].max_hp, 180); eh.position = Vector2(10, 215); ep.add_child(eh); enemies[i].hp_bar = eh
-
-		var lin = Label.new(); lin.position = Vector2(0, 245); lin.size = Vector2(200, 22)
-		lin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lin.add_theme_font_size_override("font_size", 11)
-		ep.add_child(lin); enemies[i].lbl_intent_icon = lin
-
-	targeting_arrow = Line2D.new(); targeting_arrow.width = 4
-	targeting_arrow.default_color = Color(1, 0.8, 0.2); targeting_arrow.visible = false; add_child(targeting_arrow)
-
-	relics_container = HBoxContainer.new()
-	relics_container.position = Vector2(10, 10)
-	relics_container.add_theme_constant_override("separation", 6)
-	add_child(relics_container)
-	_populate_relics()
-
-	# --- HISTORIAL DE COMBATE (Log) ---
-	log_panel = Panel.new()
-	log_panel.position = Vector2(10, 55)
-	log_panel.size = Vector2(300, 120)
-	log_panel.modulate.a = 0.25 # Casi transparente por defecto
-	log_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(log_panel)
-	
-	var ls = StyleBoxFlat.new()
-	ls.bg_color = Color(0, 0, 0, 0.7); ls.border_width_left = 2; ls.border_color = Color(0.3, 0.3, 0.3)
-	log_panel.add_theme_stylebox_override("panel", ls)
-	
-	var scroll = ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_KEEP_SIZE, 5)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	log_panel.add_child(scroll)
-	
-	log_vbox = VBoxContainer.new()
-	log_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(log_vbox)
-	
-	# Hover logic para el Log
-	log_panel.mouse_entered.connect(func(): create_tween().tween_property(log_panel, "modulate:a", 1.0, 0.2))
-	log_panel.mouse_exited.connect(func(): create_tween().tween_property(log_panel, "modulate:a", 0.25, 0.3))
-
-	# Viñeta de Cordura
-	vignette = ColorRect.new()
-	vignette.size = vp
-	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vignette.color = Color(0, 0, 0, 0) # Empieza invisible
-	vignette.z_index = 40 # Encima de todo menos mensajes criticos
-	add_child(vignette)
-
-	blink_overlay = ColorRect.new()
-	blink_overlay.size = vp
-	blink_overlay.color = Color.BLACK
-	blink_overlay.visible = false
-	blink_overlay.z_index = 60 # El parpadeo tapa todo
-	add_child(blink_overlay)
-
-	var dev_toggle = Button.new(); dev_toggle.text = "[DEV]"
-	dev_toggle.position = Vector2(vp.x - 80, vp.y - 36); dev_toggle.size = Vector2(75, 30)
-	dev_toggle.modulate = Color(0.5, 0.5, 0.5, 0.45)
-	add_child(dev_toggle)
-
-	# Botón Visor de Mazo
-	var deck_btn = Button.new()
-	deck_btn.text = " ▣ VER MAZO "
-	deck_btn.position = Vector2(vp.x - 160, 10); deck_btn.size = Vector2(150, 40)
-	deck_btn.add_theme_font_size_override("font_size", 14)
-	add_child(deck_btn)
-	deck_btn.pressed.connect(func(): GameManager.show_deck_overlay(self))
-
-	var dev_panel = _build_dev_panel(vp)
-	dev_panel.visible = false
-	add_child(dev_panel)
-	dev_toggle.pressed.connect(func(): dev_panel.visible = not dev_panel.visible)
-
-func _get_enemy_symbol(e_name: String) -> String:
-	match e_name:
-		"EL VERDADERO HASTUR": return "♆"
-		"EL CARCELERO":        return "♔"
-		"EL REY SIN CORONA":   return "♚"
-		"EL REY AMARILLO":     return "♛"
-		"Torre Rota":          return "♖"
-		"Caballero Roto":      return "♘"
-		"Inquisidor Ciego":    return "♗"
-		"Alfil Caido":         return "♝"
-		"Espectro":            return "👁"
-		"Peon Maldito":        return "♟"
-		"El Penitente":        return "✝"
-		_:                     return "☠"
-
-func _build_dynamic_background(vp: Vector2) -> void:
-	var is_w2 = GameManager.current_world == 1
-	var bg = ColorRect.new()
-	bg.color = Color(0.01, 0.01, 0.02) if not is_w2 else Color(0.04, 0.03, 0.01)
-	bg.size = vp; bg.z_index = -10; add_child(bg)
-	var sz = 450.0 if not is_w2 else 650.0
-	var sun = Panel.new(); sun.size = Vector2(sz, sz); sun.position = Vector2(vp.x/2 - sz/2, -100)
-	var sun_st = StyleBoxFlat.new(); sun_st.bg_color = Color(0,0,0)
-	sun_st.set_corner_radius_all(sz/2); sun_st.border_width_left = 4
-	sun_st.border_color = Color(0.9, 0.6, 0.1, 0.3)
-	sun.add_theme_stylebox_override("panel", sun_st); sun.z_index = -9; add_child(sun)
-
-	# El Ojo del Vacio (REDISEÑO GIGANTE)
-	eye_node = Control.new()
-	eye_node.position = sun.position + sun.size/2
-	eye_node.z_index = -8; eye_node.modulate.a = 0.0 
-	add_child(eye_node)
-
-	var eye_w = 320.0
-	var eye_h = 160.0
-
-	var eye_bg = Panel.new() # Esclerotica (Almendra simetrica)
-	eye_bg.size = Vector2(eye_w, eye_h); eye_bg.position = -eye_bg.size/2
-	var es = StyleBoxFlat.new(); es.bg_color = Color(0.85, 0.8, 0.6)
-	# Forma de almendra: esquinas superior e inferior redondeadas, laterales afilados
-	es.set_corner_radius(CORNER_TOP_LEFT, 160)
-	es.set_corner_radius(CORNER_TOP_RIGHT, 160)
-	es.set_corner_radius(CORNER_BOTTOM_RIGHT, 160)
-	es.set_corner_radius(CORNER_BOTTOM_LEFT, 160)
-	# Para afilar los lados en Godot Panel, lo mejor es usar un radio que no llegue a ser un circulo perfecto
-	es.border_width_left = 2; es.border_width_right = 2
-	es.border_color = Color(0.2, 0.1, 0.0)
-	eye_bg.add_theme_stylebox_override("panel", es); eye_node.add_child(eye_bg)
-
-	var iris = Panel.new() # Iris Ambar
-	iris.size = Vector2(140, 140); iris.position = -iris.size/2
-	var is_style = StyleBoxFlat.new(); is_style.bg_color = Color(0.7, 0.4, 0.1); is_style.set_corner_radius_all(70)
-	is_style.border_width_left = 10; is_style.border_color = Color(0.4, 0.2, 0.0)
-	iris.add_theme_stylebox_override("panel", is_style); eye_node.add_child(iris); iris.name = "Iris"
-
-	var pupil = Panel.new() # Pupila Rasgada (como gato/reptil)
-	pupil.size = Vector2(45, 110); pupil.position = -pupil.size/2
-	var ps = StyleBoxFlat.new(); ps.bg_color = Color(0,0,0); ps.set_corner_radius_all(22)
-	pupil.add_theme_stylebox_override("panel", ps); iris.add_child(pupil); pupil.name = "Pupil"
-
-	var lid_top = ColorRect.new() # Parpado superior mas grueso
-	lid_top.size = Vector2(eye_w + 40, eye_h); lid_top.position = Vector2(-eye_w/2 - 20, -eye_h - 20); lid_top.color = Color.BLACK
-	eye_node.add_child(lid_top); lid_top.name = "LidTop"
-
-	var lid_bot = ColorRect.new() # Parpado inferior mas grueso
-	lid_bot.size = Vector2(eye_w + 40, eye_h); lid_bot.position = Vector2(-eye_w/2 - 20, eye_h/2 + 10); lid_bot.color = Color.BLACK
-	eye_node.add_child(lid_bot); lid_bot.name = "LidBot"
-
-	_start_eye_blink_loop()
-	# Lluvia de fondo
-	var is_avatar = not enemies.is_empty() and "AVATAR" in enemies[0].name.to_upper()
-	
-	for i in range(60):
-		var p = ColorRect.new(); p.size = Vector2(1, 15)
-		# Si es el Avatar, la lluvia es ROJA (Sangre)
-		p.color = Color(0.8, 0.1, 0.1, 0.4) if is_avatar else Color(0.5, 0.5, 0.7, 0.15)
-		p.position = Vector2(randf_range(0, vp.x), randf_range(0, vp.y)); p.z_index = -8; add_child(p)
-		create_tween().set_loops().tween_property(p, "position:y", vp.y + 20, randf_range(0.8, 1.2)).from(-20)
+func update_ui() -> void:
+	ui.update_ui()
 
 # ── Cartas ─────────────────────────────────────────────────────────────────────
 func draw_hand(count: int = -1) -> void:
@@ -937,7 +720,9 @@ func _resolve_card(card, enemy_idx: int) -> void:
 			t.tween_property(lbl, "position:y", lbl.position.y - 60, 0.8)
 			t.tween_property(lbl, "modulate:a", 0.0, 0.8)
 			t.chain().tween_callback(lbl.queue_free)
+			update_intent_labels() # ACTUALIZACIÓN EN TIEMPO REAL
 		else:
+
 			flash_small("Selecciona un objetivo")
 			player_energy += effective_cost
 			card.set_disabled(false)
@@ -945,11 +730,21 @@ func _resolve_card(card, enemy_idx: int) -> void:
 
 	elif "CENIZA PREVENTIVA" in c_upper:
 		card_handled = true
-		var discarded = hand.size()
-		for c_rem in hand_container.get_children(): c_rem.queue_free()
-		for h_rem in hand: discard_pile.append(h_rem)
-		hand.clear()
-		player_shield += (discarded * 3)
+		var discarded_count = hand.size()
+		if discarded_count > 0:
+			for c_rem in hand_container.get_children():
+				if c_rem != card: c_rem.queue_free()
+			for h_rem in hand: discard_pile.append(h_rem)
+			hand.clear()
+			
+			var shield_gain = discarded_count * 3
+			player_shield += shield_gain
+			# Feedback visual: Número azul flotante
+			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), shield_gain, Color(0.4, 0.7, 1.0))
+			flash_small("Ceniza Preventiva: +" + str(shield_gain) + " Escudo")
+		else:
+			flash_small("Mano vacía: No hay piezas que quemar.")
+		update_ui()
 
 	elif "ANALISIS" in c_upper:
 		card_handled = true
@@ -978,6 +773,10 @@ func _resolve_card(card, enemy_idx: int) -> void:
 		for e_deb in enemies:
 			if e_deb.hp > 0:
 				e_deb["atk_reduction"] = e_deb.get("atk_reduction", 0) + reduction
+				# Feedback visual: Destello verde de debilidad
+				var tw = create_tween()
+				tw.tween_property(e_deb.panel, "modulate", Color(0.4, 1.2, 0.4), 0.1)
+				tw.tween_property(e_deb.panel, "modulate", Color(1, 1, 1), 0.3)
 		if is_last:
 			flash_small("¡SUSURRO FINAL! Todos debilitados: -" + str(reduction))
 			_trigger_screen_blink()
@@ -1251,43 +1050,6 @@ func _start_player_idle_bob() -> void:
 	var base_y = player_sprite_label.position.y
 	create_tween().set_loops().tween_property(player_sprite_label, "position:y", base_y - 4, 1.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
-# ── Update UI ──────────────────────────────────────────────────────────────────
-func update_ui() -> void:
-	var sanity_label = "LOCURA" if GameManager.sanity < 50 else "CORDURA"
-	lbl_player_hp.text = "HP: %d/%d  |  %s: %d%%" % [player_hp, player_max_hp, sanity_label, GameManager.sanity]
-	if player_shield > 0: lbl_player_hp.text += "  [+%d esc]" % player_shield
-	hp_bar_player.value = player_hp
-	
-	if sanity_bar_player:
-		sanity_bar_player.value = GameManager.sanity
-	
-	# Sincronización centralizada de audio dinámico
-	_sync_dynamic_audio()
-	
-	lbl_energy.text = "Energia: %d/%d" % [player_energy, player_max_energy]
-	
-	if lbl_furia:
-		lbl_furia.text = "FURIA: %d/3" % furia_points
-		lbl_furia.visible = GameManager.selected_character == "guardian"
-		if furia_points >= 3:
-			lbl_furia.modulate = Color(1, 0.2, 0.2) # Rojo cuando esta listo
-			lbl_furia.text += " [LISTO]"
-		else:
-			lbl_furia.modulate = Color(0.4, 0.9, 0.4)
-	
-	lbl_draw_pile.text    = "Mazo: %d"        % draw_pile.size()
-	lbl_discard_pile.text = "Cementerio: %d"  % discard_pile.size()
-	for e in enemies:
-		if e.lbl_hp:     e.lbl_hp.text = "HP: %d/%d" % [e.hp, e.max_hp]
-		if e.lbl_shield: e.lbl_shield.text = "Escudo: %d" % e.shield if e.shield > 0 else ""
-		if e.hp_bar:     e.hp_bar.value = e.hp
-	
-	if end_turn_btn:
-		end_turn_btn.text = "TERMINAR TURNO " + str(turn_counter)
-	
-	_check_sanity_myths()
-	update_intent_labels()
-
 func _trigger_screen_blink() -> void:
 	if not blink_overlay: return
 	blink_overlay.visible = true
@@ -1297,74 +1059,9 @@ func _trigger_screen_blink() -> void:
 	tw.tween_callback(func(): blink_overlay.visible = false)
 
 func update_intent_labels() -> void:
-	var has_manual = GameManager.has_relic("manual_anatomista")
-	for e in enemies:
-		if e.hp <= 0 or not e.lbl_intent_icon: continue
-
-		# Logica de Intenciones Corruptas por Locura (Respetar Manual del Anatomista)
-		if GameManager.sanity < 20 and not has_manual:
-			var creepy = ["TE OBSERVA", "ACECHANDO", "...", "INEVITABLE"]
-			e.lbl_intent_icon.text = creepy[randi() % creepy.size()]
-			e.lbl_intent_icon.modulate = Color(0.8, 0.2, 0.2)
-			continue
-
-		if e.peaceful:
-			if e.name == "El Penitente":
-				var thought = _get_penitente_thought()
-				var display_text = _get_deciphered_thought(thought)
-
-				e.lbl_intent_icon.text = display_text + " (" + str(e.peaceful_turns) + ")"
-				e.lbl_intent_icon.modulate = Color(0.9, 0.8, 0.2) # Amarillo
-
-				# Temblor de texto en cordura baja
-				if GameManager.sanity < 60:
-					var shake = (60.0 - GameManager.sanity) * 0.15
-					e.lbl_intent_icon.position.x = randf_range(-shake, shake)
-				else:
-					e.lbl_intent_icon.position.x = 0
-			else:
-				var msg = ["Rezando al Vacio...", "Lamentandose...", "Buscando perdon...", "En trance..."][GameManager.total_runs % 4]
-				e.lbl_intent_icon.text = msg
-				e.lbl_intent_icon.modulate = Color(0.6, 0.6, 0.8)
-		else:
-			var action = e.pattern[e.turn_index % e.pattern.size()]
-
-			if action.type == "attack":
-				# CALCULO INTUITIVO: Base + Marca - Reduccion
-				var base_val = action.value
-				var mark_bonus = 0
-				if GameManager.mark_level > 0 and base_val > 0:
-					mark_bonus = int(base_val * (0.25 * GameManager.mark_level))
-					if mark_bonus < 1: mark_bonus = 1
-
-				var final_dmg = max(0, (base_val + mark_bonus) - e.get("atk_reduction", 0))
-				var val_txt = str(final_dmg)
-
-				if GameManager.sanity < 40 and not has_manual:
-					val_txt = "???" if randf() < 0.5 else "▓"
-
-				e.lbl_intent_icon.text = "⚔ Atacar " + val_txt
-				if e.get("atk_reduction", 0) > 0:
-					e.lbl_intent_icon.modulate = Color(0.4, 1.0, 0.4) # Verde si esta debilitado
-				else:
-					e.lbl_intent_icon.modulate = Color(1, 0.5, 0.4)
-			elif action.type == "shield":
-				var val_txt = str(action.value)
-				if GameManager.sanity < 40 and not has_manual:
-					val_txt = "???" if randf() < 0.5 else "▓"
-				e.lbl_intent_icon.text = "🛡 Escudo " + val_txt
-				e.lbl_intent_icon.modulate = Color(0.4, 0.7, 1.0)
-			elif action.type == "insanity":
-				var val_txt = str(action.value)
-				if GameManager.sanity < 40 and not has_manual:
-					val_txt = "???" if randf() < 0.5 else "▓"
-				e.lbl_intent_icon.text = "👁 Corromper " + val_txt
-				e.lbl_intent_icon.modulate = Color(0.7, 0.4, 0.9) # Purpura
-		# Indicador de sangrado (Mirada que Devora)
-		if e.get("bleed", 0) > 0:
-			e.lbl_intent_icon.text += " [🩸" + str(e["bleed"]) + "]"
-			# Tinte rojizo a la etiqueta si está sangrando
-			e.lbl_intent_icon.modulate = e.lbl_intent_icon.modulate.lerp(Color(1, 0, 0), 0.3)
+	# Esta función ahora debería ser manejada por la UI o delegada
+	if ui.has_method("update_intent_labels"):
+		ui.update_intent_labels()
 
 func _trigger_boss_phase_2(e: Dictionary) -> void:
 	e.in_phase_2 = true
@@ -1551,10 +1248,17 @@ func check_combat_end() -> void:
 	elif GameManager.is_final_boss:
 		if GameManager.current_world == 0:
 			# REY SIN CORONA caído → Mundo 2
-			GameManager.unlock_lore("rey_marfil") # Desbloqueo normal
+			var lore_id = "rey_marfil"
+			if not lore_id in GameManager.unlocked_lore:
+				GameManager.unlock_lore(lore_id)
+				await GameManager.lore_popup_closed
+			else:
+				GameManager.unlock_lore(lore_id)
+			
 			_show_relic_reward("__world2__")
 			return
 		else:
+
 			# REY AMARILLO caído
 			if GameManager.has_all_secret_items():
 				# Los 3 fragmentos reunidos → Carcosa se abre → Hastur
@@ -1576,7 +1280,7 @@ func check_combat_end() -> void:
 func _show_loot_screen() -> void:
 	var vp = get_viewport_rect().size
 	# Panel de despojos con estetica Carcosa
-	var loot_panel = _make_panel(Vector2(vp.x/2 - 300, 120), Vector2(600, 380), Color(0.04, 0.04, 0.06, 0.96), Color(0.85, 0.75, 0.2))
+	var loot_panel = ui._make_panel(Vector2(vp.x/2 - 300, 120), Vector2(600, 380), Color(0.04, 0.04, 0.06, 0.96), Color(0.85, 0.75, 0.2))
 	add_child(loot_panel)
 	loot_panel.z_index = 100
 
@@ -1873,7 +1577,7 @@ func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void
 		var rid = choices[i]
 		var rdata = GameManager.RELIC_DATA[rid]
 		var px = start_x + i * (panel_w + gap)
-		var rpanel = _make_panel(Vector2(px, 100), Vector2(panel_w, panel_h),
+		var rpanel = ui._make_panel(Vector2(px, 100), Vector2(panel_w, panel_h),
 			Color(0.08, 0.07, 0.04), Color(0.7, 0.55, 0.1))
 		panels_root.add_child(rpanel)
 
@@ -2557,8 +2261,8 @@ func _show_player_passive_tooltip() -> void:
 	var panel_w = 280
 	var line_count = txt.count("\n") + (txt.length() / 35) + 2 # Estimación de wrap
 	var panel_h = line_count * 18 + 30
-	
-	var p = _make_panel(Vector2(85, -20), Vector2(panel_w, panel_h), Color(0,0,0,0.95), Color(0.2, 0.5, 0.8))
+
+	var p = ui._make_panel(Vector2(85, -20), Vector2(panel_w, panel_h), Color(0,0,0,0.95), Color(0.2, 0.5, 0.8))
 	p.name = "PassiveTooltipPanel"
 	p.z_index = 100
 	p.add_child(tip); tip.position = Vector2(12, 12); tip.size = Vector2(panel_w - 24, panel_h - 24)
@@ -2669,7 +2373,7 @@ func _show_enemy_intent_tooltip(idx: int) -> void:
 	var panel_h = max(120, est_lines * 18 + 25)
 
 	# Posicion Y=240 para que aparezca debajo del panel (que mide 230)
-	var p = _make_panel(Vector2(-10, 240), Vector2(220, panel_h), Color(0,0,0,0.95), Color(0.5, 0.5, 0.2))
+	var p = ui._make_panel(Vector2(-10, 240), Vector2(220, panel_h), Color(0,0,0,0.95), Color(0.5, 0.5, 0.2))
 	p.name = "TooltipPanel"
 	p.z_index = 100
 	p.add_child(tip); tip.position = Vector2(10, 10); tip.size = Vector2(200, panel_h - 20)
@@ -2696,22 +2400,7 @@ func _populate_relics() -> void:
 			lbl.add_theme_font_size_override("font_size", 11)
 			relics_container.add_child(lbl)
 
-# ── Helpers UI ─────────────────────────────────────────────────────────────────
-func _make_panel(pos, sz, bg, border) -> Panel:
-	var p = Panel.new(); p.position = pos; p.size = sz
-	var s = StyleBoxFlat.new(); s.bg_color = bg
-	s.border_width_left = 2; s.border_width_right = 2
-	s.border_width_top = 2; s.border_width_bottom = 2
-	s.border_color = border
-	p.add_theme_stylebox_override("panel", s); return p
-
-func _make_hp_bar(max_v, w) -> ProgressBar:
-	var b = ProgressBar.new(); b.max_value = max_v; b.value = max_v
-	b.custom_minimum_size = Vector2(w, 12); b.show_percentage = false; return b
-
-func _make_pile_label(pos: Vector2, col: Color) -> Label:
-	var lbl = Label.new(); lbl.position = pos; lbl.size = Vector2(140, 28)
-	lbl.add_theme_font_size_override("font_size", 13); lbl.modulate = col; return lbl
+# ── Helpers UI (DELEGADOS A CombatUI.gd) ─────────────────────────────────────────
 
 func show_message(txt, col: Color) -> void:
 	lbl_message.text = txt; lbl_message.modulate = col
