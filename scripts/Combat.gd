@@ -596,9 +596,20 @@ func _process(_delta: float) -> void:
 				e.lbl_name.modulate.a = 0.6 + sin(t * 3.0) * 0.4
 
 	if targeting_active and targeting_card:
-		targeting_arrow.clear_points()
-		targeting_arrow.add_point(targeting_card.global_position + Vector2(65, 0))
-		targeting_arrow.add_point(get_global_mouse_position())
+		var m = get_global_mouse_position()
+		var from = targeting_card.global_position + Vector2(65, 0)
+		ui.update_targeting_arrow(from, m)
+
+		# Detectar enemigo bajo el cursor y destacarlo
+		var hovered_panel: Panel = null
+		for e in enemies:
+			if e.hp > 0 and e.panel.get_global_rect().has_point(m):
+				hovered_panel = e.panel
+				break
+		if hovered_panel:
+			ui.highlight_enemy_panel(hovered_panel)
+		else:
+			ui.clear_target_highlight()
 
 func _input(event: InputEvent) -> void:
 	if targeting_active and event is InputEventMouseButton:
@@ -611,11 +622,16 @@ func _check_targeting() -> void:
 	for i in range(enemies.size()):
 		if enemies[i].hp > 0 and enemies[i].panel.get_global_rect().has_point(m_pos):
 			target = i; break
+	ui.clear_target_highlight()
 	if target >= 0:
 		_resolve_card(targeting_card, target)
 	else:
 		targeting_card.set_disabled(false)
-	targeting_active = false; targeting_arrow.visible = false; targeting_card = null
+	targeting_active = false
+	targeting_arrow.visible = false
+	if ui.targeting_arrow_head:
+		ui.targeting_arrow_head.visible = false
+	targeting_card = null
 
 var _is_resolving_extra_mirror_card: bool = false
 
@@ -1016,20 +1032,41 @@ func _kill_enemy(e: Dictionary) -> void:
 
 func _spawn_damage_number(pos: Vector2, amount: int, col: Color) -> void:
 	var lbl = Label.new()
-	
-	# Detectar si es un ataque enemigo fallido (daño 0)
+	var font_size = 22
+	var rise = Vector2(randf_range(-20, 20), -55)
+	var duration = 0.7
+
 	if amount <= 0 and col.r > 0.7:
-		lbl.text = "FALLÓ"
-		lbl.modulate = Color(0.6, 0.6, 0.65)
+		lbl.text = "FALLÓ"; lbl.modulate = Color(0.6, 0.6, 0.65)
+		font_size = 16; duration = 0.45
+	elif col.g > 0.6 and col.r < 0.5:  # Curación (verde)
+		lbl.text = "+%d" % amount; lbl.modulate = col
+		duration = 1.0; rise = Vector2(randf_range(-10, 10), -65)
+	elif col.b > 0.6 and col.r < 0.5:  # Escudo (azul)
+		lbl.text = "🛡 %d" % amount; lbl.modulate = col
+		font_size = 18; rise = Vector2(randf_range(-15, 15), -45)
+	elif col == Color(0.8, 0.1, 0.3):  # Sangrado
+		lbl.text = "🩸 %d" % amount; lbl.modulate = col
+		rise = Vector2(randf_range(10, 30), -40)
+	elif amount >= 25:  # Daño crítico
+		lbl.text = "-%d!" % amount; lbl.modulate = Color(1.0, 0.5, 0.1)
+		font_size = 34
 	else:
-		lbl.text = "-%d" % amount if col.r > 0.7 else "+%d" % amount
-		lbl.modulate = col
-		
-	lbl.add_theme_font_size_override("font_size", 22)
-	lbl.position = pos; lbl.z_index = 20; add_child(lbl)
+		lbl.text = "-%d" % amount; lbl.modulate = col
+		if amount >= 15: font_size = 28
+		elif amount < 5: font_size = 18
+
+	lbl.add_theme_font_size_override("font_size", font_size)
+	lbl.add_theme_constant_override("outline_size", 3)
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	lbl.position = pos; lbl.z_index = 20; lbl.scale = Vector2(1.4, 1.4)
+	add_child(lbl)
+
+	# Animación punch + float
 	var t = create_tween().set_parallel(true)
-	t.tween_property(lbl, "position", pos + Vector2(randf_range(-20, 20), -55), 0.7)
-	t.tween_property(lbl, "modulate:a", 0.0, 0.7)
+	t.tween_property(lbl, "scale", Vector2(1.0, 1.0), 0.15)
+	t.tween_property(lbl, "position", pos + rise, duration).set_delay(0.1)
+	t.tween_property(lbl, "modulate:a", 0.0, duration * 0.6).set_delay(duration * 0.4)
 	t.chain().tween_callback(lbl.queue_free)
 
 func _spawn_death_particles(pos: Vector2) -> void:
@@ -1260,8 +1297,8 @@ func check_combat_end() -> void:
 				GameManager.unlock_lore(lore_id)
 				await GameManager.lore_popup_closed
 			else:
-				GameManager.unlock_lore(lore_id)
-			
+				pass  # ya desbloqueado, no re-disparar popup
+
 			_show_relic_reward("__world2__")
 			return
 		else:
@@ -1629,27 +1666,17 @@ func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void
 			
 			dim.queue_free(); title.queue_free(); panels_root.queue_free()
 			if next_scene == "__world2__":
-				# Cinemática del Falso Rey
-				await _show_yellow_truth_cinematic([
-					"El Rey Sin Corona ha sido reclamado por el vacío.",
-					"Buscó un trono que nunca existió, olvidando que en este tablero...",
-					"Incluso los reyes son solo peones en manos del que viste de Amarillo.",
-					"Bienvenido al Tablero Dorado. Donde la ceniza se vuelve ley."
-				])
-				
+				await _show_world2_transition()
 				GameManager.current_world = 1
 				GameManager.map_graph = []
-				GameManager.map_path = {} # Limpiar el camino del mundo anterior
+				GameManager.map_path = {}
 				GameManager.current_map_floor = 0
 				GameManager.current_map_col = -1
-				
-				# Recuperar fuerzas para el nuevo mundo
 				GameManager.player_hp = GameManager.player_max_hp
 				GameManager.sanity = 100
-				
-				Events.scene_change_requested.emit("res://scenes/ui/Map.tscn")
+				GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 			else:
-				Events.scene_change_requested.emit(next_scene)
+				GameManager.go_to_scene(next_scene)
 		)
 
 # ── Recompensa del Penitente ───────────────────────────────────────────────────
@@ -1660,20 +1687,8 @@ func _penitente_reward() -> void:
 		AudioManager.stop_loop("Cry_whisper_woman_sound")
 		
 	var has_trans = GameManager.has_relic("lengua_tablero")
-
-	var lines = ["Tu paciencia es... inusual.", "Toma este eco de un juramento roto."]
-	if has_trans:
-		lines.append("Escucha: El Rey siente tu miedo, no tus piezas.")
-		lines.append("Atácalo cuando tu mente esté más rota... es cuando más sangra.")
-
-	# Mostrar diálogo del Penitente
-	await _show_yellow_truth_cinematic(lines)
-
-	# Preparar la carta única
 	var p_card = {"name": "Plegaria de Ceniza", "attack": 0, "defense": 12, "cost": 0, "special": "penitente"}
-
-	# Mostrar modal de recompensa clara
-	_show_single_reward_modal("CARTA ÚNICA REVELADA", p_card, "res://scenes/ui/Map.tscn")
+	await _show_penitente_cinematic(has_trans, p_card)
 
 func _show_single_reward_modal(title_text: String, item_data: Dictionary, next_scene: String) -> void:
 	var vp = get_viewport_rect().size
@@ -2240,7 +2255,10 @@ func log_message(subject: String, text: String, color: Color) -> void:
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
 	lbl.custom_minimum_size.x = 280
 	log_vbox.add_child(lbl)
-	
+	lbl.modulate.a = 0.0
+	var tw_fade = create_tween()
+	tw_fade.tween_property(lbl, "modulate:a", 1.0, 0.3)
+
 	# Mantener solo los últimos 20 mensajes
 	if log_vbox.get_child_count() > 20:
 		log_vbox.get_child(0).queue_free()
@@ -2285,6 +2303,7 @@ func _hide_player_passive_tooltip() -> void:
 func _show_enemy_intent_tooltip(idx: int) -> void:
 	if idx >= enemies.size() or enemies[idx].hp <= 0: return
 	var e = enemies[idx]
+	if e.panel and e.panel.get_node_or_null("TooltipPanel"): return  # ya visible, evitar duplicados
 	var txt = ""
 	
 	if e.peaceful:
@@ -2364,9 +2383,16 @@ func _show_enemy_intent_tooltip(idx: int) -> void:
 			var val_str = str(action.value) if not is_insane else "MUERTE"
 			txt += "INTENCION: JUICIO DE CARCOSA\nInfligira " + val_str + " de daño masivo."
 	
-	# Añadir estado de debuffs si existen
+	# Añadir todos los estados activos
+	var status_parts = []
+	if e.get("bleed", 0) > 0:
+		status_parts.append("🩸 Sangrado (%d): recibe %d daño al fin del turno, -1 cada turno." % [e["bleed"], e["bleed"]])
 	if e.get("atk_reduction", 0) > 0:
-		txt += "\n\n--- ESTADO ---\nDEBILIDAD: -" + str(e["atk_reduction"]) + " ATK\n(Dura 1 turno)"
+		status_parts.append("⚡ Debilitado (-%d atk): daño de ataque reducido." % e["atk_reduction"])
+	if e.get("is_stunned", false):
+		status_parts.append("💫 Aturdido: saltará su próximo turno.")
+	if not status_parts.is_empty():
+		txt += "\n\n--- ESTADOS ---\n" + "\n".join(status_parts)
 
 	# Mostrar el tooltip debajo del panel
 	var tip = Label.new()
@@ -2393,6 +2419,7 @@ func _hide_enemy_intent_tooltip(idx: int) -> void:
 	if idx < enemies.size() and is_instance_valid(enemies[idx].panel):
 		var p = enemies[idx].panel.get_node_or_null("TooltipPanel")
 		if p: p.queue_free()
+
 
 func _populate_relics() -> void:
 	if not relics_container: return
@@ -2469,6 +2496,215 @@ func _start_hastur_madness_loop() -> void:
 		f.position = Vector2(0, 200); f.size = Vector2(1152, 200)
 		f.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; f.z_index = 5; add_child(f)
 		await get_tree().create_timer(0.12).timeout; f.queue_free()
+
+# ── Cinemática del Penitente ───────────────────────────────────────────────────
+
+func _show_penitente_cinematic(has_relic_hint: bool, p_card: Dictionary) -> void:
+	var vp = get_viewport_rect().size
+	var layer = CanvasLayer.new(); layer.layer = 160; add_child(layer)
+	var bg = ColorRect.new(); bg.color = Color(0.05, 0.04, 0.08, 0.0)
+	bg.position = Vector2.ZERO; bg.size = vp
+	layer.add_child(bg)
+
+	# Fase 1: fade a oscuro
+	var tw = create_tween()
+	tw.tween_property(bg, "color:a", 0.92, 0.7)
+	await tw.finished
+
+	# Fase 2: peón inclina la cabeza (no cae — muestra deferencia, no derrota)
+	var pawn_lbl = Label.new()
+	pawn_lbl.text = "♟"
+	pawn_lbl.add_theme_font_size_override("font_size", 64)
+	pawn_lbl.modulate = Color(0.75, 0.7, 0.85, 0.0)
+	pawn_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pawn_lbl.position = Vector2(0, vp.y * 0.18); pawn_lbl.size = Vector2(vp.x, 80)
+	layer.add_child(pawn_lbl)
+
+	var tw_pawn = create_tween().set_parallel(true)
+	tw_pawn.tween_property(pawn_lbl, "modulate:a", 1.0, 0.6)
+	tw_pawn.tween_property(pawn_lbl, "rotation_degrees", 12.0, 1.0).set_ease(Tween.EASE_OUT)  # inclina, no cae
+	await tw_pawn.finished
+
+	# Fase 3: texto narrativo
+	var lines_data = [
+		["Tu paciencia es... inusual.", 0.07, false],
+		["La mayoría llega aquí con espadas levantadas.", 0.07, false],
+		["Tú llegaste con silencio.", 0.09, true],
+	]
+	if has_relic_hint:
+		lines_data.append(["Escucha: el Rey siente tu miedo, no tus piezas.", 0.07, false])
+		lines_data.append(["Atácalo cuando tu mente esté más rota...\nes cuando más sangra.", 0.08, true])
+	else:
+		lines_data.append(["Toma este eco de un juramento roto.", 0.08, false])
+
+	for line_data in lines_data:
+		var lbl = Label.new()
+		lbl.text = ""; lbl.modulate = Color(0.82, 0.78, 0.92, 0.0)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 20 if not line_data[2] else 24)
+		lbl.position = Vector2(60, vp.y * 0.38); lbl.size = Vector2(vp.x - 120, 90)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		layer.add_child(lbl)
+		var fad = create_tween(); fad.tween_property(lbl, "modulate:a", 1.0, 0.4)
+		await fad.finished
+		var full_text = line_data[0]
+		for c in full_text.length():
+			lbl.text = full_text.substr(0, c + 1)
+			await get_tree().create_timer(line_data[1]).timeout
+		await get_tree().create_timer(1.6).timeout
+		var fout = create_tween(); fout.tween_property(lbl, "modulate:a", 0.0, 0.4)
+		await fout.finished
+		lbl.queue_free()
+
+	# Fase 4: interstitial — carta revelada
+	var card_title = Label.new()
+	card_title.text = "— DON DEL PENITENTE —"
+	card_title.modulate = Color(0.75, 0.65, 0.95, 0.0)
+	card_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card_title.add_theme_font_size_override("font_size", 22)
+	card_title.position = Vector2(0, vp.y * 0.25); card_title.size = Vector2(vp.x, 40)
+	layer.add_child(card_title)
+
+	var card_scene = load("res://scenes/combat/Card.tscn")
+	var card_node = card_scene.instantiate()
+	layer.add_child(card_node)
+	card_node.setup(p_card)
+	card_node.position = Vector2(vp.x / 2.0 - 65, vp.y * 0.35)
+	card_node.scale = Vector2(1.5, 1.5)
+	card_node.modulate = Color(1, 1, 1, 0.0)
+	GameManager.add_card(p_card)
+
+	var sub = Label.new()
+	sub.text = "\"Que la ceniza te proteja donde el acero no puede.\""
+	sub.modulate = Color(0.6, 0.55, 0.7, 0.0)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.add_theme_font_size_override("font_size", 13)
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD
+	sub.position = Vector2(60, vp.y * 0.72); sub.size = Vector2(vp.x - 120, 50)
+	layer.add_child(sub)
+
+	var cont_btn = Button.new()
+	cont_btn.text = "Aceptar y continuar"
+	cont_btn.position = Vector2(vp.x / 2.0 - 110, vp.y * 0.82)
+	cont_btn.size = Vector2(220, 44)
+	cont_btn.modulate = Color(1, 1, 1, 0.0)
+	layer.add_child(cont_btn)
+
+	var fin_tw = create_tween().set_parallel(true)
+	fin_tw.tween_property(card_title, "modulate:a", 1.0, 0.8)
+	fin_tw.tween_property(card_node, "modulate:a", 1.0, 0.8).set_delay(0.2)
+	fin_tw.tween_property(sub, "modulate:a", 1.0, 0.8).set_delay(0.5)
+	fin_tw.tween_property(cont_btn, "modulate:a", 1.0, 0.8).set_delay(0.8)
+	await fin_tw.finished
+
+	await cont_btn.pressed
+
+	var fout2 = create_tween(); fout2.tween_property(bg, "color:a", 0.0, 0.6)
+	await fout2.finished
+	layer.queue_free()
+
+	GameManager.go_to_scene("res://scenes/ui/Map.tscn")
+
+# ── Transición al Mundo 2 ──────────────────────────────────────────────────────
+
+func _show_world2_transition() -> void:
+	var vp = get_viewport_rect().size
+	var layer = CanvasLayer.new(); layer.layer = 160; add_child(layer)
+	var bg = ColorRect.new(); bg.color = Color(0, 0, 0, 0)
+	bg.position = Vector2.ZERO; bg.size = vp
+	layer.add_child(bg)
+
+	# Fase 1: fade a negro
+	var tw = create_tween()
+	tw.tween_property(bg, "color:a", 1.0, 0.8)
+	await tw.finished
+
+	# Fase 2: rey derribado (texto-arte)
+	var king_art = Label.new()
+	king_art.text = "♚"
+	king_art.add_theme_font_size_override("font_size", 72)
+	king_art.modulate = Color(0.9, 0.85, 0.7)
+	king_art.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	king_art.position = Vector2(0, vp.y * 0.3); king_art.size = Vector2(vp.x, 90)
+	layer.add_child(king_art)
+
+	var tw2 = create_tween().set_parallel(true)
+	tw2.tween_property(king_art, "rotation_degrees", 90.0, 1.2).set_ease(Tween.EASE_IN)
+	tw2.tween_property(king_art, "modulate:a", 0.0, 1.4).set_delay(0.6)
+	await tw2.finished
+
+	# Fase 3: texto narrativo
+	var lines_data = [
+		["El Rey Sin Corona ha sido reclamado por el vacío.", 0.08, false],
+		["Buscó un trono que nunca existió...", 0.09, false],
+		["Olvidando que en este tablero,\nincluso los reyes son peones.", 0.07, true],
+		["El Tablero Dorado os aguarda.", 0.08, false],
+		["Donde la ceniza se vuelve ley.", 0.1, true],
+	]
+	for line_data in lines_data:
+		var lbl = Label.new()
+		lbl.text = ""; lbl.modulate = Color(0.9, 0.82, 0.5, 0.0)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 22 if line_data[2] else 18)
+		lbl.position = Vector2(60, vp.y * 0.45); lbl.size = Vector2(vp.x - 120, 80)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		layer.add_child(lbl)
+		var fad = create_tween(); fad.tween_property(lbl, "modulate:a", 1.0, 0.4)
+		await fad.finished
+		var full_text = line_data[0]
+		for c in full_text.length():
+			lbl.text = full_text.substr(0, c + 1)
+			await get_tree().create_timer(line_data[1]).timeout
+		await get_tree().create_timer(1.8).timeout
+		var fout = create_tween(); fout.tween_property(lbl, "modulate:a", 0.0, 0.5)
+		await fout.finished
+		lbl.queue_free()
+
+	# Fase 4: interstitial — título del Mundo 2
+	var world_lbl = Label.new()
+	world_lbl.text = "— MUNDO II —\nEl Tablero Dorado"
+	world_lbl.modulate = Color(0.85, 0.65, 0.1, 0.0)
+	world_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	world_lbl.add_theme_font_size_override("font_size", 32)
+	world_lbl.position = Vector2(0, vp.y * 0.35); world_lbl.size = Vector2(vp.x, 80)
+	layer.add_child(world_lbl)
+
+	var sub_lbl = Label.new()
+	sub_lbl.text = "Enemigos más duros. Reliquias más oscuras.\nLa cordura tiene un precio más alto aquí."
+	sub_lbl.modulate = Color(0.7, 0.6, 0.5, 0.0)
+	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub_lbl.add_theme_font_size_override("font_size", 14)
+	sub_lbl.position = Vector2(60, vp.y * 0.52); sub_lbl.size = Vector2(vp.x - 120, 60)
+	sub_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	layer.add_child(sub_lbl)
+
+	var stats_lbl = Label.new()
+	var relics_count = GameManager.relics.size()
+	stats_lbl.text = "Reliquias obtenidas: %d   |   Cordura restaurada al 100" % relics_count
+	stats_lbl.modulate = Color(0.55, 0.55, 0.6, 0.0)
+	stats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stats_lbl.add_theme_font_size_override("font_size", 12)
+	stats_lbl.position = Vector2(0, vp.y * 0.67); stats_lbl.size = Vector2(vp.x, 30)
+	layer.add_child(stats_lbl)
+
+	var cont_btn = Button.new()
+	cont_btn.text = "Descender al Tablero Dorado"
+	cont_btn.position = Vector2(vp.x / 2.0 - 140, vp.y * 0.78)
+	cont_btn.size = Vector2(280, 44)
+	layer.add_child(cont_btn)
+
+	var fin_tw = create_tween().set_parallel(true)
+	fin_tw.tween_property(world_lbl, "modulate:a", 1.0, 1.0)
+	fin_tw.tween_property(sub_lbl, "modulate:a", 1.0, 1.0).set_delay(0.4)
+	fin_tw.tween_property(stats_lbl, "modulate:a", 1.0, 1.0).set_delay(0.7)
+	fin_tw.tween_property(cont_btn, "modulate:a", 1.0, 1.0).set_delay(1.0)
+	await fin_tw.finished
+
+	await cont_btn.pressed
+
+	var fout2 = create_tween(); fout2.tween_property(bg, "color", Color(0, 0, 0, 1), 0.6)
+	await fout2.finished
+	layer.queue_free()
 
 # ── Cinemáticas de Verdad Amarilla ─────────────────────────────────────────────
 
