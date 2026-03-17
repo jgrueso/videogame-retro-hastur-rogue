@@ -361,11 +361,27 @@ func _build_dynamic_background(vp: Vector2) -> void:
 	# Lluvia de fondo
 	var is_avatar = not main.enemies.is_empty() and "AVATAR" in main.enemies[0].name.to_upper()
 
-	for i in range(60):
-		var p = ColorRect.new(); p.size = Vector2(1, 15)
-		p.color = Color(0.8, 0.1, 0.1, 0.4) if is_avatar else Color(0.5, 0.5, 0.7, 0.15)
-		p.position = Vector2(randf_range(0, vp.x), randf_range(0, vp.y)); p.z_index = -8; main.add_child(p)
-		main.create_tween().set_loops().tween_property(p, "position:y", vp.y + 20, randf_range(0.8, 1.2)).from(-20)
+	var rain_color = Color(0.8, 0.1, 0.1, 0.35) if is_avatar else Color(0.5, 0.5, 0.75, 0.12)
+	var gpu_rain = GPUParticles2D.new()
+	gpu_rain.position = Vector2(vp.x * 0.5, -5.0)
+	gpu_rain.z_index = -8
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	mat.emission_box_extents = Vector3(vp.x * 0.5, 1.0, 0.0)
+	mat.direction = Vector3(0, 1, 0)
+	mat.spread = 0.0
+	mat.initial_velocity_min = 600.0
+	mat.initial_velocity_max = 950.0
+	mat.gravity = Vector3.ZERO
+	mat.color = rain_color
+	mat.scale_min = 1.0
+	mat.scale_max = 2.0
+	gpu_rain.process_material = mat
+	gpu_rain.amount = 60
+	gpu_rain.lifetime = vp.y / 750.0
+	gpu_rain.one_shot = false
+	gpu_rain.emitting = true
+	main.add_child(gpu_rain)
 
 func update_ui() -> void:
 	var hp_text = "SALUD: %d / %d" % [main.player_hp, main.player_max_hp]

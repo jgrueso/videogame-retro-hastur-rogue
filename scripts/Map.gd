@@ -28,6 +28,21 @@ const ROOM_COLORS = {
 	ROOM_VOID_BOSS: Color(0.2, 0.8, 1.0),
 }
 
+const ROOM_DESCRIPTIONS: Dictionary = {
+	"combat":      ["⚔ ECO DE BATALLA",       "Un fragmento del pasado combate por sobrevivir."],
+	"elite":       ["☠ PRESENCIA VORAZ",       "Una entidad corrompida. Recompensa mayor, riesgo letal."],
+	"event":       ["♄ AUGURIO",               "El tablero te ofrece una elección. Nada es gratis."],
+	"shop":        ["☤ EL BUHONERO",           "Monedas por poder. Reliquias, cartas, magia menor."],
+	"boss":        ["★ JEFE DE MUNDO",         "El guardián del piso. Derrótalo para avanzar."],
+	"rest":        ["🕯 HOGUERA DE CENIZA",    "Descansa, forja o sacrifica. Un momento de tregua."],
+	"treasure":    ["📦 COFRE OLVIDADO",       "Algo brilla entre la ceniza. ¿Carta o reliquia?"],
+	"void_combat": ["🌀 GRIETA DEL VACÍO",     "Camino secreto. Combate en el umbral del olvido."],
+	"void_boss":   ["✦ CENTINELA DEL ABISMO", "El guardián del paso secreto. Alta recompensa."],
+	"final":       ["♔ EL REY SIN CORONA",    "El final del primer tablero te aguarda."],
+	"final_w2":    ["♔ EL REY AMARILLO",      "El trono vacío reclama su deuda."],
+	"secret":      ["✦ FRAGMENTO DE REALIDAD","Una pieza que no debería existir aquí."],
+}
+
 const ROOM_LABELS = {
 	ROOM_COMBAT:   "⚔ Eco de Batalla",
 	ROOM_ELITE:    "☠ Presencia Voraz",
@@ -47,9 +62,14 @@ func _ready() -> void:
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.stop_loop("Glith_distorsion_noised_sound")
 		AudioManager.stop_loop("Cry_whisper_woman_sound")
-		AudioManager.stop_loop("resting_song")
 		AudioManager.stop_loop("intro_title_song")
-		AudioManager.play_loop("map_ambient_song")
+		AudioManager.stop_loop("ES_Lost in Time - Aiyo")
+		if GameManager.current_world == 1:
+			# Mundo 2: piano atmosférico (misma pista que CharacterSelect)
+			AudioManager.crossfade_loop("map_ambient_song", "ES_Lost in Time - Aiyo", 1.5)
+		else:
+			# Mundo 1: mapa oscuro habitual
+			AudioManager.crossfade_loop("resting_song", "map_ambient_song", 1.5)
 	if GameManager.map_graph.is_empty():
 		GameManager.map_graph = _generate_map()
 	# Guardar solo al volver de una sala completada (nunca al cargar partida guardada)
@@ -65,13 +85,13 @@ func _ready() -> void:
 # ─── Generacion procedural del mapa ──────────────────────────────────────────
 func _generate_map() -> Array:
 	var graph: Array = []
-	var num_floors = randi_range(11, 15)
+	var num_floors = randi_range(15, 18)
 	var is_w2 = GameManager.current_world == 1
 	var final_room = ROOM_FINAL_W2 if is_w2 else ROOM_FINAL
 
-	# Elegir pisos para tiendas (2 tiendas, bien espaciadas)
-	var s1 = randi_range(3, int(num_floors / 3.0))
-	var s2 = randi_range(int(num_floors / 2.0), num_floors - 4)
+	# 2 tiendas: una temprana (piso 4-6) y una en la zona media-tardía
+	var s1 = randi_range(4, 6)
+	var s2 = randi_range(int(num_floors * 0.52), num_floors - 5)
 	var shop_floors = [s1, s2]
 
 	for f in range(num_floors):
@@ -96,12 +116,12 @@ func _generate_map() -> Array:
 			continue
 			
 		if f == num_floors - 3:
-			# El Jefe de Mundo es una opción central, pero con caminos laterales
 			floor_nodes.append({"type": ROOM_BOSS, "connections": []})
-			# Añadir nodos laterales para dar más opciones
 			floor_nodes.append({"type": ROOM_TREASURE if randf() < 0.5 else ROOM_ELITE, "connections": []})
-			if randf() < 0.4:
+			if randf() < 0.5:
 				floor_nodes.append({"type": ROOM_EVENT, "connections": []})
+			if randf() < 0.3:
+				floor_nodes.append({"type": ROOM_REST, "connections": []})
 			graph.append(floor_nodes)
 			continue
 		if f == num_floors - 4:
@@ -111,13 +131,15 @@ func _generate_map() -> Array:
 			continue
 		if f in shop_floors:
 			floor_nodes.append({"type": ROOM_SHOP, "connections": []})
+			# Siempre un nodo bypass: el buhonero es perdible por diseño
+			floor_nodes.append({"type": ROOM_COMBAT if randf() < 0.6 else ROOM_EVENT, "connections": []})
 			graph.append(floor_nodes)
 			continue
 
-		# Pisos normales: 1-3 nodos
-		var num_cols = randi_range(1, 3)
+		# Pisos normales: 1-4 nodos
+		var num_cols = randi_range(1, 4)
 		if f == 0:
-			num_cols = randi_range(2, 3)  # Siempre dar opciones al inicio
+			num_cols = randi_range(2, 4)  # Inicio: siempre 2-4 caminos
 
 		var prev_type = ""
 		for c in range(num_cols):
@@ -169,30 +191,41 @@ func _generate_map() -> Array:
 	return graph
 
 func _pick_room_type(f_idx: int, total: int, prev_type: String) -> String:
+	# Primer piso: solo combate/evento (intro suave)
 	if f_idx == 0:
-		var opts = [ROOM_COMBAT, ROOM_COMBAT, ROOM_EVENT]
-		return opts[randi() % opts.size()]
+		return ROOM_COMBAT if randf() < 0.7 else ROOM_EVENT
 
-	var mid_start = int(total / 3.0)
-	var mid_end = int((2.0 * total) / 3.0)
+	# Progresión normalizada 0.0–1.0 sobre los pisos jugables
+	var progress = float(f_idx) / float(total - 1)
 	var roll = randf()
-
 	var t: String
-	if f_idx >= mid_start and f_idx < mid_end:
-		# Zona media: mas elites y eventos
-		if roll < 0.25:   t = ROOM_COMBAT
-		elif roll < 0.50: t = ROOM_ELITE
-		elif roll < 0.85: t = ROOM_EVENT
-		else:             t = ROOM_TREASURE
-	else:
-		# Zona inicial/final: mas combate normal
-		if roll < 0.45:   t = ROOM_COMBAT
-		elif roll < 0.70: t = ROOM_EVENT
-		elif roll < 0.85: t = ROOM_ELITE
-		elif roll < 0.95: t = ROOM_TREASURE
-		else:             t = ROOM_COMBAT
 
-	# Evitar dos elites seguidas en el mismo piso
+	if progress < 0.30:
+		# ── Zona temprana (30%) — aprender combate, poca elite ──
+		# Combat 55% | Event 25% | Elite 12% | Treasure 8%
+		if roll < 0.55:        t = ROOM_COMBAT
+		elif roll < 0.80:      t = ROOM_EVENT
+		elif roll < 0.92:      t = ROOM_ELITE
+		else:                  t = ROOM_TREASURE
+
+	elif progress < 0.62:
+		# ── Zona media (32%) — elites frecuentes, alto riesgo/recompensa ──
+		# Elite 38% | Event 28% | Combat 22% | Treasure 12%
+		if roll < 0.38:        t = ROOM_ELITE
+		elif roll < 0.66:      t = ROOM_EVENT
+		elif roll < 0.88:      t = ROOM_COMBAT
+		else:                  t = ROOM_TREASURE
+
+	else:
+		# ── Zona tardía (38%) — presión máxima, descanso esporádico ──
+		# Elite 42% | Event 28% | Combat 18% | Treasure 8% | Rest 4%
+		if roll < 0.42:        t = ROOM_ELITE
+		elif roll < 0.70:      t = ROOM_EVENT
+		elif roll < 0.88:      t = ROOM_COMBAT
+		elif roll < 0.96:      t = ROOM_TREASURE
+		else:                  t = ROOM_REST  # Descanso raro pero posible
+
+	# Nunca dos elites adyacentes en el mismo piso
 	if t == ROOM_ELITE and prev_type == ROOM_ELITE:
 		t = ROOM_COMBAT
 	return t
@@ -203,44 +236,61 @@ func _connect_floors(graph: Array, f: int) -> void:
 	var cn: int = curr.size()
 	var nn: int = nxt.size()
 
-	# Cada nodo actual conecta al nodo proporcionalmente equivalente en el siguiente
-	for c in range(cn):
-		var t = int(round(float(c) * float(nn - 1) / float(max(cn - 1, 1))))
-		t = clamp(t, 0, nn - 1)
-		if not t in curr[c].connections:
-			curr[c].connections.append(t)
+	# Grid virtual de MAX_COLS columnas para comparar pisos con distinto num de nodos.
+	# Ejemplo: 2 nodos → posiciones [0, 3]; 4 nodos → [0, 1, 2, 3]
+	# Así col 0 (de 2) solo puede tocar col 0-1 (de 4), nunca col 3 cruzando el mapa.
+	const MAX_COLS = 4
+	const ADJ_DIST = 1.5  # máxima distancia virtual entre columnas conectables
 
-	# Asegurar que todos los nodos del siguiente piso sean alcanzables
+	var vpos_c: Array = []  # posición virtual de cada nodo en curr
+	for c in range(cn):
+		vpos_c.append(float(c) * float(MAX_COLS - 1) / float(max(cn - 1, 1)))
+
+	var vpos_n: Array = []  # posición virtual de cada nodo en nxt
 	for nc in range(nn):
-		var reached = false
+		vpos_n.append(float(nc) * float(MAX_COLS - 1) / float(max(nn - 1, 1)))
+
+	# Paso 1: cada curr[c] → el nxt más cercano en posición virtual
+	for c in range(cn):
+		var best_nc = 0
+		var best_dist = 9999.0
+		for nc in range(nn):
+			var d = abs(vpos_c[c] - vpos_n[nc])
+			if d < best_dist:
+				best_dist = d
+				best_nc = nc
+		if not best_nc in curr[c].connections:
+			curr[c].connections.append(best_nc)
+
+	# Paso 2: todo nxt[nc] tiene al menos 1 entrada desde su vecino virtual más cercano
+	for nc in range(nn):
+		var has_entry = false
 		for c in range(cn):
 			if nc in curr[c].connections:
-				reached = true
+				has_entry = true
 				break
-		if not reached:
-			# Conectar el nodo actual mas cercano
-			var best = 0
-			var best_dist = 9999
+		if not has_entry:
+			var best_c = 0
+			var best_dist = 9999.0
 			for c in range(cn):
-				var dist = abs(float(c) / float(max(cn - 1, 1)) - float(nc) / float(max(nn - 1, 1)))
-				if dist < best_dist and curr[c].connections.size() < 2:
-					best_dist = dist
-					best = c
-			if not nc in curr[best].connections:
-				curr[best].connections.append(nc)
+				var d = abs(vpos_c[c] - vpos_n[nc])
+				if d < best_dist:
+					best_dist = d
+					best_c = c
+			if not nc in curr[best_c].connections:
+				curr[best_c].connections.append(nc)
 
-	# Bonus: chance de conexion extra para dar mas ramificaciones
+	# Paso 3: bonus connection (35%) SOLO a nodos dentro de ADJ_DIST — sin cruces
 	for c in range(cn):
 		if curr[c].connections.size() < 2 and randf() < 0.35:
-			var candidates = range(nn)
-			var cand_arr: Array = []
-			for x in candidates:
-				cand_arr.append(x)
-			cand_arr.shuffle()
-			for nc in cand_arr:
-				if not nc in curr[c].connections:
-					curr[c].connections.append(nc)
-					break
+			var candidates: Array = []
+			for nc in range(nn):
+				if nc in curr[c].connections: continue
+				if abs(vpos_c[c] - vpos_n[nc]) <= ADJ_DIST:
+					candidates.append(nc)
+			candidates.shuffle()
+			if not candidates.is_empty():
+				curr[c].connections.append(candidates[0])
 
 # ─── UI ──────────────────────────────────────────────────────────────────────
 var ui_layer: CanvasLayer
@@ -357,6 +407,7 @@ func build_ui() -> void:
 	draw_map()
 
 var _si_tooltip: Panel
+var _tooltip_label: Label = null
 
 func _show_secret_items_tooltip(target: Control) -> void:
 	if _si_tooltip: _si_tooltip.queue_free()
@@ -413,6 +464,7 @@ func _hide_secret_items_tooltip() -> void:
 		_si_tooltip = null
 
 func draw_map() -> void:
+	_build_tooltip_label()
 	var vp = get_viewport_rect().size
 	var graph = GameManager.map_graph
 	var num_floors = graph.size()
@@ -426,9 +478,8 @@ func draw_map() -> void:
 	add_child(scroll)
 	
 	var map_content = Control.new()
-	# Espaciado expandido: 120px por piso + margen extra
-	var floor_h: float = 140.0
-	var total_h: float = num_floors * floor_h + 100.0
+	var floor_h: float = 170.0
+	var total_h: float = num_floors * floor_h + 120.0
 	map_content.custom_minimum_size = Vector2(vp.x, total_h)
 	scroll.add_child(map_content)
 
@@ -480,18 +531,16 @@ func draw_map() -> void:
 				line_node.add_point(p1)
 
 				if is_taken_path:
-					line_node.width = 3.5
-					line_node.default_color = Color(0.9, 0.8, 0.2, 0.9) # Amarillo brillante
-					line_node.z_index = -5 # Sobre el fondo, bajo los nodos
+					line_node.width = 4.0
+					line_node.default_color = Color(0.95, 0.82, 0.2, 0.95)
+					line_node.z_index = -5
 					map_content.add_child(line_node)
 				elif reachable:
-					# Caminos futuros disponibles desde mi posición actual
-					_add_dashed_line(map_content, p0, p1, Color(0.8, 0.7, 0.2, 0.6), 2.5)
+					_add_dashed_line(map_content, p0, p1, Color(0.85, 0.75, 0.25, 0.75), 3.0)
 				else:
-					# Caminos que no tomé o que aún no puedo tomar
-					line_node.width = 1.0
-					line_node.default_color = Color(0.3, 0.3, 0.4, 0.2)
-					line_node.z_index = -10 # Al fondo
+					line_node.width = 1.2
+					line_node.default_color = Color(0.28, 0.28, 0.38, 0.18)
+					line_node.z_index = -10
 					map_content.add_child(line_node)
 
 	# Dibujar nodos
@@ -519,44 +568,58 @@ func draw_map() -> void:
 			
 			var btn = Button.new()
 			btn.text = "??? (¿...)" if is_obfuscated else ROOM_LABELS[room_type]
-			btn.position = Vector2(pos.x - 55, pos.y - 20)
-			btn.size = Vector2(110, 40)
+			btn.position = Vector2(pos.x - 52, pos.y - 20)
+			btn.size = Vector2(104, 40)
 			btn.disabled = not reachable or already_done
 			btn.add_theme_font_size_override("font_size", 11)
 
 			var style = StyleBoxFlat.new()
-			style.set_corner_radius_all(4)
+			style.set_corner_radius_all(6)
+			style.content_margin_left = 4
+			style.content_margin_right = 4
 
 			if is_current:
-				style.bg_color = ROOM_COLORS[room_type].lightened(0.2)
-				style.border_width_left = 2; style.border_width_right = 2
-				style.border_width_top = 2; style.border_width_bottom = 2
-				style.border_color = Color(1, 0.9, 0.3)
+				style.bg_color = ROOM_COLORS[room_type].lightened(0.15)
+				style.set_border_width_all(2)
+				style.border_color = Color(1.0, 0.92, 0.35)
+				style.shadow_color = Color(1.0, 0.92, 0.35, 0.35)
+				style.shadow_size = 5
 				btn.text = "● " + btn.text + " ●"
 				var tw = btn.create_tween().set_loops()
-				tw.tween_property(btn, "scale", Vector2(1.05, 1.05), 0.5)
-				tw.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.5)
+				tw.tween_property(btn, "scale", Vector2(1.04, 1.04), 0.55)
+				tw.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.55)
 			elif was_visited:
-				style.bg_color = Color(0.1, 0.08, 0.02)
-				style.border_width_left = 2; style.border_width_right = 2
-				style.border_width_top = 2; style.border_width_bottom = 2
-				style.border_color = Color(0.9, 0.8, 0.2, 0.8) # Amarillo camino hecho
-				btn.modulate.a = 0.8
+				style.bg_color = Color(0.08, 0.06, 0.02, 0.9)
+				style.set_border_width_all(1)
+				style.border_color = Color(0.85, 0.75, 0.2, 0.7)
+				btn.modulate.a = 0.75
 			elif already_done:
-				style.bg_color = Color(0.02, 0.02, 0.04, 0.6)
-				btn.modulate.a = 0.4
-			else: # SALAS FUTURAS O ADYACENTES
+				style.bg_color = Color(0.02, 0.02, 0.04, 0.5)
+				style.set_border_width_all(0)
+				btn.modulate.a = 0.35
+			else:
 				if is_obfuscated:
-					style.bg_color = Color(0.05, 0.05, 0.06)
+					style.bg_color = Color(0.05, 0.05, 0.07)
+					style.set_border_width_all(1)
+					style.border_color = Color(0.25, 0.25, 0.3, 0.4)
 					btn.modulate.a = 0.5
 					if GameManager.sanity < 25:
 						_start_shaking_node(btn)
 				else:
-					style.bg_color = ROOM_COLORS[room_type]
-					btn.modulate.a = 1.0 if reachable else 0.7
-				
+					var base_col = ROOM_COLORS[room_type]
+					style.bg_color = base_col.darkened(0.25)
+					style.set_border_width_all(2)
+					if reachable:
+						style.border_color = base_col.lightened(0.3)
+						style.shadow_color = base_col
+						style.shadow_size = 4
+						btn.modulate.a = 1.0
+					else:
+						style.border_color = base_col.darkened(0.1)
+						style.set_border_width_all(1)
+						btn.modulate.a = 0.65
 				if reachable:
-					_add_dashed_rect(btn, Color(1, 1, 1, 0.8), 2.0)
+					_add_dashed_rect(btn, Color(1, 1, 1, 0.6), 1.5)
 
 			btn.add_theme_stylebox_override("normal", style)
 			btn.add_theme_stylebox_override("disabled", style)
@@ -566,6 +629,21 @@ func draw_map() -> void:
 			var node_data = graph[f][c] # Declarar node_data aquí
 			btn.pressed.connect(func(): _on_room_selected(fi, ci))
 			map_content.add_child(btn)
+
+			# Tooltip hover (solo nodos futuros alcanzables y no ofuscados)
+			if not is_obfuscated and (is_current or reachable):
+				var tip_type = node_data["type"]
+				btn.mouse_entered.connect(func(): _show_tooltip(tip_type, btn.get_global_rect()))
+				btn.mouse_exited.connect(func(): _hide_tooltip())
+
+			if reachable and not already_done:
+				btn.mouse_entered.connect(func():
+					if not btn.disabled:
+						btn.create_tween().tween_property(btn, "scale", Vector2(1.06, 1.06), 0.12)
+				)
+				btn.mouse_exited.connect(func():
+					btn.create_tween().tween_property(btn, "scale", Vector2(1.0, 1.0), 0.12)
+				)
 
 			# RENDERIZAR GRIETA (Camino Secreto de 4 salas)
 			if node_data.get("has_rift", false):
@@ -1191,3 +1269,41 @@ func _show_deck_viewer() -> void:
 	close_btn.pressed.connect(overlay.queue_free)
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.play("button_click")
+
+func _build_tooltip_label() -> void:
+	if _tooltip_label:
+		_tooltip_label.queue_free()
+	_tooltip_label = Label.new()
+	_tooltip_label.z_index = 200
+	_tooltip_label.visible = false
+	_tooltip_label.add_theme_font_size_override("font_size", 13)
+	_tooltip_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	var sbox = StyleBoxFlat.new()
+	sbox.bg_color = Color(0.05, 0.04, 0.08, 0.95)
+	sbox.set_border_width_all(1)
+	sbox.border_color = Color(0.4, 0.35, 0.15)
+	sbox.set_corner_radius_all(5)
+	sbox.content_margin_left = 10
+	sbox.content_margin_right = 10
+	sbox.content_margin_top = 6
+	sbox.content_margin_bottom = 6
+	_tooltip_label.add_theme_stylebox_override("normal", sbox)
+	add_child(_tooltip_label)
+
+func _show_tooltip(room_type: String, btn_rect: Rect2) -> void:
+	if not _tooltip_label or not ROOM_DESCRIPTIONS.has(room_type):
+		return
+	var desc = ROOM_DESCRIPTIONS[room_type]
+	_tooltip_label.text = desc[0] + "\n" + desc[1]
+	_tooltip_label.size = Vector2(240, 0)
+	_tooltip_label.visible = true
+	# Posicionar a la derecha del nodo, ajustar si sale de pantalla
+	var vp = get_viewport_rect().size
+	var tx = btn_rect.position.x + btn_rect.size.x + 8
+	if tx + 240 > vp.x:
+		tx = btn_rect.position.x - 248
+	_tooltip_label.position = Vector2(tx, btn_rect.position.y)
+
+func _hide_tooltip() -> void:
+	if _tooltip_label:
+		_tooltip_label.visible = false

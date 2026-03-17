@@ -107,15 +107,17 @@ func _ready() -> void:
 
 	var vp = get_viewport_rect().size
 	if get_node_or_null("/root/AudioManager"):
-		AudioManager.stop_loop("resting_song")
 		# Boss del mundo: intro_title_song, excepto Rey Sin Corona (tiene su propio lamento)
 		var is_rey_sin_corona = GameManager.is_final_boss and GameManager.current_world == 0
-		if (GameManager.is_boss_fight or GameManager.is_final_boss) and not is_rey_sin_corona:
-			AudioManager.stop_loop("map_ambient_song")
-			AudioManager.play_loop("intro_title_song")
+		if GameManager.is_final_boss and not is_rey_sin_corona:
+			AudioManager.crossfade_loop("map_ambient_song", "ES_The End Of All Things - Niklas Johansson", 2.0)
+			AudioManager.stop_loop("resting_song")
+		elif GameManager.is_boss_fight and not is_rey_sin_corona:
+			AudioManager.crossfade_loop("map_ambient_song", "intro_title_song", 1.5)
+			AudioManager.stop_loop("resting_song")
 		elif is_rey_sin_corona:
-			AudioManager.stop_loop("map_ambient_song")
-			AudioManager.play_loop("king_intro_sound") # Lamento inicial
+			AudioManager.crossfade_loop("map_ambient_song", "king_intro_sound", 2.0)
+			AudioManager.stop_loop("resting_song")
 	modulate.a = 0.0
 	player_hp = GameManager.player_hp
 	player_max_hp = GameManager.player_max_hp
@@ -586,17 +588,11 @@ func _flash_relic(relic_id: String) -> void:
 			tw.tween_property(icon, "scale", Vector2(1.0, 1.0), 0.2)
 			tw.tween_property(icon, "modulate", Color(1, 1, 1), 0.2)
 			
-			# Partículas rápidas (ColorRects temporales)
-			for i in range(8):
-				var p = ColorRect.new()
-				p.size = Vector2(4, 4)
-				p.position = icon.global_position + Vector2(20, 20)
-				add_child(p)
-				var pt = create_tween().set_parallel(true)
-				var dest = p.position + Vector2(randf_range(-50, 50), randf_range(-50, 50))
-				pt.tween_property(p, "position", dest, 0.4)
-				pt.tween_property(p, "modulate:a", 0.0, 0.4)
-				pt.tween_callback(p.queue_free).set_delay(0.4)
+			# Partículas GPU (reemplaza el for range(8) de ColorRect)
+			_make_gpu_burst(icon.global_position + Vector2(20, 20), 8, 20,
+				Color(1.0, 0.95, 0.2, 1.0),
+				Color(1.0, 0.6, 0.0, 0.0),
+				40.0, 120.0, 0.45)
 			break
 
 # ── Resolver carta ─────────────────────────────────────────────────────────────
@@ -700,18 +696,41 @@ func _spawn_damage_number(pos: Vector2, amount: int, col: Color) -> void:
 	t.tween_property(lbl, "modulate:a", 0.0, duration * 0.6).set_delay(duration * 0.4)
 	t.chain().tween_callback(lbl.queue_free)
 
+func _make_gpu_burst(pos: Vector2, count: int, z: int,
+		col_from: Color, col_to: Color,
+		vel_min: float, vel_max: float,
+		lifetime: float) -> void:
+	var gpu = GPUParticles2D.new()
+	gpu.position = pos
+	gpu.z_index = z
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_POINT
+	mat.spread = 180.0
+	mat.initial_velocity_min = vel_min
+	mat.initial_velocity_max = vel_max
+	mat.gravity = Vector3(0, 400, 0)
+	mat.scale_min = 4.0
+	mat.scale_max = 10.0
+	var grad = Gradient.new()
+	grad.set_color(0, col_from)
+	grad.set_color(1, col_to)
+	var grad_tex = GradientTexture1D.new()
+	grad_tex.gradient = grad
+	mat.color_ramp = grad_tex
+	gpu.process_material = mat
+	gpu.amount = count
+	gpu.lifetime = lifetime
+	gpu.one_shot = true
+	gpu.explosiveness = 0.95
+	add_child(gpu)
+	gpu.emitting = true
+	get_tree().create_timer(lifetime + 0.5).timeout.connect(gpu.queue_free)
+
 func _spawn_death_particles(pos: Vector2) -> void:
-	for _i in range(14):
-		var p = ColorRect.new()
-		p.size = Vector2(randf_range(4, 10), randf_range(4, 10))
-		p.color = Color(randf_range(0.7, 1.0), randf_range(0.1, 0.4), 0.1)
-		p.position = pos; p.z_index = 15; add_child(p)
-		var angle = randf() * TAU
-		var dist  = randf_range(40, 100)
-		var t = create_tween().set_parallel(true)
-		t.tween_property(p, "position", pos + Vector2(cos(angle), sin(angle)) * dist, 0.5)
-		t.tween_property(p, "modulate:a", 0.0, 0.5)
-		t.chain().tween_callback(p.queue_free)
+	_make_gpu_burst(pos, 14, 15,
+		Color(1.0, 0.6, 0.1, 1.0),
+		Color(0.8, 0.05, 0.0, 0.0),
+		80.0, 220.0, 0.6)
 
 func _start_enemy_idle_bobs() -> void:
 	for e in enemies:
@@ -866,6 +885,7 @@ func check_combat_end() -> void:
 		AudioManager.stop_loop("Cry_whisper_woman_sound")
 		AudioManager.stop_loop("king_intro_sound")
 		AudioManager.stop_loop("intro_title_song")
+		AudioManager.stop_loop("ES_The End Of All Things - Niklas Johansson")
 	
 	# Recuperación de Cordura al Ganar (Reducida por balance)
 	GameManager.sanity = min(100, GameManager.sanity + 5)

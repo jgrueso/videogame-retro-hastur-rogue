@@ -11,9 +11,20 @@ var _active_loops: Dictionary = {} # {sound_name: AudioStreamPlayer}
 const POOL_SIZE = 12
 
 func _ready() -> void:
+	# Crear buses Music y SFX si no existen
+	if AudioServer.get_bus_index("Music") == -1:
+		AudioServer.add_bus()
+		AudioServer.set_bus_name(AudioServer.bus_count - 1, "Music")
+		AudioServer.set_bus_send(AudioServer.bus_count - 1, "Master")
+	if AudioServer.get_bus_index("SFX") == -1:
+		AudioServer.add_bus()
+		AudioServer.set_bus_name(AudioServer.bus_count - 1, "SFX")
+		AudioServer.set_bus_send(AudioServer.bus_count - 1, "Master")
+
 	# Pool de AudioStreamPlayers para sonidos simultaneos
 	for i in range(POOL_SIZE):
 		var p = AudioStreamPlayer.new()
+		p.bus = "SFX"
 		p.volume_db = -6.0
 		add_child(p)
 		_players.append(p)
@@ -112,6 +123,7 @@ func play_loop(sound_name: String) -> void:
 		print("AudioManager: Iniciando loop de: ", sound_name)
 		var p = AudioStreamPlayer.new()
 		p.stream = stream
+		p.bus = "Music"
 		p.volume_db = -10.0 # Empezar un poco más fuerte
 		add_child(p)
 		p.play()
@@ -122,6 +134,42 @@ func update_loop_params(sound_name: String, vol: float, pitch: float) -> void:
 		var p = _active_loops[sound_name]
 		p.volume_db = vol
 		p.pitch_scale = pitch
+
+func crossfade_loop(from_name: String, to_name: String, duration: float = 1.0) -> void:
+	var stream = _get_stream(to_name)
+	if not stream:
+		stop_loop(from_name)
+		return
+
+	if _active_loops.has(to_name): return
+
+	if stream is AudioStreamMP3:
+		stream.loop = true
+	elif stream is AudioStreamWAV:
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	elif stream is AudioStreamOggVorbis:
+		stream.loop = true
+
+	var new_player = AudioStreamPlayer.new()
+	new_player.stream = stream
+	new_player.bus = "Music"
+	new_player.volume_db = -80.0
+	add_child(new_player)
+	new_player.play()
+	_active_loops[to_name] = new_player
+
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(new_player, "volume_db", -10.0, duration)
+
+	if _active_loops.has(from_name):
+		var old_player = _active_loops[from_name]
+		_active_loops.erase(from_name)
+		tween.tween_property(old_player, "volume_db", -80.0, duration)
+		tween.chain().tween_callback(func():
+			if is_instance_valid(old_player):
+				old_player.stop()
+				old_player.queue_free()
+		)
 
 func stop_loop(sound_name: String) -> void:
 	if _active_loops.has(sound_name):
@@ -241,6 +289,19 @@ func _descend_noise(freq_start: float, freq_end: float, duration: float, volume:
 		data[i * 2]     = s & 0xFF
 		data[i * 2 + 1] = (s >> 8) & 0xFF
 	return _make_stream(data)
+
+func set_music_volume(db: float) -> void:
+	var idx = AudioServer.get_bus_index("Music")
+	if idx != -1:
+		AudioServer.set_bus_volume_db(idx, db)
+
+func set_sfx_volume(db: float) -> void:
+	var idx = AudioServer.get_bus_index("SFX")
+	if idx != -1:
+		AudioServer.set_bus_volume_db(idx, db)
+
+func set_master_volume(db: float) -> void:
+	AudioServer.set_bus_volume_db(0, db)  # índice 0 = Master
 
 func _descend(freq_start: float, freq_end: float, duration: float, volume: float) -> AudioStreamWAV:
 	var rate = 22050

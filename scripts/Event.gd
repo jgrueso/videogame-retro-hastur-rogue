@@ -116,6 +116,7 @@ var _dice_status_lbl: Label = null
 var _dice_reroll_btn: Button = null
 var _dice_roll_count: int = 0
 var _dice_rolling: bool = false
+var _dice_history: Array = []   # Array de {face, type}
 
 func _ready() -> void:
 	var pool = events.duplicate()
@@ -699,6 +700,14 @@ func _on_roll_settled(roll: int) -> void:
 	_dice_detail_lbl.text = outcome["detail"]
 	_update_dice_status()
 
+	if outcome["type"] == "curse":
+		_shake_screen(5.0, 0.3)
+
+	_spawn_dice_particles(outcome["type"])
+
+	_dice_history.append({"face": DICE_FACES[roll - 1], "type": outcome["type"]})
+	_update_dice_history()
+
 	var border_color: Color
 	match outcome["type"]:
 		"curse":   border_color = Color(0.75, 0.15, 0.15)
@@ -939,3 +948,70 @@ func _show_card_removal_screen() -> void:
 		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	)
 	panel.add_child(cancel_btn)
+
+func _shake_screen(intensity: float = 6.0, duration: float = 0.35) -> void:
+	var tw = create_tween()
+	var steps = 10
+	for i in range(steps):
+		var offset = Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity))
+		tw.tween_property(self, "position", offset, duration / steps)
+	tw.tween_property(self, "position", Vector2.ZERO, 0.08)
+
+func _spawn_dice_particles(outcome_type: String) -> void:
+	var gpu = GPUParticles2D.new()
+	gpu.position = _dice_panel.position + Vector2(350, 180)
+	gpu.z_index = 20
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_POINT
+	mat.spread = 180.0
+	mat.gravity = Vector3(0, 300, 0)
+	mat.scale_min = 4.0
+	mat.scale_max = 9.0
+	var grad = Gradient.new()
+	match outcome_type:
+		"curse":
+			mat.initial_velocity_min = 60.0
+			mat.initial_velocity_max = 180.0
+			grad.set_color(0, Color(0.9, 0.1, 0.1, 0.9))
+			grad.set_color(1, Color(0.4, 0.0, 0.0, 0.0))
+		"bonus":
+			mat.initial_velocity_min = 100.0
+			mat.initial_velocity_max = 280.0
+			grad.set_color(0, Color(1.0, 0.9, 0.2, 1.0))
+			grad.set_color(1, Color(0.6, 0.8, 0.3, 0.0))
+		_:  # neutral
+			mat.initial_velocity_min = 40.0
+			mat.initial_velocity_max = 100.0
+			grad.set_color(0, Color(0.5, 0.5, 0.6, 0.6))
+			grad.set_color(1, Color(0.3, 0.3, 0.4, 0.0))
+	var grad_tex = GradientTexture1D.new()
+	grad_tex.gradient = grad
+	mat.color_ramp = grad_tex
+	gpu.process_material = mat
+	gpu.amount = 18 if outcome_type == "bonus" else 10
+	gpu.lifetime = 0.8
+	gpu.one_shot = true
+	gpu.explosiveness = 0.85
+	add_child(gpu)
+	gpu.emitting = true
+	get_tree().create_timer(1.4).timeout.connect(gpu.queue_free)
+
+func _update_dice_history() -> void:
+	# Eliminar etiquetas antiguas de historial
+	for child in _dice_panel.get_children():
+		if child.name.begins_with("hist_"):
+			child.queue_free()
+	# Mostrar últimos 3 (más antiguo a más reciente)
+	var show = _dice_history.slice(max(0, _dice_history.size() - 3))
+	for i in range(show.size()):
+		var h = show[i]
+		var lbl = Label.new()
+		lbl.name = "hist_%d" % i
+		lbl.text = h["face"]
+		lbl.add_theme_font_size_override("font_size", 28)
+		match h["type"]:
+			"curse":   lbl.modulate = Color(0.9, 0.25, 0.25, 0.7)
+			"bonus":   lbl.modulate = Color(0.95, 0.82, 0.2, 0.7)
+			_:         lbl.modulate = Color(0.6, 0.6, 0.65, 0.7)
+		lbl.position = Vector2(20 + i * 44, 290)
+		_dice_panel.add_child(lbl)

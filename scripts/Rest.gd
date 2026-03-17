@@ -14,8 +14,7 @@ func _ready() -> void:
 	_start_ember_rain(vp)
 	
 	if get_node_or_null("/root/AudioManager"):
-		AudioManager.stop_loop("map_ambient_song")
-		AudioManager.play_loop("resting_song")
+		AudioManager.crossfade_loop("map_ambient_song", "resting_song", 1.5)
 	
 	build_ui()
 
@@ -179,30 +178,58 @@ func _on_forge_pressed() -> void:
 	create_tween().tween_property(cont_btn, "modulate:a", 1.0, 0.5).set_delay(1.2)
 
 func _spawn_forge_sparks(pos: Vector2, parent: Node) -> void:
-	for i in range(20):
-		var p = ColorRect.new()
-		p.size = Vector2(4, 4)
-		p.color = Color(1, 0.9, 0.3)
-		p.position = pos + Vector2(randf_range(-30, 30), randf_range(-30, 30))
-		parent.add_child(p)
-		var angle = randf() * TAU
-		var dist = randf_range(60, 180)
-		var tw = create_tween().set_parallel(true)
-		tw.tween_property(p, "position", p.position + Vector2(cos(angle), sin(angle)) * dist, 0.6)
-		tw.tween_property(p, "modulate:a", 0.0, 0.6)
-		tw.chain().tween_callback(p.queue_free)
+	var gpu = GPUParticles2D.new()
+	gpu.position = pos
+	gpu.z_index = 160
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_POINT
+	mat.spread = 180.0
+	mat.initial_velocity_min = 80.0
+	mat.initial_velocity_max = 250.0
+	mat.gravity = Vector3(0, 600, 0)
+	mat.scale_min = 3.0
+	mat.scale_max = 7.0
+	var grad = Gradient.new()
+	grad.set_color(0, Color(1.0, 0.95, 0.3, 1.0))
+	grad.set_color(1, Color(1.0, 0.4, 0.0, 0.0))
+	var grad_tex = GradientTexture1D.new()
+	grad_tex.gradient = grad
+	mat.color_ramp = grad_tex
+	gpu.process_material = mat
+	gpu.amount = 20
+	gpu.lifetime = 0.7
+	gpu.one_shot = true
+	gpu.explosiveness = 0.9
+	parent.add_child(gpu)
+	gpu.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(gpu.queue_free)
 
 func _finish_rest() -> void:
 	GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 
 func _start_ember_rain(vp: Vector2) -> void:
-	for i in range(30):
-		var p = ColorRect.new()
-		p.size = Vector2(3, 3)
-		p.color = Color(1, 0.4, 0.1, 0.3)
-		p.position = Vector2(randf_range(0, vp.x), vp.y + 10)
-		add_child(p)
-		var dur = randf_range(2.0, 4.0)
-		var tw = create_tween().set_loops()
-		tw.tween_property(p, "position:y", -20, dur).from(vp.y + 10)
-		tw.parallel().tween_property(p, "position:x", p.position.x + randf_range(-100, 100), dur)
+	var gpu = GPUParticles2D.new()
+	gpu.position = Vector2(vp.x * 0.5, vp.y + 5.0)
+	gpu.z_index = -1
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	mat.emission_box_extents = Vector3(vp.x * 0.5, 1.0, 0.0)
+	mat.direction = Vector3(0, -1, 0)
+	mat.spread = 15.0
+	mat.initial_velocity_min = 80.0
+	mat.initial_velocity_max = 200.0
+	mat.gravity = Vector3.ZERO
+	mat.scale_min = 2.0
+	mat.scale_max = 5.0
+	var grad = Gradient.new()
+	grad.set_color(0, Color(1.0, 0.45, 0.1, 0.5))
+	grad.set_color(1, Color(0.8, 0.2, 0.0, 0.0))
+	var grad_tex = GradientTexture1D.new()
+	grad_tex.gradient = grad
+	mat.color_ramp = grad_tex
+	gpu.process_material = mat
+	gpu.amount = 30
+	gpu.lifetime = vp.y / 140.0
+	gpu.one_shot = false
+	gpu.emitting = true
+	add_child(gpu)

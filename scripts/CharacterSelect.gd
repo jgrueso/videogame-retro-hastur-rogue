@@ -83,7 +83,7 @@ func _ready() -> void:
 	
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.stop_all()
-		AudioManager.play_loop("map_ambient_song")
+		AudioManager.play_loop("ES_Lost in Time - Aiyo")
 	var bg = ColorRect.new()
 	bg.color = Color(0.02, 0.02, 0.04)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
