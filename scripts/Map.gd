@@ -733,7 +733,7 @@ func update_ui() -> void:
 func _build_dev_panel(vp: Vector2) -> Panel:
 	var p = Panel.new()
 	p.position = Vector2(20, 50)
-	p.size = Vector2(200, 300)
+	p.size = Vector2(200, 430)
 	p.z_index = 100
 	var st = StyleBoxFlat.new()
 	st.bg_color = Color(0.1, 0.1, 0.1, 0.9)
@@ -768,6 +768,19 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 			target_floor_nodes[target_floor_nodes.size()-1]["has_rift"] = true
 			get_tree().reload_current_scene()],
 		["Reset Mapa", func(): GameManager.map_graph = []; get_tree().reload_current_scene()],
+		["⟁ Frag: Símbolo", func():
+			if not GameManager.has_secret_item("simbolo_amarillo"):
+				GameManager.add_secret_item("simbolo_amarillo")],
+		["♪ Frag: Canción", func():
+			if not GameManager.has_secret_item("cancion_amarilla"):
+				GameManager.add_secret_item("cancion_amarilla")],
+		["✉ Frag: Carcosa", func():
+			if not GameManager.has_secret_item("carta_carcosa"):
+				GameManager.add_secret_item("carta_carcosa")],
+		["⚔ REY AMARILLO", func():
+			GameManager.is_final_boss = true
+			GameManager.current_world = 1
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")],
 	]
 	
 	for b_data in btns:

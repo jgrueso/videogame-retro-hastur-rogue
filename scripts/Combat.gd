@@ -25,6 +25,11 @@ var damage_received_pool: int = 0 # Acumulador para la pasiva del Guardián
 # ── UI & Visuals ──────────────────────────────────────────────────────────────
 var ui: Node # Instancia de CombatUI.gd
 
+# ── Módulos de combate ─────────────────────────────────────────────────────────
+var enemy_turn: Node
+var card_resolver: Node
+var cinematics: Node
+
 # Atajos para evitar cambiar todo el código (Proxies con sintaxis correcta)
 var player_panel: Panel:
 	get: return ui.player_panel
@@ -71,6 +76,7 @@ var targeting_active: bool = false
 var targeting_card = null
 var time_since_mouse_move: float = 0.0
 var is_eye_breaking_4th_wall: bool = false
+
 var last_m_pos: Vector2 = Vector2.ZERO
 var rey_music_triggered: bool = false  # Si ya se activó la música al recibir el primer golpe
 
@@ -83,6 +89,21 @@ func _ready() -> void:
 	ui.set_script(ui_script)
 	add_child(ui)
 	ui.setup(self)
+
+	enemy_turn = Node.new()
+	enemy_turn.set_script(load("res://scripts/combat/EnemyTurnProcessor.gd"))
+	add_child(enemy_turn)
+	enemy_turn.setup(self)
+
+	card_resolver = Node.new()
+	card_resolver.set_script(load("res://scripts/combat/CardResolver.gd"))
+	add_child(card_resolver)
+	card_resolver.setup(self)
+
+	cinematics = Node.new()
+	cinematics.set_script(load("res://scripts/combat/CinematicManager.gd"))
+	add_child(cinematics)
+	cinematics.setup(self)
 
 	var vp = get_viewport_rect().size
 	if get_node_or_null("/root/AudioManager"):
@@ -198,95 +219,10 @@ func _ready() -> void:
 	end_turn_btn.disabled = false
 
 func _show_avatar_intro() -> void:
-	var vp = get_viewport_rect().size
-	
-	# Silencio absoluto inicial
-	if get_node_or_null("/root/AudioManager"):
-		AudioManager.stop_all()
-	
-	# Usar CanvasLayer para asegurar que está por encima de todo el HUD y efectos
-	var layer = CanvasLayer.new()
-	layer.layer = 100
-	add_child(layer)
-	
-	# Telón de oscuridad total
-	var curtain = ColorRect.new()
-	curtain.color = Color.BLACK
-	curtain.size = vp # Forzar tamaño manual
-	layer.add_child(curtain)
-	
-	var chambers_quote = "Canto de mi alma, se me ha muerto la voz. Muere, sin ser cantada, como las lágrimas no derramadas se secan y mueren en la Perdida Carcosa..."
-
-	# Panel clip para revelar de arriba hacia abajo
-	var clip_lbl = Panel.new()
-	clip_lbl.clip_contents = true
-	clip_lbl.position = Vector2(vp.x * 0.2, vp.y * 0.3)
-	clip_lbl.size = Vector2(vp.x * 0.6, 0)
-	var empty_s = StyleBoxEmpty.new()
-	clip_lbl.add_theme_stylebox_override("panel", empty_s)
-	layer.add_child(clip_lbl)
-
-	var quote_lbl = Label.new()
-	quote_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	quote_lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	quote_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	quote_lbl.text = chambers_quote
-	quote_lbl.position = Vector2(0, 0)
-	quote_lbl.size = Vector2(vp.x * 0.6, vp.y * 0.4)
-	quote_lbl.add_theme_font_size_override("font_size", 22)
-	quote_lbl.modulate = Color(0.9, 0.8, 0.3)
-	clip_lbl.add_child(quote_lbl)
-
-	# Revelar de arriba hacia abajo
-	var reveal_tw = create_tween()
-	reveal_tw.tween_property(clip_lbl, "size:y", vp.y * 0.4, 1.8)
-	await reveal_tw.finished
-	await get_tree().create_timer(2.0).timeout
-	
-	# --- EFECTO ROTOSCOPIA / GLITCH / FLASH ---
-	quote_lbl.visible = false
-	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("Glith_distorsion_noised_sound") # Usar audio externo
-	
-	# Simulamos rotoscopia con destellos
-	for i in range(12):
-		curtain.color = [Color.WHITE, Color.BLACK, Color.YELLOW, Color.RED][randi() % 4]
-		_trigger_screen_blink()
-		await get_tree().create_timer(0.05).timeout
-	
-	curtain.color = Color.BLACK
-	
-	# Desvanecer oscuridad con un último flash
-	var tw = create_tween()
-	tw.tween_property(layer, "offset:y", -vp.y, 1.5).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
-	tw.parallel().tween_property(curtain, "modulate:a", 0.0, 1.5)
-	
-	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("player_hit")
-	
-	await tw.finished
-	layer.queue_free()
+	await cinematics.show_avatar_intro()
 
 func _show_avatar_bark() -> void:
-	if enemies.is_empty() or not "AVATAR" in enemies[0].name.to_upper(): return
-	var msg = CombatData.ENEMY_COMBAT_BANTER["Avatar de Hastur"][randi() % CombatData.ENEMY_COMBAT_BANTER["Avatar de Hastur"].size()]
-	log_message("AVATAR", msg, Color(0.8, 0.4, 1.0))
-	
-	var bark_lbl = Label.new()
-	bark_lbl.text = msg
-	bark_lbl.add_theme_font_size_override("font_size", 14)
-	bark_lbl.modulate = Color(0.8, 0.7, 0.9, 0.0)
-	bark_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	# Posición sobre el avatar
-	bark_lbl.position = enemies[0].panel.global_position + Vector2(0, -40)
-	bark_lbl.size = Vector2(200, 40)
-	add_child(bark_lbl)
-	
-	var tw = create_tween()
-	tw.tween_property(bark_lbl, "modulate:a", 1.0, 0.5)
-	tw.tween_property(bark_lbl, "position:y", bark_lbl.position.y - 30, 3.0)
-	tw.parallel().tween_property(bark_lbl, "modulate:a", 0.0, 2.0).set_delay(1.5)
-	tw.chain().tween_callback(bark_lbl.queue_free)
+	cinematics.show_avatar_bark()
 
 func _setup_encounter() -> void:
 	var pool = []
@@ -665,327 +601,22 @@ func _flash_relic(relic_id: String) -> void:
 
 # ── Resolver carta ─────────────────────────────────────────────────────────────
 func _resolve_card(card, enemy_idx: int) -> void:
-	var effective_cost = card.get_effective_cost()
-	
-	if player_energy < effective_cost: 
-		card.set_disabled(false); return
-	
-	player_energy -= effective_cost
-	
-	# 1. Quitar de la mano lógica
-	for i in range(hand.size()):
-		if hand[i].get("name", "").to_upper() == card.card_name:
-			hand.remove_at(i); break
-
-	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_play")
-	log_message("TU", "Juegas " + card.card_name, Color(0.4, 0.8, 1.0))
-
-	var card_handled = false
-	var target_e = null
-	if enemy_idx >= 0 and enemy_idx < enemies.size(): target_e = enemies[enemy_idx]
-	var c_upper = card.card_name.to_upper()
-
-	# ── LÓGICA DE CARTAS ESPECIALES ──
-	if "APOCALIPSIS" in c_upper:
-		card_handled = true
-		for e_aoe in enemies:
-			if e_aoe.hp > 0:
-				e_aoe.hp -= 30
-				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 30, Color(1, 0, 0))
-				if e_aoe.hp <= 0: await _kill_enemy(e_aoe)
-		
-	elif "SIGNO AMARILLO" in c_upper:
-		card_handled = true
-		GameManager.sanity = min(100, GameManager.sanity + 50)
-		GameManager.mark_level += 1
-		GameManager.player_max_energy += 1
-		player_max_energy = GameManager.player_max_energy
-		player_energy += 1 
-		
-	elif "INCISION PRECISA" in c_upper:
-		card_handled = true
-		if target_e:
-			var dmg = int(target_e.max_hp * 0.25)
-			target_e.hp -= dmg
-			flash_small("Incisión: " + str(dmg))
-			_spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(0.5, 1, 0.5))
-			_animate_enemy_hit(target_e)
-			if target_e.hp <= 0: await _kill_enemy(target_e)
-		else:
-			flash_small("Selecciona un objetivo")
-			# Devolver energia si falla el objetivo
-			player_energy += effective_cost
-			card.set_disabled(false)
-			return
-
-	elif "MIRADA QUE DEVORA" in c_upper:
-		card_handled = true
-		if target_e:
-			target_e["bleed"] = target_e.get("bleed", 0) + 3
-			_animate_enemy_hit(target_e)
-			# Feedback visual directo de estado en lugar de un numero
-			var lbl = Label.new()
-			lbl.text = "🩸 SANGRADO"
-			lbl.modulate = Color(0.8, 0.1, 0.3)
-			lbl.add_theme_font_size_override("font_size", 20)
-			lbl.position = target_e.panel.global_position + Vector2(100, 60)
-			lbl.z_index = 20; add_child(lbl)
-			var t = create_tween().set_parallel(true)
-			t.tween_property(lbl, "position:y", lbl.position.y - 60, 0.8)
-			t.tween_property(lbl, "modulate:a", 0.0, 0.8)
-			t.chain().tween_callback(lbl.queue_free)
-			update_intent_labels() # ACTUALIZACIÓN EN TIEMPO REAL
-		else:
-
-			flash_small("Selecciona un objetivo")
-			player_energy += effective_cost
-			card.set_disabled(false)
-			return
-
-	elif "CENIZA PREVENTIVA" in c_upper:
-		card_handled = true
-		var discarded_count = hand.size()
-		if discarded_count > 0:
-			for c_rem in hand_container.get_children():
-				if c_rem != card: c_rem.queue_free()
-			for h_rem in hand: discard_pile.append(h_rem)
-			hand.clear()
-			
-			var shield_gain = discarded_count * 3
-			player_shield += shield_gain
-			# Feedback visual: Número azul flotante
-			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), shield_gain, Color(0.4, 0.7, 1.0))
-			flash_small("Ceniza Preventiva: +" + str(shield_gain) + " Escudo")
-		else:
-			flash_small("Mano vacía: No hay piezas que quemar.")
-		update_ui()
-
-	elif "ANALISIS" in c_upper:
-		card_handled = true
-		await draw_hand(2)
-
-	elif "FORMACION" in c_upper:
-		card_handled = true
-		player_shield += card.defense
-
-	elif "ECO" in c_upper:
-		card_handled = true
-		flash_small("¡ECO DEL VACÍO!")
-		for e_aoe in enemies:
-			if e_aoe.hp > 0:
-				e_aoe.hp -= 4
-				_spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 4, Color(0.7, 0.7, 1.0))
-				_animate_enemy_hit(e_aoe)
-				if e_aoe.hp <= 0: await _kill_enemy(e_aoe)
-		update_ui()
-
-	elif "SUSURRO DEBILITANTE" in c_upper:
-		card_handled = true
-		var is_last = hand.is_empty()
-		var base_red = 6 + card.attack
-		var reduction = base_red * 2 if is_last else base_red
-		for e_deb in enemies:
-			if e_deb.hp > 0:
-				e_deb["atk_reduction"] = e_deb.get("atk_reduction", 0) + reduction
-				# Feedback visual: Destello verde de debilidad
-				var tw = create_tween()
-				tw.tween_property(e_deb.panel, "modulate", Color(0.4, 1.2, 0.4), 0.1)
-				tw.tween_property(e_deb.panel, "modulate", Color(1, 1, 1), 0.3)
-		if is_last:
-			flash_small("¡SUSURRO FINAL! Todos debilitados: -" + str(reduction))
-			_trigger_screen_blink()
-		else:
-			flash_small("Susurro: Todos -" + str(reduction) + " ATK")
-			var candidates = []
-			for c_node in hand_container.get_children():
-				if not c_node.is_queued_for_deletion() and c_node != card:
-					candidates.append(c_node)
-			if not candidates.is_empty():
-				var to_discard = candidates[randi() % candidates.size()]
-				for j in range(hand.size()):
-					if hand[j]["name"].to_upper() == to_discard.card_name:
-						discard_pile.append(hand[j]); hand.remove_at(j); break
-				to_discard.queue_free()
-		update_intent_labels()
-
-	# ── LÓGICA DE ATAQUE Y DEFENSA GENÉRICA ──
-	if not card_handled:
-		if target_e:
-			if target_e.peaceful and card.attack > 0: target_e.peaceful = false; _set_enemy_aggressive(target_e)
-			var dmg = card.attack
-			if "AVATAR" in target_e.name.to_upper(): dmg = int(dmg * (1.0 + (100 - GameManager.sanity) * 0.015))
-			if "JAQUE ETERNO" in c_upper: dmg = clamp(15 + int((player_max_hp - player_hp) * 0.4), 15, 40)
-			if GameManager.velo_broken: dmg += 2
-			if GameManager.selected_character == "guardian" and furia_points >= 3:
-				dmg *= 2; furia_points = 0; flash_small("¡RESILIENCIA!"); _trigger_screen_blink()
-
-			var absorbed = min(target_e.shield, dmg)
-			if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; _animate_shield_block(target_e)
-			if dmg > 0:
-				target_e.hp -= dmg
-				
-				# MECÁNICA: La música del Rey Sin Corona cambia al recibir el primer golpe
-				if "REY SIN CORONA" in target_e.name.to_upper() and not rey_music_triggered:
-					rey_music_triggered = true
-					if get_node_or_null("/root/AudioManager"):
-						# No detener el lamento, sino hacerlo más grave y añadir la música de batalla
-						AudioManager.stop_loop("king_intro_sound")
-						AudioManager.play_loop("intro_title_song")
-						
-				_spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
-				_animate_enemy_hit(target_e)
-				if target_e.hp <= 0: await _kill_enemy(target_e)
-
-		if card.defense > 0:
-			player_shield += card.defense
-			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1))
-
-	# ── COSTES Y LIMPIEZA ──
-	if "OFRENDA DE CARNE" in c_upper: player_hp -= 4
-	elif "PESO DE LA VERDAD" in c_upper: player_hp -= 6
-	if player_hp <= 0: _check_player_death(); return
-
-	var target_pos = Vector2.ZERO
-	if target_e: target_pos = target_e.panel.global_position + Vector2(100, 100)
-	await card.play_attack_animation(target_pos)
-
-	if not card.exhaust:
-		discard_pile.append({"name": card.card_name, "attack": card.attack, "defense": card.defense, "cost": card.cost})
-	else:
-		flash_small(card.card_name + " se agota.")
-
-	first_card_this_turn = false
-	card.queue_free()
-	reorganize_hand()
-	cards_played_this_turn += 1
-	if GameManager.has_relic("reloj_negro") and cards_played_this_turn % 3 == 0:
-		player_energy = min(player_energy + 1, player_max_energy); _flash_relic("reloj_negro")
-	
-	update_ui(); update_intent_labels(); check_combat_end()
+	await card_resolver.resolve(card, enemy_idx)
 
 
 func _set_enemy_aggressive(e: Dictionary) -> void:
-	if e.get("sprite_label") and e.sprite_label.has_method("set_aggressive"):
-		e.sprite_label.set_aggressive(true)
-	if e.name == "El Penitente" and get_node_or_null("/root/AudioManager"):
-		# No detener el loop, sino distorsionarlo para que suene monstruoso
-		AudioManager.update_loop_params("Cry_whisper_woman_sound", -2.0, 0.45) # Más fuerte y MUCHO más grave
-		AudioManager.play_loop("Glith_distorsion_noised_sound") # Añadir estática abisal
-		AudioManager.update_loop_params("Glith_distorsion_noised_sound", -8.0, 0.7)
-		
-	# Cambiar panel a rojo
-	var s = StyleBoxFlat.new()
-	s.bg_color = Color(0.1, 0.05, 0.05)
-	s.border_width_left = 2; s.border_width_right = 2
-	s.border_width_top = 2; s.border_width_bottom = 2
-	s.border_color = Color(0.6, 0.2, 0.2)
-	e.panel.add_theme_stylebox_override("panel", s)
-	if e.lbl_name: e.lbl_name.modulate = Color.WHITE
-	# Flash rojo corregido (sin chain)
-	var tw = create_tween()
-	tw.tween_property(e.panel, "modulate", Color(1.5, 0.3, 0.3), 0.1)
-	tw.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.3)
+	enemy_turn.set_enemy_aggressive(e)
 
 # ── Sistema de Descifrado de Pensamientos ─────────────────────────────────────
 func _get_deciphered_thought(original: String) -> String:
-	# La reliquia Lengua del Tablero descifra todo automáticamente
-	if GameManager.has_relic("lengua_tablero"):
-		return original
-		
-	var sanity = GameManager.sanity
-	var legibility = (100.0 - sanity) / 100.0 # 0.0 a 1.0
-	
-	if sanity <= 0: return original # Claridad total
-	
-	var result = ""
-	var symbols = ["@", "#", "$", "%", "&", "*", "§", "Δ", "Ω", "▓", "░", "▒", "†", "‡"]
-	
-	for i in range(original.length()):
-		var c = original[i]
-		if c == " " or c == "\n":
-			result += c
-			continue
-		
-		# Decidir si este caracter es legible
-		if randf() < legibility:
-			result += c
-		else:
-			result += symbols[randi() % symbols.size()]
-	
-	return result
+	return card_resolver.get_deciphered_thought(original)
 
 func _get_penitente_thought() -> String:
-	var thoughts = [
-		"AYUDAME A SALIR DEL CICLO",
-		"EL JUGADOR NOS ESTA MIRANDO",
-		"HEMOS MUERTO MIL VECES AQUI",
-		"EL TABLERO ES UNA PRISION DE CARNE",
-		"NO ERES EL PRIMERO EN LLEGAR",
-		"EL REY TIENE SED DE MEMORIAS"
-	]
-	return thoughts[GameManager.total_runs % thoughts.size()]
+	return card_resolver.get_penitente_thought()
 
 # ── Animaciones ────────────────────────────────────────────────────────────────
 func _animate_enemy_attack_unique(e: Dictionary) -> void:
-	if not e.panel: return
-	var orig = e.panel.position
-	var t = create_tween().set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
-	
-	match e.name:
-		"EL CARCELERO":
-			# Salto y caida pesada
-			t.tween_property(e.panel, "position:y", orig.y - 40, 0.2)
-			t.tween_property(e.panel, "position:y", orig.y + 20, 0.1)
-			t.parallel().tween_property(e.panel, "scale", Vector2(1.2, 0.8), 0.1) # Impacto
-			t.tween_property(e.panel, "position", orig, 0.2)
-			t.parallel().tween_property(e.panel, "scale", Vector2(1, 1), 0.2)
-			await t.finished
-			# Temblor de pantalla sutil
-			var st = create_tween().set_loops(4)
-			st.tween_property(self, "position", Vector2(randf_range(-5,5), randf_range(-5,5)), 0.05)
-			st.tween_property(self, "position", Vector2.ZERO, 0.05)
-		
-		"LA DAMA DE CENIZA":
-			# Brillo incandescente
-			t.tween_property(e.panel, "modulate", Color(2.5, 0.8, 0.2), 0.15)
-			t.tween_property(e.panel, "position:x", orig.x - 30, 0.1)
-			# Particulas de ceniza hacia el jugador
-			_spawn_death_particles(e.panel.global_position + Vector2(0, 100))
-			t.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.3)
-			t.parallel().tween_property(e.panel, "position", orig, 0.3)
-			await t.finished
-			
-		"EL MARISCAL":
-			# Carga rapida
-			t.tween_property(e.panel, "position:x", orig.x - 150, 0.15).set_trans(Tween.TRANS_EXPO)
-			t.tween_property(e.panel, "position:x", orig.x + 20, 0.05)
-			t.tween_property(e.panel, "position", orig, 0.2)
-			await t.finished
-			
-		"EL VERDADERO HASTUR":
-			# Glitch total
-			is_eye_breaking_4th_wall = true
-			t.tween_property(e.panel, "scale", Vector2(1.5, 1.5), 0.1)
-			t.parallel().tween_property(e.panel, "modulate", Color(0,0,0), 0.1)
-			if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-			await get_tree().create_timer(0.15).timeout
-			e.panel.scale = Vector2(1,1); e.panel.modulate = Color.WHITE
-			is_eye_breaking_4th_wall = false
-			
-		_:
-			# Ataque generico
-			var is_weak = e.get("atk_reduction", 0) > 0
-			var dist = -40 if not is_weak else -15
-			
-			t.tween_property(e.panel, "position:x", orig.x + dist, 0.15)
-			t.tween_property(e.panel, "position", orig, 0.2)
-			
-			if is_weak:
-				var st = create_tween().set_loops(3)
-				st.tween_property(e.panel, "position:y", orig.y - 4, 0.05)
-				st.tween_property(e.panel, "position:y", orig.y, 0.05)
-				
-			await t.finished
+	await enemy_turn.animate_enemy_attack_unique(e)
 
 func _animate_enemy_hit(e: Dictionary) -> void:
 	if not e.panel: return
@@ -1108,28 +739,7 @@ func update_intent_labels() -> void:
 		ui.update_intent_labels()
 
 func _trigger_boss_phase_2(e: Dictionary) -> void:
-	e.in_phase_2 = true
-	var heal = int(e.max_hp * 0.25)
-	e.hp = min(e.hp + heal, e.max_hp)
-	
-	# Potenciar patron
-	for action in e.pattern:
-		action["value"] = int(action["value"] * 1.4) + 2
-	
-	if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-	show_message(e.name + ": SEGUNDA FASE", Color(1.0, 0.2, 0.2))
-	
-	# Flash visual
-	var flash = ColorRect.new()
-	flash.size = get_viewport_rect().size; flash.color = Color(0.8, 0.1, 0.1, 0.3); flash.z_index = 45
-	add_child(flash)
-	var tw = create_tween()
-	tw.tween_property(flash, "color:a", 0.0, 0.6)
-	tw.tween_callback(flash.queue_free)
-	
-	await get_tree().create_timer(1.5).timeout
-	panel_message.visible = false
-	update_ui(); update_intent_labels()
+	await enemy_turn.trigger_boss_phase_2(e)
 
 func update_card_states() -> void:
 	for card in hand_container.get_children():
@@ -1322,362 +932,22 @@ func check_combat_end() -> void:
 		_show_loot_screen()
 
 func _show_loot_screen() -> void:
-	var vp = get_viewport_rect().size
-	# Panel de despojos con estetica Carcosa
-	var loot_panel = ui._make_panel(Vector2(vp.x/2 - 300, 120), Vector2(600, 380), Color(0.04, 0.04, 0.06, 0.96), Color(0.85, 0.75, 0.2))
-	add_child(loot_panel)
-	loot_panel.z_index = 100
-
-	var title = Label.new()
-	title.text = "RECOLECTAR RESTOS"
-	title.add_theme_font_size_override("font_size", 32)
-	title.modulate = Color(0.7, 0.65, 0.4)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 25); title.size = Vector2(600, 40)
-	loot_panel.add_child(title)
-
-	var reward_vbox = VBoxContainer.new()
-	reward_vbox.position = Vector2(60, 90); reward_vbox.size = Vector2(480, 220)
-	reward_vbox.add_theme_constant_override("separation", 15)
-	loot_panel.add_child(reward_vbox)
-
-	# Recompensas
-	var frag_count = randi_range(12, 22)
-	_add_loot_button(reward_vbox, "◈ Tomar " + str(frag_count) + " Fragmentos de Tablero", func():
-		GameManager.add_coins(frag_count)
-	)
-
-	_add_loot_button(reward_vbox, "✦ Recolectar Ecos de los Caidos (Carta)", func():
-		var draft_scene = load("res://scenes/ui/CardDraft.tscn")
-		var draft = draft_scene.instantiate()
-		draft.z_index = 200
-		add_child(draft)
-		# No hace falta conectar a señal si solo queremos que se cierre, 
-		# pero podemos ocultar el panel de loot mientras tanto
-		loot_panel.visible = false
-		draft.connect("draft_completed", func():
-			loot_panel.visible = true
-		)
-	)
-
-	if randf() < 0.35:
-		_add_loot_button(reward_vbox, "☤ Beber Esencia de Olvido (+8 Cordura)", func():
-			GameManager.sanity = min(100, GameManager.sanity + 8)
-		)
-
-	var cont_btn = Button.new()
-	cont_btn.text = "CONTINUAR EL VIAJE"
-	cont_btn.position = Vector2(200, 315); cont_btn.size = Vector2(200, 45)
-	cont_btn.pressed.connect(func():
-		if GameManager.is_in_void_path:
-			if GameManager.void_path_step == 2:
-				GameManager.unlock_lore("centinela_nombre")
-			GameManager.void_path_step += 1
-			# Siempre volver al mapa de la grieta para ver el progreso
-			GameManager.go_to_scene("res://scenes/ui/VoidMap.tscn")
-		else:
-			# Progresión normal del mapa (NO sumar piso aquí, Map.gd ya lo hizo al elegir)
-			GameManager.go_to_scene("res://scenes/ui/Map.tscn")
-	)
-	loot_panel.add_child(cont_btn)
+	cinematics.show_loot_screen()
 
 func _add_loot_button(container: Control, txt: String, action: Callable) -> void:
-	var btn = Button.new()
-	btn.text = txt; btn.custom_minimum_size = Vector2(0, 50)
-	btn.add_theme_font_size_override("font_size", 14)
-	btn.pressed.connect(func():
-		action.call()
-		btn.disabled = true; btn.modulate = Color(0.5, 0.5, 0.5, 0.6)
-		# Llamada directa al Autoload
-		AudioManager.play("button_click")
-	)
-	container.add_child(btn)
+	cinematics.add_loot_button(container, txt, action)
 
 # ── Transición a Carcosa (secreto) ─────────────────────────────────────────────
 func _show_carcosa_transition() -> void:
-	var vp = get_viewport_rect().size
-
-	# Overlay que toma la pantalla
-	var overlay = ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.0)
-	overlay.position = Vector2.ZERO
-	overlay.size = vp
-	overlay.z_index = 55
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(overlay)
-
-	var t = create_tween()
-	t.tween_property(overlay, "color:a", 1.0, 1.2)
-	await t.finished
-
-	# Lineas — sugieren sin revelar
-	var lines = [
-		["...", Color(0.5, 0.5, 0.5), 20, false],
-		["Los fragmentos vibran.", Color(0.75, 0.68, 0.3), 22, false],
-		["Algo al otro lado\nreconoce el signo.", Color(0.7, 0.6, 0.25), 22, false],
-		["No es un lugar.\nEs una promesa rota.", Color(0.65, 0.55, 0.2), 20, false],
-		["C̴̡A̵̢R̴C̷O̴S̸A̷", Color(0.82, 0.72, 0.05), 42, true],
-		["Él recuerda tu nombre.", Color(0.45, 0.15, 0.65), 22, false],
-	]
-
-	for pair in lines:
-		var full_text: String = pair[0]
-		var col: Color = pair[1]
-		var fsize: int = pair[2]
-		var do_shake: bool = pair[3]
-
-		var lbl = Label.new()
-		lbl.text = ""
-		lbl.modulate = col
-		lbl.add_theme_font_size_override("font_size", fsize)
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		lbl.position = Vector2(0, vp.y * 0.38)
-		lbl.size = Vector2(vp.x, 110)
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lbl.z_index = 56
-		add_child(lbl)
-
-		var char_delay = 0.09 if do_shake else 0.05
-		for i in range(full_text.length()):
-			lbl.text = full_text.substr(0, i + 1)
-			await get_tree().create_timer(char_delay).timeout
-
-		if do_shake:
-			# La ciudad sacude la realidad
-			var base_pos = lbl.position
-			for _s in range(35):
-				lbl.position = base_pos + Vector2(randf_range(-7, 7), randf_range(-4, 4))
-				overlay.color = Color(
-					randf_range(0.0, 0.08),
-					randf_range(0.0, 0.04),
-					randf_range(0.0, 0.12),
-					1.0
-				)
-				await get_tree().create_timer(0.04).timeout
-			lbl.position = base_pos
-			overlay.color = Color(0, 0, 0, 1.0)
-
-		await get_tree().create_timer(1.8).timeout
-
-		var t3 = create_tween()
-		t3.tween_property(lbl, "modulate:a", 0.0, 0.5)
-		await t3.finished
-		lbl.queue_free()
-
-	# Destello purpura antes del combate
-	var flash = ColorRect.new()
-	flash.color = Color(0.35, 0.05, 0.55, 0.0)
-	flash.position = Vector2.ZERO
-	flash.size = vp
-	flash.z_index = 57
-	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(flash)
-	var tf = create_tween()
-	tf.tween_property(flash, "color:a", 0.9, 0.3)
-	await tf.finished
-	# El overlay se queda negro para la transición de escena
+	await cinematics.show_carcosa_transition()
 
 # ── Cinemática de victoria final ───────────────────────────────────────────────
 func _show_victory_cinematic(is_hastur: bool) -> void:
-	var vp = get_viewport_rect().size
-	var runs = str(GameManager.total_runs + 1)
-
-	# Lines: [text, color, font_size, shake]
-	var lines: Array
-	if is_hastur:
-		lines = [
-			["H̷A̵S̷T̷U̵R̷  H̷A̵  C̷A̵I̷D̵O̷", Color(0.65, 0.1, 0.95), 38, true],
-			["Pero el tablero sigue moviendose.", Color(0.6, 0.5, 0.85), 24, false],
-			["¿Que clase de pieza puede matar al jugador?\nUna que ya no cree en el juego.", Color(0.55, 0.45, 0.78), 22, false],
-			["El silencio pesa mas que antes.\nEres libre. Quizas.", Color(0.45, 0.38, 0.65), 20, false],
-		]
-	else:
-		lines = [
-			["EL REY AMARILLO HA CAIDO", Color(0.98, 0.88, 0.05), 38, true],
-			["El tablero se congela.\nNinguna pieza se mueve.", Color(0.82, 0.74, 0.42), 24, false],
-			["Llevas " + runs + " intentos llegando aqui.\nEsta vez, recuerdas cada uno.", Color(0.72, 0.65, 0.48), 22, false],
-			["¿Ganar era la trampa?\n¿O era el tablero entero?", Color(0.58, 0.52, 0.42), 20, false],
-		]
-
-	# Flash de impacto inicial
-	var flash = ColorRect.new()
-	flash.color = Color(0.9, 0.8, 0.05, 0.9) if not is_hastur else Color(0.5, 0.05, 0.9, 0.9)
-	flash.position = Vector2.ZERO
-	flash.size = vp
-	flash.z_index = 55
-	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(flash)
-	var tf = create_tween()
-	tf.tween_property(flash, "color:a", 0.0, 0.55)
-	await tf.finished
-	flash.queue_free()
-
-	# Overlay oscuro
-	var overlay = ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.0)
-	overlay.position = Vector2.ZERO
-	overlay.size = vp
-	overlay.z_index = 50
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(overlay)
-	var t = create_tween()
-	t.tween_property(overlay, "color:a", 0.95, 0.65)
-	await t.finished
-
-	for pair in lines:
-		var full_text: String = pair[0]
-		var col: Color = pair[1]
-		var fsize: int = pair[2]
-		var do_shake: bool = pair[3]
-
-		var lbl = Label.new()
-		lbl.text = ""
-		lbl.modulate = col
-		lbl.add_theme_font_size_override("font_size", fsize)
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		lbl.position = Vector2(0, vp.y * 0.37)
-		lbl.size = Vector2(vp.x, 110)
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lbl.z_index = 52
-		add_child(lbl)
-
-		# Typewriter letra por letra
-		var char_delay = 0.07 if do_shake else 0.04
-		for i in range(full_text.length()):
-			lbl.text = full_text.substr(0, i + 1)
-			await get_tree().create_timer(char_delay).timeout
-
-		# Sacudida en lineas dramaticas
-		if do_shake:
-			var base_pos = lbl.position
-			for _s in range(28):
-				lbl.position = base_pos + Vector2(randf_range(-5, 5), randf_range(-3, 3))
-				await get_tree().create_timer(0.04).timeout
-			lbl.position = base_pos
-
-		await get_tree().create_timer(2.2).timeout
-
-		var t3 = create_tween()
-		t3.tween_property(lbl, "modulate:a", 0.0, 0.55)
-		await t3.finished
-		lbl.queue_free()
-
-	# Boton continuar
-	var cont_btn = Button.new()
-	cont_btn.text = "Continuar"
-	cont_btn.add_theme_font_size_override("font_size", 16)
-	cont_btn.modulate = Color(1, 1, 1, 0.0)
-	cont_btn.position = Vector2(vp.x / 2.0 - 100, vp.y * 0.65)
-	cont_btn.size = Vector2(200, 44)
-	cont_btn.z_index = 52
-	add_child(cont_btn)
-
-	var t4 = create_tween()
-	t4.tween_property(cont_btn, "modulate:a", 1.0, 0.5)
-	await t4.finished
-
-	await cont_btn.pressed
-
-	cont_btn.queue_free()
-	var t5 = create_tween()
-	t5.tween_property(overlay, "color:a", 0.0, 0.5)
-	await t5.finished
-	overlay.queue_free()
+	await cinematics.show_victory_cinematic(is_hastur)
 
 # ── Recompensa de reliquia (boss / jefe final) ─────────────────────────────────
 func _show_relic_reward(next_scene: String = "res://scenes/ui/Map.tscn") -> void:
-	var vp = get_viewport_rect().size
-
-	var available = []
-	for rid in GameManager.RELIC_DATA.keys():
-		if not GameManager.has_relic(rid):
-			available.append(rid)
-	available.shuffle()
-	var choices = available.slice(0, min(3, available.size()))
-	if choices.is_empty(): return
-
-	# Fondo oscuro bloqueante
-	var dim = ColorRect.new(); dim.color = Color(0, 0, 0, 0.88)
-	dim.position = Vector2.ZERO; dim.size = vp
-	dim.z_index = 25; dim.mouse_filter = Control.MOUSE_FILTER_STOP; add_child(dim)
-
-	var title = Label.new(); title.text = "RELIQUIA DE RECOMPENSA"
-	title.add_theme_font_size_override("font_size", 28)
-	title.modulate = Color(0.9, 0.75, 0.1)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 60); title.size = Vector2(vp.x, 44); title.z_index = 26
-	add_child(title)
-
-	var picked = false  # evita doble clic
-	var panel_w = 260; var panel_h = 260; var gap = 24
-	var total_w = choices.size() * panel_w + (choices.size() - 1) * gap
-	var start_x = (vp.x - total_w) / 2.0
-	var relic_icon_scene = load("res://scenes/ui/RelicIcon.tscn")
-	var panels_root = Node2D.new(); panels_root.z_index = 26; add_child(panels_root)
-
-	for i in range(choices.size()):
-		var rid = choices[i]
-		var rdata = GameManager.RELIC_DATA[rid]
-		var px = start_x + i * (panel_w + gap)
-		var rpanel = ui._make_panel(Vector2(px, 100), Vector2(panel_w, panel_h),
-			Color(0.08, 0.07, 0.04), Color(0.7, 0.55, 0.1))
-		panels_root.add_child(rpanel)
-
-		# Icono de reliquia centrado en la parte superior
-		if relic_icon_scene:
-			var icon = relic_icon_scene.instantiate()
-			icon.position = Vector2(panel_w / 2.0 - 22, 10)
-			rpanel.add_child(icon)
-			icon.setup(rid)
-
-		var rname = Label.new(); rname.text = rdata["name"]
-		rname.add_theme_font_size_override("font_size", 15)
-		rname.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		rname.modulate = Color(0.95, 0.85, 0.3)
-		rname.position = Vector2(8, 62); rname.size = Vector2(panel_w - 16, 36)
-		rname.autowrap_mode = TextServer.AUTOWRAP_WORD; rpanel.add_child(rname)
-
-		var rdesc = Label.new(); rdesc.text = rdata["desc"]
-		rdesc.add_theme_font_size_override("font_size", 12)
-		rdesc.modulate = Color(0.75, 0.75, 0.8)
-		rdesc.autowrap_mode = TextServer.AUTOWRAP_WORD
-		
-		# Ajustar panel si la descripción es muy larga
-		var est_lines = rdesc.text.length() / 30 + rdesc.text.count("\n") + 1
-		var desc_h = max(100, est_lines * 16)
-		rdesc.position = Vector2(8, 104); rdesc.size = Vector2(panel_w - 16, desc_h)
-		rpanel.add_child(rdesc)
-
-		var rbtn = Button.new(); rbtn.text = "Tomar"
-		rbtn.position = Vector2(80, 216); rbtn.size = Vector2(100, 34)
-		rbtn.tooltip_text = rdata["name"] + ": " + rdata["desc"]
-		if "maldicion" in rdata["desc"].to_lower() or "pierdes" in rdata["desc"].to_lower() or "cuesta" in rdata["desc"].to_lower():
-			rbtn.tooltip_text += "\n[!] ADVERTENCIA: Esta reliquia conlleva una maldición o coste."
-		rpanel.add_child(rbtn)
-
-		var relic_id = rid
-		rbtn.pressed.connect(func():
-			if picked: return
-			picked = true
-			
-			Events.relic_was_chosen.emit(relic_id)
-			
-			dim.queue_free(); title.queue_free(); panels_root.queue_free()
-			if next_scene == "__world2__":
-				await _show_world2_transition()
-				GameManager.current_world = 1
-				GameManager.map_graph = []
-				GameManager.map_path = {}
-				GameManager.current_map_floor = 0
-				GameManager.current_map_col = -1
-				GameManager.player_hp = GameManager.player_max_hp
-				GameManager.sanity = 100
-				GameManager.go_to_scene("res://scenes/ui/Map.tscn")
-			else:
-				GameManager.go_to_scene(next_scene)
-		)
+	cinematics.show_relic_reward(next_scene)
 
 # ── Recompensa del Penitente ───────────────────────────────────────────────────
 func _penitente_reward() -> void:
@@ -1691,320 +961,11 @@ func _penitente_reward() -> void:
 	await _show_penitente_cinematic(has_trans, p_card)
 
 func _show_single_reward_modal(title_text: String, item_data: Dictionary, next_scene: String) -> void:
-	var vp = get_viewport_rect().size
-	
-	# Usar un CanvasLayer para asegurar que está por encima de TODA la UI de combate
-	var layer = CanvasLayer.new()
-	layer.layer = 100
-	add_child(layer)
-	
-	# Fondo oscuro bloqueante
-	var dim = ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.03, 0.95)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	dim.size = vp # Sizing manual para CanvasLayer
-	layer.add_child(dim)
-	
-	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("relic_get")
-
-	var title = Label.new(); title.text = title_text
-	title.add_theme_font_size_override("font_size", 36)
-	title.modulate = Color(0.9, 0.8, 0.2); title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 60); title.size = Vector2(vp.x, 60); dim.add_child(title)
-	
-	var is_card = item_data.has("cost")
-	
-	if is_card:
-		var card_scene = load("res://scenes/combat/Card.tscn")
-		var card_node = card_scene.instantiate()
-		dim.add_child(card_node) # Primero al árbol
-		card_node.setup(item_data) # Luego setup (ahora _ready ya tiene labels listos)
-		card_node.position = Vector2(vp.x/2 - 65, vp.y/2 - 80)
-		card_node.scale = Vector2(1.6, 1.6)
-		# Forzar que la descripción sea visible en el modal
-		card_node.mouse_filter = Control.MOUSE_FILTER_STOP 
-		GameManager.add_card(item_data)
-	
-	var cont_btn = Button.new(); cont_btn.text = "ACEPTAR Y CONTINUAR"
-	cont_btn.size = Vector2(280, 60); cont_btn.position = Vector2(vp.x/2 - 140, vp.y - 120)
-	dim.add_child(cont_btn)
-	
-	cont_btn.pressed.connect(func():
-		GameManager.go_to_scene(next_scene)
-	)
+	cinematics.show_single_reward_modal(title_text, item_data, next_scene)
 
 # ── Turno enemigo ──────────────────────────────────────────────────────────────
 func _on_end_turn_button_pressed() -> void:
-	is_player_turn = false; end_turn_btn.disabled = true
-	first_card_this_turn = true
-	update_card_states()
-	await get_tree().create_timer(0.4).timeout
-
-	for e in enemies:
-		if e.hp <= 0: continue
-
-		# Bleed (Mirada que Devora)
-		if e.get("bleed", 0) > 0:
-			var bleed_dmg = e["bleed"]
-			e.hp -= bleed_dmg
-			e["bleed"] = max(0, e["bleed"] - 1)
-			_spawn_damage_number(e.panel.global_position + Vector2(100, 60), bleed_dmg, Color(0.8, 0.1, 0.3))
-			if e.get("sprite_label"): e.sprite_label.play_hit()
-			log_message(e.name, "Sangra por %d de daño" % bleed_dmg, Color(0.8, 0.1, 0.3))
-			update_ui()
-			if e.hp <= 0:
-				await _kill_enemy(e)
-				continue
-
-		# Probabilidad de soltar un diálogo de lore (bark) al iniciar turno
-		if "AVATAR" in e.name.to_upper() and randf() < 0.4:
-			_show_avatar_bark()
-
-		# RESUMEN: Escudo enemigo se resetea al inicio de su turno
-		e.shield = 0
-		update_ui()
-
-		# El Penitente en modo pacífico: contar turnos
-		if e.peaceful:
-			e.peaceful_turns -= 1
-			
-			if e.penitente_mode == "silence":
-				# Efecto Silencio: Glitch y oscuridad
-				_trigger_screen_blink()
-				if is_instance_valid(eye_node):
-					var tw_eye = create_tween()
-					tw_eye.tween_property(eye_node, "modulate", Color(0.2, 0.2, 0.3, 0.9), 0.2)
-					tw_eye.tween_property(eye_node, "modulate", Color(1, 1, 1, 1), 0.2)
-				if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-			else:
-				# Efecto Misericordia: Luz y particulas
-				var tw_glow = create_tween()
-				tw_glow.tween_property(e.panel, "modulate", Color(1.5, 1.5, 2.0), 0.2)
-				tw_glow.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.4)
-				_spawn_death_particles(e.panel.global_position + Vector2(100, 100)) # Reutilizo particulas con otro color si pudiera, pero esto ya es visual
-
-			if e.peaceful_turns <= 0:
-				await _penitente_reward()
-				return
-			update_intent_labels()
-			continue
-
-		# MECÁNICA: Aturdimiento
-		if e.get("is_stunned", false):
-			e["is_stunned"] = false
-			flash_small(e.name + ": ¡ATURDIDO!")
-			_show_enemy_banter(e.panel, "...", Color(0.5, 0.5, 0.5))
-			await get_tree().create_timer(0.5).timeout
-			continue
-			
-		# Enemigo agresivo: ejecutar acción
-		var action = e.pattern[e.turn_index % e.pattern.size()]
-		e.turn_index += 1
-
-		if action.type == "attack":
-			var banter = _get_enemy_banter(e.name)
-			if not banter.is_empty():
-				_show_enemy_banter(e.panel, banter, _get_banter_color(e.name, banter))
-			
-			# Ejecutar animacion de ataque segun el enemigo
-			await _animate_enemy_attack_unique(e)
-			
-			var base_dmg = action.value
-			var mark_bonus = 0
-			if GameManager.mark_level > 0 and base_dmg > 0:
-				mark_bonus = int(base_dmg * (0.25 * GameManager.mark_level))
-				if mark_bonus < 1: mark_bonus = 1
-				log_message("SIGNO AMARILLO", "La marca intensifica el dolor (+%d)" % mark_bonus, Color(1.0, 0.9, 0.2))
-			
-			var dmg = max(0, (base_dmg + mark_bonus) - e.get("atk_reduction", 0))
-			var absorbed = min(player_shield, dmg)
-
-			if absorbed > 0:
-				player_shield -= absorbed; dmg -= absorbed
-				if get_node_or_null("/root/AudioManager"): AudioManager.play("shield_block")
-				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), absorbed, Color(0.4, 0.7, 1.0))
-				update_ui() # Actualizar escudo en tiempo real
-			
-			# Mostrar siempre el daño o el fallo si es un ataque
-			if dmg > 0:
-				player_hp -= dmg
-				update_ui() # Actualizar HP en tiempo real
-				log_message(e.name, "Te inflige %d de daño" % dmg, Color(1.0, 0.3, 0.3))
-				_animate_player_hit()
-				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), dmg, Color(1, 0.3, 0.3))
-				if get_node_or_null("/root/AudioManager"): AudioManager.play("player_hit")
-
-				# Sinergia Reliquia: Ojo Arrancado — contraataque 2 de daño
-				if GameManager.has_relic("ojo_arrancado"):
-					e.hp -= 2
-					_spawn_damage_number(e.panel.global_position + Vector2(100, 60), 2, Color(0.9, 0.55, 0.1))
-					_flash_relic("ojo_arrancado")
-				
-				# Pasiva Guardian: Furia (Acumulativa: 1 por cada 5 de daño total recibido)
-				if GameManager.selected_character == "guardian":
-					damage_received_pool += dmg
-					while damage_received_pool >= 5:
-						damage_received_pool -= 5
-						furia_points = min(3, furia_points + 1)
-						flash_small("¡RESILIENCIA! Furia acumulada: " + str(furia_points) + "/3")
-					update_ui()
-				
-				# --- EFECTO CORONA DE ESPINAS ---
-				if GameManager.has_relic("corona_espinas"):
-					var thorns_dmg = int(dmg * 0.2) # 20% base
-					if thorns_dmg > 0:
-						if GameManager.sanity < 50:
-							thorns_dmg = int(thorns_dmg * 1.5) # +50% en locura (antes era x2)
-							flash_small("¡ESPINAS DE CARCOSA! (+50%)")
-						else:
-							flash_small("Espinas: Contraataque.")
-
-						thorns_dmg = clamp(thorns_dmg, 1, 12) # Tope máximo de 12 por golpe
-						_flash_relic("corona_espinas")
-						for e_thorns in enemies:
-							if e_thorns.hp > 0:
-								e_thorns.hp -= thorns_dmg
-								_spawn_damage_number(e_thorns.panel.global_position + Vector2(100, 60), thorns_dmg, Color(0.8, 0.1, 0.1))
-								_animate_enemy_hit(e_thorns)
-						check_combat_end()
-
-			else:
-				# Es un FALLO (daño 0)
-				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 0, Color(1, 0.3, 0.3))
-		elif action.type == "shield":
-			e.shield += action.value
-		elif action.type == "insanity":
-			GameManager.sanity = max(0, GameManager.sanity - action.value)
-			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), action.value, Color(0.7, 0.3, 1.0))
-			flash_small(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
-			update_ui()
-		
-		# --- NUEVAS MECÁNICAS DE HASTUR ---
-		elif action.type == "possession":
-			var cards = hand_container.get_children()
-			if not cards.is_empty():
-				var target_card = cards[randi() % cards.size()]
-				flash_small("¡HASTUR TOMA EL CONTROL!")
-				flash_small("Usas " + target_card.card_name + " contra ti mismo.")
-				
-				# Aplicar daño al jugador basado en el ataque de la carta
-				var self_dmg = target_card.attack
-				
-				player_hp -= self_dmg
-				update_ui()
-				_spawn_damage_number(player_panel.global_position + Vector2(200, 30), self_dmg, Color(1, 0.2, 0.2))
-				_animate_player_hit()
-				
-				# Animación de la carta volando hacia el jugador
-				await target_card.play_attack_animation(player_panel.global_position + Vector2(200, 30))
-				target_card.queue_free()
-				reorganize_hand()
-				
-				flash_small("Tu turno ha sido arrebatado.")
-				# Forzar fin de turno (pero como ya estamos en turno enemigo, esto solo salta las acciones restantes si las hubiera)
-				break 
-		
-		elif action.type == "ultimate_charge":
-			flash_small("¡EL CIELO SE RASGA! Hastur prepara su juicio...")
-			_trigger_screen_blink()
-			if get_node_or_null("/root/AudioManager"): AudioManager.play("agony_shriek")
-			
-		elif action.type == "ultimate_attack":
-			flash_small("¡EL JUICIO DE CARCOSA!")
-			player_hp -= action.value
-			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), action.value, Color(1, 0, 0))
-			_trigger_screen_blink()
-			_animate_player_hit()
-		
-		elif action.type == "anular_energia":
-			flash_small("¡SILENCIO ETERNO! No podrás actuar el próximo turno.")
-			player_energy = 0 # El jugador empezará con 0
-			_trigger_screen_blink()
-			if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-			
-		elif action.type == "curse_hand":
-			var cards = hand_container.get_children()
-			if not cards.is_empty():
-				flash_small("¡CORRUPCIÓN! Tus piezas cambian de forma.")
-				var target_card = cards[randi() % cards.size()]
-				target_card.setup({"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 1, "curse": true})
-				target_card.modulate = Color(0.4, 0.1, 0.5)
-				if get_node_or_null("/root/AudioManager"): AudioManager.play("curse_card")
-
-		await get_tree().create_timer(0.35).timeout
-
-	# ── FIN DEL TURNO ENEMIGO ──
-	# Drenaje de cordura por turno si el Avatar o Hastur están presentes
-	if not enemies.is_empty():
-		var e0 = enemies[0]
-		if "HASTUR" in e0.name.to_upper():
-			GameManager.sanity = max(0, GameManager.sanity - 10) # Hastur drena más
-			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 10, Color(0.7, 0.3, 1.0))
-			flash_small("LA CANCIÓN DE CARCOSA TE PERSIGUE (-10)")
-			update_ui()
-		elif "AVATAR" in e0.name.to_upper():
-			GameManager.sanity = max(0, GameManager.sanity - 5)
-			_spawn_damage_number(player_panel.global_position + Vector2(200, 30), 5, Color(0.7, 0.3, 1.0))
-			flash_small("LA PRESENCIA DEL AVATAR TE CORROMPE (-5)")
-			
-			# --- REFLEJO DE LA LOCURA ---
-			if GameManager.sanity < 20:
-				var cards_in_hand = hand_container.get_children()
-				if not cards_in_hand.is_empty():
-					var target_card = cards_in_hand[randi() % cards_in_hand.size()]
-					flash_small("¡REFLEJO DE LA LOCURA! Una pieza ha sido corrompida.")
-					target_card.setup({"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 1, "curse": true})
-					target_card.modulate = Color(0.4, 0.1, 0.5) # Color corrupto
-					if get_node_or_null("/root/AudioManager"):
-						AudioManager.play("Cry_whisper_woman_sound")
-			
-			update_ui()
-
-	# Limpiar debuffs de TODOS los enemigos antes de que empiece el turno del jugador
-	for e_final in enemies:
-		e_final["atk_reduction"] = 0
-
-	# Reset de energía (Basado en el nuevo máximo sincronizado)
-	player_energy = player_max_energy
-
-	# Sinergia Reliquia: Ficha de Marfil — drena 1 HP por turno
-	if GameManager.has_relic("ficha_marfil"):
-		player_hp -= 1
-		flash_small("Ficha de Marfil: -1 HP", Color(0.9, 0.5, 0.2))
-		_flash_relic("ficha_marfil")
-
-	player_shield = 0
-
-	# Sinergia Reliquia: Velo de la Dama (Negar la muerte una vez por RUN)
-	if player_hp <= 0 and GameManager.has_relic("velo_dama") and not GameManager.velo_broken:
-		player_hp = int(player_max_hp * 0.25) # Recupera 25% HP
-		GameManager.velo_broken = true
-		flash_small("¡EL VELO SE RASGA! La muerte ha sido negada.")
-		log_message("VELO", "Venganza de la Dama activa: +2 ATK permanente.", Color(1, 0.2, 0.2))
-		_flash_relic("velo_dama")
-		if relics_container:
-			for icon in relics_container.get_children():
-				if icon.get("relic_id") == "velo_dama":
-					icon.mark_broken()
-					break
-		_trigger_screen_blink()
-		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-
-	if player_hp <= 0:
-		_check_player_death()
-		return
-
-	GameManager.player_hp = player_hp
-	cards_played_this_turn = 0
-	
-	# Incrementar turno para el jugador
-	turn_counter += 1
-	
-	update_ui(); update_intent_labels()
-	await draw_hand()
-	is_player_turn = true; end_turn_btn.disabled = false
-	update_card_states()
+	await enemy_turn.process_enemy_turn()
 
 # ── Dev ────────────────────────────────────────────────────────────────────────
 func _build_dev_panel(vp: Vector2) -> Panel:
@@ -2119,130 +1080,24 @@ func _dev_force_win() -> void:
 			await _kill_enemy(e)
 
 # ── Diálogos y banter ─────────────────────────────────────────────────────────
-const ENEMY_COMBAT_BANTER = {
-	"Siervo Rebelde":   ["...muere...", "no... escapes...", "el tablero... te reclama..."],
-	"Peon Maldito":     ["maldito seas...", "nadie sale...", "somos todos lo mismo..."],
-	"Alfil Caido":      ["hereje...", "tu fe es falsa...", "el Rey te vera caer..."],
-	"Espectro":         ["sientes... el frio...", "ya... eres... uno de nosotros..."],
-	"Torre Rota":       ["resistire... siglos...", "soy... lo que queda..."],
-	"Caballero Roto":   ["falle... una vez... no... dos..."],
-	"Inquisidor Ciego": ["la verdad... duele...", "no... puedes... saberlo..."],
-	"EL CARCELERO":     ["NADIE ESCAPA DEL TABLERO.", "ERES UNA PIEZA. NADA MAS.", "EL REY... TE ESPERA."],
-	"EL REY SIN CORONA":["campeon... mio...", "el tablero... te reclama...", "esto es... necesario..."],
-	"EL REY AMARILLO":  ["JUEGA BIEN.", "SIEMPRE VUELVES.", "SOY EL TABLERO. SOY EL JUEGO."],
-	"El Penitente": [
-		"Escucha. Solo escucha un momento.",
-		"No eres el heroe. Nunca lo fuiste.",
-		"El tablero nos mueve a los dos.",
-		"Ya estuviste aqui. No lo recuerdas, pero yo si.",
-	],
-}
 
 func _get_enemy_banter(enemy_name: String) -> String:
-	var stage = LoreData.get_lore_stage()
-	var has_translator = GameManager.has_relic("lengua_tablero")
-
-	# Enemigos que hablan en idioma garbled (sin traductor en etapas tempranas)
-	if enemy_name in LoreData.GARBLED and not has_translator and stage <= 1:
-		if randf() < 0.55:
-			return LoreData.GARBLED[enemy_name]
-
-	var threshold = 0.7 if enemy_name == "El Penitente" else 0.35
-	if randf() > threshold: return ""
-	var pool = ENEMY_COMBAT_BANTER.get(enemy_name, [])
-	if pool.is_empty(): return ""
-	return pool[randi() % pool.size()]
+	return enemy_turn.get_enemy_banter(enemy_name)
 
 func _get_banter_color(enemy_name: String, text: String) -> Color:
-	if LoreData.is_garbled(text):
-		return Color(0.3, 0.9, 0.9)  # cian para texto garbled
-	if enemy_name == "El Penitente":
-		return Color(0.5, 1.0, 0.5)
-	if enemy_name in ["EL CARCELERO", "EL REY AMARILLO", "EL REY SIN CORONA"]:
-		return Color(0.95, 0.7, 0.1)
-	return Color(0.9, 0.8, 0.5)
+	return enemy_turn.get_banter_color(enemy_name, text)
 
 func _show_enemy_banter(enemy_panel: Panel, text: String, col: Color = Color(0.9, 0.8, 0.5)) -> void:
-	if text.is_empty(): return
-	var lbl = Label.new()
-	lbl.text = "\"%s\"" % text
-	lbl.modulate = col; lbl.modulate.a = 0.0
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	var est_lines = text.length() / 30 + text.count("\n") + 1
-	var ban_h = max(65, est_lines * 16)
-	lbl.size = Vector2(220, ban_h)
-	lbl.position = enemy_panel.global_position + Vector2(-10, -ban_h - 10)
-	lbl.z_index = 12; add_child(lbl)
-	var t = create_tween()
-	t.tween_property(lbl, "modulate:a", 1.0, 0.3)
-	t.tween_interval(2.8)
-	t.tween_property(lbl, "modulate:a", 0.0, 0.5)
-	t.tween_callback(lbl.queue_free)
+	enemy_turn.show_enemy_banter(enemy_panel, text, col)
 
 func _typewrite(lbl: Label, text: String, base_delay: float = 0.02) -> void:
-	lbl.text = ""
-	for i in range(text.length()):
-		lbl.text = text.substr(0, i + 1)
-		var c = text[i]
-		var wait = base_delay
-		if c in [".", "!", "?"]:  wait = base_delay * 4.0
-		elif c in [",", ";"]:     wait = base_delay * 2.0
-		elif c == "\n":           wait = base_delay * 3.0
-		await get_tree().create_timer(wait).timeout
+	await cinematics.typewrite(lbl, text, base_delay)
 
 func _show_death_dialogue(enemy_name: String) -> void:
-	var text = LoreData.get_death_dialogue(enemy_name)
-	if text.is_empty(): return
-
-	# Encontrar el panel del enemigo que está muriendo
-	var e_panel = null
-	for e in enemies:
-		if e.name == enemy_name:
-			e_panel = e.panel
-			break
-	if not e_panel: return
-
-	var col = Color(0.95, 0.8, 0.3) if enemy_name.begins_with("EL ") else Color(0.8, 0.8, 0.8)
-	var pos = e_panel.global_position + Vector2(0, -35) # Más cerca del panel
-	
-	_show_floating_dialogue(text, col, pos, LoreData.is_garbled(text))
+	cinematics.show_death_dialogue(enemy_name)
 
 func _show_floating_dialogue(text: String, col: Color, pos: Vector2, is_cipher: bool = false) -> void:
-	var layer = CanvasLayer.new()
-	layer.layer = 120
-	add_child(layer)
-
-	var lbl = Label.new()
-	lbl.text = "\"%s\"" % text
-	lbl.add_theme_font_size_override("font_size", 14)
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	lbl.size = Vector2(300, 80)
-	lbl.position = pos - Vector2(lbl.size.x/2 - 100, 0) # Ajustar centrado local
-	lbl.modulate = col
-	lbl.modulate.a = 0
-	layer.add_child(lbl)
-	
-	var tw = create_tween().set_parallel(true)
-	tw.tween_property(lbl, "modulate:a", 1.0, 0.4)
-	tw.tween_property(lbl, "position:y", lbl.position.y - 15, 0.4)
-	
-	if is_cipher:
-		for _f in range(8):
-			lbl.modulate.a = randf_range(0.4, 1.0)
-			await get_tree().create_timer(0.06).timeout
-		lbl.modulate.a = 1.0
-	
-	var wait_time = clamp(text.length() * 0.05, 2.5, 5.0)
-	await get_tree().create_timer(wait_time).timeout
-	
-	var tw2 = create_tween().set_parallel(true)
-	tw2.tween_property(lbl, "modulate:a", 0.0, 0.8)
-	tw2.tween_property(lbl, "position:y", lbl.position.y - 20, 0.8)
-	await tw2.finished
-	layer.queue_free()
+	await cinematics.show_floating_dialogue(text, col, pos, is_cipher)
 
 # ── Reliquias ──────────────────────────────────────────────────────────────────
 func log_message(subject: String, text: String, color: Color) -> void:
@@ -2500,311 +1355,20 @@ func _start_hastur_madness_loop() -> void:
 # ── Cinemática del Penitente ───────────────────────────────────────────────────
 
 func _show_penitente_cinematic(has_relic_hint: bool, p_card: Dictionary) -> void:
-	var vp = get_viewport_rect().size
-	var layer = CanvasLayer.new(); layer.layer = 160; add_child(layer)
-	var bg = ColorRect.new(); bg.color = Color(0.05, 0.04, 0.08, 0.0)
-	bg.position = Vector2.ZERO; bg.size = vp
-	layer.add_child(bg)
-
-	# Fase 1: fade a oscuro
-	var tw = create_tween()
-	tw.tween_property(bg, "color:a", 0.92, 0.7)
-	await tw.finished
-
-	# Fase 2: peón inclina la cabeza (no cae — muestra deferencia, no derrota)
-	var pawn_lbl = Label.new()
-	pawn_lbl.text = "♟"
-	pawn_lbl.add_theme_font_size_override("font_size", 64)
-	pawn_lbl.modulate = Color(0.75, 0.7, 0.85, 0.0)
-	pawn_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pawn_lbl.position = Vector2(0, vp.y * 0.18); pawn_lbl.size = Vector2(vp.x, 80)
-	layer.add_child(pawn_lbl)
-
-	var tw_pawn = create_tween().set_parallel(true)
-	tw_pawn.tween_property(pawn_lbl, "modulate:a", 1.0, 0.6)
-	tw_pawn.tween_property(pawn_lbl, "rotation_degrees", 12.0, 1.0).set_ease(Tween.EASE_OUT)  # inclina, no cae
-	await tw_pawn.finished
-
-	# Fase 3: texto narrativo
-	var lines_data = [
-		["Tu paciencia es... inusual.", 0.07, false],
-		["La mayoría llega aquí con espadas levantadas.", 0.07, false],
-		["Tú llegaste con silencio.", 0.09, true],
-	]
-	if has_relic_hint:
-		lines_data.append(["Escucha: el Rey siente tu miedo, no tus piezas.", 0.07, false])
-		lines_data.append(["Atácalo cuando tu mente esté más rota...\nes cuando más sangra.", 0.08, true])
-	else:
-		lines_data.append(["Toma este eco de un juramento roto.", 0.08, false])
-
-	for line_data in lines_data:
-		var lbl = Label.new()
-		lbl.text = ""; lbl.modulate = Color(0.82, 0.78, 0.92, 0.0)
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.add_theme_font_size_override("font_size", 20 if not line_data[2] else 24)
-		lbl.position = Vector2(60, vp.y * 0.38); lbl.size = Vector2(vp.x - 120, 90)
-		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-		layer.add_child(lbl)
-		var fad = create_tween(); fad.tween_property(lbl, "modulate:a", 1.0, 0.4)
-		await fad.finished
-		var full_text = line_data[0]
-		for c in full_text.length():
-			lbl.text = full_text.substr(0, c + 1)
-			await get_tree().create_timer(line_data[1]).timeout
-		await get_tree().create_timer(1.6).timeout
-		var fout = create_tween(); fout.tween_property(lbl, "modulate:a", 0.0, 0.4)
-		await fout.finished
-		lbl.queue_free()
-
-	# Fase 4: interstitial — carta revelada
-	var card_title = Label.new()
-	card_title.text = "— DON DEL PENITENTE —"
-	card_title.modulate = Color(0.75, 0.65, 0.95, 0.0)
-	card_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card_title.add_theme_font_size_override("font_size", 22)
-	card_title.position = Vector2(0, vp.y * 0.25); card_title.size = Vector2(vp.x, 40)
-	layer.add_child(card_title)
-
-	var card_scene = load("res://scenes/combat/Card.tscn")
-	var card_node = card_scene.instantiate()
-	layer.add_child(card_node)
-	card_node.setup(p_card)
-	card_node.position = Vector2(vp.x / 2.0 - 65, vp.y * 0.35)
-	card_node.scale = Vector2(1.5, 1.5)
-	card_node.modulate = Color(1, 1, 1, 0.0)
-	GameManager.add_card(p_card)
-
-	var sub = Label.new()
-	sub.text = "\"Que la ceniza te proteja donde el acero no puede.\""
-	sub.modulate = Color(0.6, 0.55, 0.7, 0.0)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.add_theme_font_size_override("font_size", 13)
-	sub.autowrap_mode = TextServer.AUTOWRAP_WORD
-	sub.position = Vector2(60, vp.y * 0.72); sub.size = Vector2(vp.x - 120, 50)
-	layer.add_child(sub)
-
-	var cont_btn = Button.new()
-	cont_btn.text = "Aceptar y continuar"
-	cont_btn.position = Vector2(vp.x / 2.0 - 110, vp.y * 0.82)
-	cont_btn.size = Vector2(220, 44)
-	cont_btn.modulate = Color(1, 1, 1, 0.0)
-	layer.add_child(cont_btn)
-
-	var fin_tw = create_tween().set_parallel(true)
-	fin_tw.tween_property(card_title, "modulate:a", 1.0, 0.8)
-	fin_tw.tween_property(card_node, "modulate:a", 1.0, 0.8).set_delay(0.2)
-	fin_tw.tween_property(sub, "modulate:a", 1.0, 0.8).set_delay(0.5)
-	fin_tw.tween_property(cont_btn, "modulate:a", 1.0, 0.8).set_delay(0.8)
-	await fin_tw.finished
-
-	await cont_btn.pressed
-
-	var fout2 = create_tween(); fout2.tween_property(bg, "color:a", 0.0, 0.6)
-	await fout2.finished
-	layer.queue_free()
-
-	GameManager.go_to_scene("res://scenes/ui/Map.tscn")
+	await cinematics.show_penitente_cinematic(has_relic_hint, p_card)
 
 # ── Transición al Mundo 2 ──────────────────────────────────────────────────────
 
 func _show_world2_transition() -> void:
-	var vp = get_viewport_rect().size
-	var layer = CanvasLayer.new(); layer.layer = 160; add_child(layer)
-	var bg = ColorRect.new(); bg.color = Color(0, 0, 0, 0)
-	bg.position = Vector2.ZERO; bg.size = vp
-	layer.add_child(bg)
-
-	# Fase 1: fade a negro
-	var tw = create_tween()
-	tw.tween_property(bg, "color:a", 1.0, 0.8)
-	await tw.finished
-
-	# Fase 2: rey derribado (texto-arte)
-	var king_art = Label.new()
-	king_art.text = "♚"
-	king_art.add_theme_font_size_override("font_size", 72)
-	king_art.modulate = Color(0.9, 0.85, 0.7)
-	king_art.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	king_art.position = Vector2(0, vp.y * 0.3); king_art.size = Vector2(vp.x, 90)
-	layer.add_child(king_art)
-
-	var tw2 = create_tween().set_parallel(true)
-	tw2.tween_property(king_art, "rotation_degrees", 90.0, 1.2).set_ease(Tween.EASE_IN)
-	tw2.tween_property(king_art, "modulate:a", 0.0, 1.4).set_delay(0.6)
-	await tw2.finished
-
-	# Fase 3: texto narrativo
-	var lines_data = [
-		["El Rey Sin Corona ha sido reclamado por el vacío.", 0.08, false],
-		["Buscó un trono que nunca existió...", 0.09, false],
-		["Olvidando que en este tablero,\nincluso los reyes son peones.", 0.07, true],
-		["El Tablero Dorado os aguarda.", 0.08, false],
-		["Donde la ceniza se vuelve ley.", 0.1, true],
-	]
-	for line_data in lines_data:
-		var lbl = Label.new()
-		lbl.text = ""; lbl.modulate = Color(0.9, 0.82, 0.5, 0.0)
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.add_theme_font_size_override("font_size", 22 if line_data[2] else 18)
-		lbl.position = Vector2(60, vp.y * 0.45); lbl.size = Vector2(vp.x - 120, 80)
-		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-		layer.add_child(lbl)
-		var fad = create_tween(); fad.tween_property(lbl, "modulate:a", 1.0, 0.4)
-		await fad.finished
-		var full_text = line_data[0]
-		for c in full_text.length():
-			lbl.text = full_text.substr(0, c + 1)
-			await get_tree().create_timer(line_data[1]).timeout
-		await get_tree().create_timer(1.8).timeout
-		var fout = create_tween(); fout.tween_property(lbl, "modulate:a", 0.0, 0.5)
-		await fout.finished
-		lbl.queue_free()
-
-	# Fase 4: interstitial — título del Mundo 2
-	var world_lbl = Label.new()
-	world_lbl.text = "— MUNDO II —\nEl Tablero Dorado"
-	world_lbl.modulate = Color(0.85, 0.65, 0.1, 0.0)
-	world_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	world_lbl.add_theme_font_size_override("font_size", 32)
-	world_lbl.position = Vector2(0, vp.y * 0.35); world_lbl.size = Vector2(vp.x, 80)
-	layer.add_child(world_lbl)
-
-	var sub_lbl = Label.new()
-	sub_lbl.text = "Enemigos más duros. Reliquias más oscuras.\nLa cordura tiene un precio más alto aquí."
-	sub_lbl.modulate = Color(0.7, 0.6, 0.5, 0.0)
-	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_lbl.add_theme_font_size_override("font_size", 14)
-	sub_lbl.position = Vector2(60, vp.y * 0.52); sub_lbl.size = Vector2(vp.x - 120, 60)
-	sub_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	layer.add_child(sub_lbl)
-
-	var stats_lbl = Label.new()
-	var relics_count = GameManager.relics.size()
-	stats_lbl.text = "Reliquias obtenidas: %d   |   Cordura restaurada al 100" % relics_count
-	stats_lbl.modulate = Color(0.55, 0.55, 0.6, 0.0)
-	stats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stats_lbl.add_theme_font_size_override("font_size", 12)
-	stats_lbl.position = Vector2(0, vp.y * 0.67); stats_lbl.size = Vector2(vp.x, 30)
-	layer.add_child(stats_lbl)
-
-	var cont_btn = Button.new()
-	cont_btn.text = "Descender al Tablero Dorado"
-	cont_btn.position = Vector2(vp.x / 2.0 - 140, vp.y * 0.78)
-	cont_btn.size = Vector2(280, 44)
-	layer.add_child(cont_btn)
-
-	var fin_tw = create_tween().set_parallel(true)
-	fin_tw.tween_property(world_lbl, "modulate:a", 1.0, 1.0)
-	fin_tw.tween_property(sub_lbl, "modulate:a", 1.0, 1.0).set_delay(0.4)
-	fin_tw.tween_property(stats_lbl, "modulate:a", 1.0, 1.0).set_delay(0.7)
-	fin_tw.tween_property(cont_btn, "modulate:a", 1.0, 1.0).set_delay(1.0)
-	await fin_tw.finished
-
-	await cont_btn.pressed
-
-	var fout2 = create_tween(); fout2.tween_property(bg, "color", Color(0, 0, 0, 1), 0.6)
-	await fout2.finished
-	layer.queue_free()
+	await cinematics.show_world2_transition()
 
 # ── Cinemáticas de Verdad Amarilla ─────────────────────────────────────────────
 
 func _show_yellow_truth_cinematic(lines: Array) -> void:
-	var vp = get_viewport_rect().size
-	var layer = CanvasLayer.new()
-	layer.layer = 150
-	add_child(layer)
-
-	var root = Control.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	layer.add_child(root)
-
-	var bg = ColorRect.new()
-	bg.color = Color(0, 0, 0, 1.0)
-	bg.size = vp
-	root.add_child(bg)
-
-	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("ambient_hum")
-
-	# Combinar todas las líneas en un solo bloque de texto
-	var full_text = "\n\n".join(lines)
-
-	# Contenedor con clip para revelar de arriba hacia abajo
-	var text_x = vp.x * 0.1
-	var text_y = vp.y * 0.15
-	var text_w = vp.x * 0.8
-	var text_h = vp.y * 0.7
-
-	var clip = Panel.new()
-	clip.clip_contents = true
-	clip.position = Vector2(text_x, text_y)
-	clip.size = Vector2(text_w, 0)  # Empieza sin altura visible
-	var empty_style = StyleBoxEmpty.new()
-	clip.add_theme_stylebox_override("panel", empty_style)
-	root.add_child(clip)
-
-	var lbl = Label.new()
-	lbl.text = full_text
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	lbl.position = Vector2(0, 0)
-	lbl.size = Vector2(text_w, text_h)
-	lbl.add_theme_font_size_override("font_size", 26)
-	lbl.modulate = Color(1.2, 1.0, 0.2)
-	clip.add_child(lbl)
-
-	# Revelar de arriba hacia abajo expandiendo el clip
-	var reveal = create_tween()
-	reveal.tween_property(clip, "size:y", text_h, 2.2)
-	await reveal.finished
-
-	await get_tree().create_timer(3.0).timeout
-
-	# Efecto rotoscopia
-	for i in range(4):
-		if not is_instance_valid(bg): break
-		bg.color = Color(0.1, 0.08, 0.0) if i % 2 == 0 else Color.BLACK
-		lbl.visible = !lbl.visible
-		await get_tree().create_timer(0.05).timeout
-
-	lbl.visible = true
-	bg.color = Color.BLACK
-
-	# Desvanecer todo
-	var out = create_tween()
-	out.tween_property(root, "modulate:a", 0.0, 1.0)
-	await get_tree().create_timer(1.2).timeout
-
-	layer.queue_free()
+	await cinematics.show_yellow_truth_cinematic(lines)
 
 func _show_avatar_defeat_lore() -> void:
-	var count = GameManager.secret_items.size()
-	var lines = []
-	
-	match count:
-		1:
-			lines = [
-				"El Heraldo cae, pero su sombra permanece.",
-				"Un solo fragmento de verdad es una carga pesada.",
-				"Has visto el borde del tablero... y lo que hay debajo."
-			]
-		2:
-			lines = [
-				"Dos verdades chocan en tu mente.",
-				"El Rey no está lejos, su risa resuena en tu mazo.",
-				"¿Sientes la lluvia roja? Es el cielo llorando por tu ignorancia."
-			]
-		3:
-			lines = [
-				"EL VELO SE HA ROTO.",
-				"Hastur no necesita buscarte. Tú ya eres suyo.",
-				"Bienvenido a la Perdida Carcosa. Aquí el tiempo es solo una pieza más."
-			]
-		_:
-			lines = ["El vacío devuelve tu mirada."]
-			
-	await _show_yellow_truth_cinematic(lines)
+	await cinematics.show_avatar_defeat_lore()
 
 func _check_player_death() -> void:
 	GameManager.player_hp = 0
