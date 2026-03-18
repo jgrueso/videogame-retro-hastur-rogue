@@ -20,7 +20,8 @@ var velo_used: bool = false
 var turn_counter: int = 1 # Contador para Reloj Circular
 var furia_points: int = 0
 var damage_received_pool: int = 0 # Acumulador para la pasiva del Guardián
- # Pasiva del Guardián: daño acumulado para el siguiente ataque
+var enemy_attacked_last_turn: bool = false # Para Contraofensiva
+var trono_carcosa_active: bool = false
 
 # ── UI & Visuals ──────────────────────────────────────────────────────────────
 var ui: Node # Instancia de CombatUI.gd
@@ -80,6 +81,10 @@ var is_eye_breaking_4th_wall: bool = false
 var last_m_pos: Vector2 = Vector2.ZERO
 var rey_music_triggered: bool = false  # Si ya se activó la música al recibir el primer golpe
 
+var _eye_breathe_t: float = 0.0
+var _pupil_target: Vector2 = Vector2.ZERO
+var _pupil_wander_timer: float = 0.0
+
 # ── Pools de encuentros ────────────────────────────────────────────────────────
 # ── Setup ──────────────────────────────────────────────────────────────────────
 func _ready() -> void:
@@ -127,7 +132,11 @@ func _ready() -> void:
 	if GameManager.has_relic("corona_dorada"):
 		player_max_energy += 1
 		GameManager.sanity = max(0, GameManager.sanity - 5)
-	
+
+	if GameManager.selected_character == "prince":
+		GameManager.sanity = max(0, GameManager.sanity - 8)
+		flash_small("El Abismo susurra... -8 Cordura")
+
 	# Sinergia Reliquia: Escudo Astillado
 	if GameManager.has_relic("escudo_astillado"):
 		player_shield = 5
@@ -195,6 +204,7 @@ func _ready() -> void:
 
 
 	is_player_turn = true
+	enemy_attacked_last_turn = false
 	await draw_hand()
 	
 	# --- LÓGICA ESPECIAL AVATAR DE HASTUR ---
@@ -457,11 +467,18 @@ func _process(_delta: float) -> void:
 	var m_pos = get_global_mouse_position()
 	if m_pos.distance_to(last_m_pos) > 1.0:
 		time_since_mouse_move = 0.0
-		is_eye_breaking_4th_wall = false
+		if is_eye_breaking_4th_wall and is_instance_valid(eye_node):
+			is_eye_breaking_4th_wall = false
+			var tw_reset = eye_node.create_tween()
+			tw_reset.tween_property(eye_node, "modulate", Color(1.0, 1.0, 1.0, eye_node.modulate.a), 0.3)
+		else:
+			is_eye_breaking_4th_wall = false
 	else:
 		time_since_mouse_move += _delta
-		if time_since_mouse_move > 8.0:
+		if time_since_mouse_move > 8.0 and not is_eye_breaking_4th_wall:
 			is_eye_breaking_4th_wall = true
+			if is_instance_valid(eye_node):
+				_start_4th_wall_stare()
 	last_m_pos = m_pos
 
 	# Actualizar Vignette y Tinte de Locura
@@ -476,7 +493,14 @@ func _process(_delta: float) -> void:
 				vignette.material = mat
 			
 			var t_col = Vector3(0, 0, 0)
-			if GameManager.sanity < 30: t_col = Vector3(0.2, 0.15, 0.0)
+			if GameManager.selected_character == "prince":
+				if GameManager.sanity < 35:
+					t_col = Vector3(0.08, 0.0, 0.18)   # Void violeta — RESONANCIA ABISAL
+				elif GameManager.sanity < 60:
+					t_col = Vector3(0.04, 0.0, 0.10)   # Añil oscuro — Sombra
+			else:
+				if GameManager.sanity < 30:
+					t_col = Vector3(0.2, 0.15, 0.0)    # Amarillo-marrón — otros personajes
 			
 			vignette.material.set_shader_parameter("intensity", sanity_factor * 0.8)
 			vignette.material.set_shader_parameter("tint", t_col)
@@ -487,37 +511,74 @@ func _process(_delta: float) -> void:
 	if is_instance_valid(eye_node):
 		var eye_intensity = clamp((55.0 - GameManager.sanity) / 55.0, 0.0, 1.0)
 		eye_node.modulate.a = eye_intensity * 0.95
-		eye_node.scale = Vector2(1, 1) * (0.6 + eye_intensity * 0.4)
-		
-		# Movimiento de pupila e iris
-		var iris_node = eye_node.get_node("Iris")
-		var pupil_node = iris_node.get_node("Pupil")
-		var m_dir = (get_global_mouse_position() - iris_node.global_position).normalized()
-		
-		if is_eye_breaking_4th_wall:
-			m_dir = Vector2.ZERO # Mirar directo al frente (al jugador)
-			iris_node.modulate = Color(1.5, 1.2, 1.2) # Brillo sutil de interes
-		else:
-			iris_node.modulate = Color.WHITE
-			
-		iris_node.position = (m_dir * 25.0) - iris_node.size/2
-		
-		# Temblor de pupila en baja cordura
-		var p_pos = (m_dir * 10.0) - pupil_node.size/2
-		if GameManager.sanity < 30:
-			var p_shake = (30.0 - GameManager.sanity) * 0.4
-			p_pos += Vector2(randf_range(-p_shake, p_shake), randf_range(-p_shake, p_shake))
-			# Dilatacion erratica
-			pupil_node.scale.x = 1.0 + randf_range(-0.2, 0.5)
-		else:
-			pupil_node.scale.x = 1.0
-			
-		pupil_node.position = p_pos
 
-	# Efecto de temblor sutil (solo en baja cordura)
+		# 2a. Breathing — el ojo respira
+		_eye_breathe_t += _delta
+		var breathe = 1.0 + sin(_eye_breathe_t * 1.4) * 0.035
+		eye_node.scale = Vector2(1, 1) * (0.6 + eye_intensity * 0.4) * breathe
+
+		# 2b. Sclera se enrojece/tiñe de violeta con la cordura
+		var redness = clamp((40.0 - GameManager.sanity) / 40.0, 0.0, 1.0)
+		var sclera_node = eye_node.get_node_or_null("EyeBg")
+		if sclera_node:
+			if GameManager.selected_character == "prince":
+				sclera_node.modulate = Color(1.0 - redness * 0.25, 1.0 - redness * 0.45, 1.0 + redness * 0.15)
+			else:
+				sclera_node.modulate = Color(1.0, 1.0 - redness * 0.6, 1.0 - redness * 0.7)
+
+		# 2c. Venas bloodshot/violeta aparecen progresivamente
+		var vein_alpha = clamp((45.0 - GameManager.sanity) / 45.0, 0.0, 0.85)
+		var is_prince = GameManager.selected_character == "prince"
+		for vi in range(5):
+			var vein = eye_node.get_node_or_null("Vein%d" % vi)
+			if vein:
+				vein.color.a = vein_alpha * (0.6 + vi * 0.08)
+				if is_prince:
+					vein.color = Color(0.55, 0.0, 0.9, vein.color.a)   # Purple veins
+
+		# 2d. Iris glow — violeta eléctrico para Príncipe, ambar para otros
+		var iris_node = eye_node.get_node("Iris")
+		var iris_glow_factor = clamp((50.0 - GameManager.sanity) / 50.0, 0.0, 1.0)
+		if not is_eye_breaking_4th_wall:
+			if GameManager.selected_character == "prince":
+				iris_node.modulate = Color(1.0 + iris_glow_factor * 0.3, 1.0 - iris_glow_factor * 0.4, 1.0 + iris_glow_factor * 0.8)
+			else:
+				iris_node.modulate = Color(1.0 + iris_glow_factor * 0.6, 1.0 - iris_glow_factor * 0.1, 1.0 - iris_glow_factor * 0.4)
+
+		# 2e. Pupila organica — wander suave + lerp
+		var pupil_node = iris_node.get_node("Pupil")
+		_pupil_wander_timer -= _delta
+		if _pupil_wander_timer <= 0.0:
+			var wander_range = 8.0 + (30.0 - clamp(GameManager.sanity, 0, 30)) * 0.5
+			_pupil_target = Vector2(randf_range(-wander_range, wander_range), randf_range(-wander_range * 0.4, wander_range * 0.4))
+			_pupil_wander_timer = randf_range(0.4, 1.2) if GameManager.sanity >= 30 else randf_range(0.1, 0.5)
+
+		var m_dir = (get_global_mouse_position() - iris_node.global_position).normalized()
+		var base_pupil_pos = (m_dir * 10.0) - pupil_node.size / 2
+		var target_pupil = base_pupil_pos + _pupil_target
+
+		if is_eye_breaking_4th_wall:
+			target_pupil = -pupil_node.size / 2  # Mira directo al frente
+			iris_node.modulate = Color(2.0, 1.4, 0.8)  # Brillo intenso
+
+		pupil_node.position = pupil_node.position.lerp(target_pupil, _delta * 6.0)
+
+		# Dilatacion horizontal suave (pavor)
+		var dilation_target = 1.0 + clamp((40.0 - GameManager.sanity) / 40.0, 0.0, 0.8)
+		pupil_node.scale.x = lerpf(pupil_node.scale.x, dilation_target, _delta * 3.0)
+
+		# Iris sigue al raton
+		iris_node.position = (m_dir * 25.0) - iris_node.size/2
+
+	# Efecto de temblor ritmico (latido) en baja cordura
 	if not combat_ended and GameManager.sanity < 40:
-		var shake = (40.0 - GameManager.sanity) * 0.08
-		position = Vector2(randf_range(-shake, shake), randf_range(-shake, shake))
+		var shake_intensity = (40.0 - GameManager.sanity) * 0.08
+		var t = Time.get_ticks_msec() / 1000.0
+		var beat = abs(sin(t * 0.9 * PI)) * abs(sin(t * 1.8 * PI))
+		position = Vector2(
+			sin(t * 7.3) * shake_intensity * beat,
+			cos(t * 6.1) * shake_intensity * beat * 0.5
+		)
 	else:
 		position = Vector2.ZERO
 
@@ -617,13 +678,21 @@ func _animate_enemy_attack_unique(e: Dictionary) -> void:
 func _animate_enemy_hit(e: Dictionary) -> void:
 	if not e.panel: return
 	var orig = e.panel.position
-	var t = create_tween()
-	t.tween_property(e.panel, "modulate", Color(1.4, 0.3, 0.3), 0.05)
-	t.tween_property(e.panel, "position", orig + Vector2(-8, 0), 0.04)
-	t.tween_property(e.panel, "position", orig + Vector2(8, 0), 0.04)
-	t.tween_property(e.panel, "position", orig + Vector2(-5, 0), 0.04)
-	t.tween_property(e.panel, "position", orig, 0.04)
-	t.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.1)
+	var orig_scale = e.panel.scale
+	# Flash blanco puro (overbright)
+	var tf = create_tween()
+	tf.tween_property(e.panel, "modulate", Color(4.0, 4.0, 4.0), 0.04)
+	tf.tween_property(e.panel, "modulate", Color(1, 1, 1), 0.18)
+	# Sacudida horizontal
+	var ts = create_tween()
+	ts.tween_property(e.panel, "position", orig + Vector2(-8, 0), 0.04)
+	ts.tween_property(e.panel, "position", orig + Vector2(8, 0), 0.04)
+	ts.tween_property(e.panel, "position", orig + Vector2(-5, 0), 0.04)
+	ts.tween_property(e.panel, "position", orig, 0.04)
+	# Squash & stretch
+	var tss = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tss.tween_property(e.panel, "scale", Vector2(orig_scale.x * 1.18, orig_scale.y * 0.82), 0.06)
+	tss.tween_property(e.panel, "scale", orig_scale, 0.14)
 
 func _animate_shield_block(e: Dictionary) -> void:
 	if not e.panel: return
@@ -633,12 +702,20 @@ func _animate_shield_block(e: Dictionary) -> void:
 
 func _animate_player_hit() -> void:
 	var orig = player_panel.position
-	var t = create_tween()
-	t.tween_property(player_panel, "modulate", Color(1.4, 0.3, 0.3), 0.05)
-	t.tween_property(player_panel, "position", orig + Vector2(-6, 0), 0.04)
-	t.tween_property(player_panel, "position", orig + Vector2(6, 0), 0.04)
-	t.tween_property(player_panel, "position", orig, 0.05)
-	t.tween_property(player_panel, "modulate", Color(1, 1, 1), 0.15)
+	var orig_scale = player_panel.scale
+	# Flash blanco puro (overbright)
+	var tf = create_tween()
+	tf.tween_property(player_panel, "modulate", Color(4.0, 4.0, 4.0), 0.04)
+	tf.tween_property(player_panel, "modulate", Color(1, 1, 1), 0.22)
+	# Sacudida horizontal
+	var ts = create_tween()
+	ts.tween_property(player_panel, "position", orig + Vector2(-6, 0), 0.04)
+	ts.tween_property(player_panel, "position", orig + Vector2(6, 0), 0.04)
+	ts.tween_property(player_panel, "position", orig, 0.05)
+	# Squash & stretch (aplastamiento vertical al recibir impacto)
+	var tss = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tss.tween_property(player_panel, "scale", Vector2(orig_scale.x * 0.88, orig_scale.y * 1.15), 0.06)
+	tss.tween_property(player_panel, "scale", orig_scale, 0.16)
 
 func _kill_enemy(e: Dictionary) -> void:
 	if e.name == "El Penitente" and get_node_or_null("/root/AudioManager"):
@@ -646,10 +723,7 @@ func _kill_enemy(e: Dictionary) -> void:
 
 	if e.sprite_label: e.sprite_label.play_death()
 	_spawn_death_particles(e.panel.global_position + Vector2(100, 110))
-	var t = create_tween()
-	t.tween_interval(0.2)
-	t.tween_property(e.panel, "modulate:a", 0.0, 0.35)
-	t.tween_callback(func(): e.panel.visible = false)
+	_dissolve_enemy(e.panel)
 	
 	_is_showing_death_dialogue = true
 	await _show_death_dialogue(e.name)  # esperar a que el jugador haga clic
@@ -726,6 +800,27 @@ func _make_gpu_burst(pos: Vector2, count: int, z: int,
 	gpu.emitting = true
 	get_tree().create_timer(lifetime + 0.5).timeout.connect(gpu.queue_free)
 
+func _dissolve_enemy(panel: Panel) -> void:
+	# Crear un ColorRect overlay que cubre el panel con el shader de dissolve
+	var overlay = ColorRect.new()
+	overlay.size = panel.size
+	overlay.global_position = panel.global_position
+	overlay.color = Color(0.12, 0.08, 0.14)  # Color oscuro abisal, similar al fondo del panel
+	overlay.z_index = panel.z_index + 1
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shader_mat = ShaderMaterial.new()
+	shader_mat.shader = load("res://shaders/dissolve.gdshader")
+	shader_mat.set_shader_parameter("progress", 0.0)
+	shader_mat.set_shader_parameter("edge_color", Color(1.0, 0.45, 0.08, 1.0))
+	overlay.material = shader_mat
+	panel.get_parent().add_child(overlay)
+	# Ocultar el panel original inmediatamente (el overlay lo reemplaza)
+	panel.visible = false
+	# Animar el dissolve
+	var tw = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tw.tween_method(func(v: float): shader_mat.set_shader_parameter("progress", v), 0.0, 1.1, 0.55)
+	tw.tween_callback(overlay.queue_free)
+
 func _spawn_death_particles(pos: Vector2) -> void:
 	_make_gpu_burst(pos, 14, 15,
 		Color(1.0, 0.6, 0.1, 1.0),
@@ -747,6 +842,20 @@ func _start_player_idle_bob() -> void:
 func _trigger_screen_blink() -> void:
 	if not blink_overlay: return
 	blink_overlay.visible = true
+	if GameManager.selected_character == "prince":
+		if GameManager.sanity < 35:
+			blink_overlay.color = Color(0.55, 0.0, 0.9)    # Deep void — RESONANCIA
+		elif GameManager.sanity < 60:
+			blink_overlay.color = Color(0.35, 0.05, 0.65)  # Dark violet — Sombra
+		else:
+			blink_overlay.color = Color(0.6, 0.4, 1.0)     # Pale violet — normal
+	else:
+		if GameManager.sanity < 20:
+			blink_overlay.color = Color(0.7, 0.0, 0.0)
+		elif GameManager.sanity < 35:
+			blink_overlay.color = Color(0.85, 0.15, 0.1)
+		else:
+			blink_overlay.color = Color(1.0, 1.0, 1.0)
 	blink_overlay.modulate.a = 1.0
 	var tw = create_tween()
 	tw.tween_property(blink_overlay, "modulate:a", 0.0, randf_range(0.15, 0.3))
@@ -763,6 +872,12 @@ func _trigger_boss_phase_2(e: Dictionary) -> void:
 func update_card_states() -> void:
 	for card in hand_container.get_children():
 		card.set_disabled(not is_player_turn or card.get_effective_cost() > player_energy)
+		# Indicador visual de Contraofensiva
+		if "CONTRAOFENSIVA" in card.card_name:
+			if enemy_attacked_last_turn:
+				card.modulate = Color(0.6, 1.2, 0.6) # Verde: condición activa
+			else:
+				card.modulate = Color(1.2, 0.6, 0.6) # Rojo: condición inactiva
 
 func refresh_hand_visuals() -> void:
 	for card in hand_container.get_children():
@@ -776,46 +891,60 @@ var sanity_20_triggered: bool = false
 
 func _check_sanity_myths() -> void:
 	var s = GameManager.sanity
+	var is_prince = GameManager.selected_character == "prince"
 	if s < 60 and not sanity_60_triggered:
 		sanity_60_triggered = true
-		_show_mythical_text(CombatData.MYTH_60[randi() % CombatData.MYTH_60.size()], Color(0.6, 0.4, 0.8))
-	elif s < 40 and not sanity_40_triggered:
+		if is_prince:
+			_show_mythical_text(CombatData.PRINCE_MYTH_60[randi() % CombatData.PRINCE_MYTH_60.size()], Color(0.7, 0.3, 1.0))
+		else:
+			_show_mythical_text(CombatData.MYTH_60[randi() % CombatData.MYTH_60.size()], Color(0.6, 0.4, 0.8))
+	elif s < (35 if is_prince else 40) and not sanity_40_triggered:
 		sanity_40_triggered = true
-		_show_mythical_text(CombatData.MYTH_40[randi() % CombatData.MYTH_40.size()], Color(0.8, 0.3, 0.3))
+		if is_prince:
+			_show_mythical_text(CombatData.PRINCE_MYTH_35[randi() % CombatData.PRINCE_MYTH_35.size()], Color(0.85, 0.3, 1.0))
+		else:
+			_show_mythical_text(CombatData.MYTH_40[randi() % CombatData.MYTH_40.size()], Color(0.8, 0.3, 0.3))
 	elif s < 20 and not sanity_20_triggered:
 		sanity_20_triggered = true
-		_show_mythical_text(CombatData.MYTH_20[randi() % CombatData.MYTH_20.size()], Color(1.0, 0.1, 0.1))
+		if is_prince:
+			_show_mythical_text(CombatData.PRINCE_MYTH_20[randi() % CombatData.PRINCE_MYTH_20.size()], Color(1.0, 0.7, 1.0))
+		else:
+			_show_mythical_text(CombatData.MYTH_20[randi() % CombatData.MYTH_20.size()], Color(1.0, 0.1, 0.1))
 
 func _show_mythical_text(txt: String, col: Color) -> void:
 	_trigger_screen_blink()
-	
 	if get_node_or_null("/root/AudioManager"):
-		# Restaurar distorsión abisal (Glith) en lugar de beeps
 		AudioManager.play("Glith_distorsion_noised_sound")
-	
+
 	var vp = get_viewport_rect().size
-	var myth_lbl = Label.new()
-	myth_lbl.text = txt
-	myth_lbl.add_theme_font_size_override("font_size", 48)
-	myth_lbl.modulate = col
-	myth_lbl.modulate.a = 0.0
-	myth_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	myth_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	myth_lbl.size = Vector2(vp.x, 200)
-	myth_lbl.position = Vector2(0, vp.y / 2 - 100)
-	myth_lbl.z_index = 150
-	add_child(myth_lbl)
-	
-	var tw = create_tween()
-	tw.tween_property(myth_lbl, "modulate:a", 1.0, 0.4)
-	tw.tween_interval(1.8)
-	tw.tween_property(myth_lbl, "modulate:a", 0.0, 0.6)
-	tw.tween_callback(myth_lbl.queue_free)
-	
-	# Efecto de sacudida (shake)
-	var stw = create_tween().set_loops(15)
-	stw.tween_property(myth_lbl, "position", myth_lbl.position + Vector2(randf_range(-10, 10), randf_range(-5, 5)), 0.05)
-	stw.tween_property(myth_lbl, "position", Vector2(0, vp.y / 2 - 100), 0.05)
+	# Aberracion cromatica: 3 copias con offset R/G/B
+	var offsets = [Vector2(-3, 0), Vector2(3, 0), Vector2(0, 0)]
+	var chroma_colors = [Color(1, 0, 0, 0.55), Color(0, 0.8, 1, 0.55), col]
+	var main_lbl: Label = null
+
+	for ci in range(3):
+		var lbl = Label.new()
+		lbl.text = txt
+		lbl.add_theme_font_size_override("font_size", 48)
+		lbl.modulate = chroma_colors[ci]; lbl.modulate.a = 0.0
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.size = Vector2(vp.x, 200)
+		lbl.position = Vector2(offsets[ci].x, vp.y / 2 - 100)
+		lbl.z_index = 150
+		add_child(lbl)
+		var tw = create_tween()
+		tw.tween_property(lbl, "modulate:a", 1.0, 0.4)
+		tw.tween_interval(1.8)
+		tw.tween_property(lbl, "modulate:a", 0.0, 0.6)
+		tw.tween_callback(lbl.queue_free)
+		if ci == 2: main_lbl = lbl
+
+	# Shake solo en el label principal
+	if main_lbl:
+		var stw = create_tween().set_loops(15)
+		stw.tween_property(main_lbl, "position", main_lbl.position + Vector2(randf_range(-10, 10), 0), 0.05)
+		stw.tween_property(main_lbl, "position", Vector2(0, vp.y / 2 - 100), 0.05)
 
 func _start_eye_blink_loop() -> void:
 	while true:
@@ -826,40 +955,102 @@ func _start_eye_blink_loop() -> void:
 		if not is_instance_valid(eye_node): break
 		var top = eye_node.get_node("LidTop")
 		var bot = eye_node.get_node("LidBot")
+		# Cierre rapido con BACK easing (golpe organico)
 		var tw = create_tween().set_parallel(true)
-		tw.tween_property(top, "position:y", -80, 0.12) # cerrar mas abajo
-		tw.tween_property(bot, "position:y", -10, 0.12) # cerrar mas arriba
+		tw.tween_property(top, "position:y", -80, 0.10).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+		tw.tween_property(bot, "position:y", -10, 0.10).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 		await tw.finished
-		await get_tree().create_timer(0.08).timeout
+		if get_node_or_null("/root/AudioManager") and randf() < 0.6:
+			AudioManager.play("eye_blink")   # Sonido orgánico al cerrar
+		await get_tree().create_timer(0.06).timeout
+		# Apertura suave con QUAD easing
 		var tw2 = create_tween().set_parallel(true)
-		tw2.tween_property(top, "position:y", -180, 0.18) # abrir mas arriba
-		tw2.tween_property(bot, "position:y", 90, 0.18) # abrir mas abajo
+		tw2.tween_property(top, "position:y", -180, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw2.tween_property(bot, "position:y", 90, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+func _start_4th_wall_stare() -> void:
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("eye_exhale")   # Suspiro profundo al fijar mirada
+	# Zoom lento hacia el jugador
+	var tw = eye_node.create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(eye_node, "scale", eye_node.scale * 1.35, 2.5)
+	# Latido rojo: pulso del ojo 3 veces
+	var pulse = create_tween().set_loops(3)
+	pulse.tween_property(eye_node, "modulate", Color(1.4, 0.3, 0.2, eye_node.modulate.a), 0.4)
+	pulse.tween_property(eye_node, "modulate", Color(1.0, 1.0, 1.0, eye_node.modulate.a), 0.6)
 
 var _is_ending: bool = false
 
 var is_sanity_loop_active: bool = false
+var _heartbeat_loop_active: bool = false
+var _whisper_loop_active: bool = false
+
+const HEARTBEAT_SOUND = "ES_Human, Heartbeat, Cinematic, 58 BPM - Epidemic Sound"
+const WHISPER_SOUND    = "ES_Creatures, Ethereal, Ghosts, Whispers, Nightmare 02 - Epidemic Sound"
 
 func _sync_dynamic_audio() -> void:
 	if not get_node_or_null("/root/AudioManager"): return
-	
+
 	# 1. Lógica para Hastur (Prioridad máxima)
 	if GameManager.is_hastur_fight and not enemies.is_empty():
 		var h = enemies[0]
 		var hp_perc = float(h.hp) / float(h.max_hp)
 		var intensity = 1.0 - hp_perc
 		AudioManager.update_loop_params("Glith_distorsion_noised_sound", -5.0 + (intensity * 7.0), 1.0 + (intensity * 0.6))
-		return # En Hastur no aplicamos la lógica de cordura normal
+		return
 
-	# 2. Lógica de Cordura Normal (Estado Sólido)
-	if GameManager.sanity < 40:
+	# 2. Lógica de Cordura Normal — audio reactivo proporcional (umbral 60)
+	var s = GameManager.sanity
+	if s < 60:
 		if not is_sanity_loop_active:
 			is_sanity_loop_active = true
 			AudioManager.play_loop("Glith_distorsion_noised_sound")
-			AudioManager.update_loop_params("Glith_distorsion_noised_sound", -15.0, 0.9)
+		# Volumen e intensidad progresivos: silencioso a 60, maximo a 0
+		var vol_db = lerp(-28.0, -6.0, clamp((60.0 - s) / 60.0, 0.0, 1.0))
+		var pitch: float
+		if GameManager.selected_character == "prince":
+			pitch = lerp(0.82, 0.50, clamp((60.0 - s) / 60.0, 0.0, 1.0))  # Baja → profundo/resonante
+		else:
+			pitch = lerp(0.82, 1.08, clamp((60.0 - s) / 60.0, 0.0, 1.0))  # Sube → caótico/aterrador
+		AudioManager.update_loop_params("Glith_distorsion_noised_sound", vol_db, pitch)
 	else:
 		if is_sanity_loop_active:
 			is_sanity_loop_active = false
 			AudioManager.stop_loop("Glith_distorsion_noised_sound")
+
+	# Susurros tenebrosos: cordura < 40
+	if s < 40:
+		if not _whisper_loop_active:
+			_whisper_loop_active = true
+			AudioManager.play_loop(WHISPER_SOUND)
+			AudioManager.update_loop_params(WHISPER_SOUND, -22.0, 1.0)
+		# Volumen sube progresivamente: -22dB a -10dB
+		var wh_vol = lerp(-22.0, -10.0, clamp((40.0 - s) / 40.0, 0.0, 1.0))
+		AudioManager.update_loop_params(WHISPER_SOUND, wh_vol, 1.0)
+	else:
+		if _whisper_loop_active:
+			_whisper_loop_active = false
+			AudioManager.stop_loop(WHISPER_SOUND)
+
+	# Heartbeat ambiental en cordura extrema — pitch acelera con la locura
+	if s < 25:
+		if not _heartbeat_loop_active:
+			_heartbeat_loop_active = true
+			AudioManager.play_loop(HEARTBEAT_SOUND)
+			AudioManager.update_loop_params(HEARTBEAT_SOUND, -18.0, 1.0)
+		# Volumen: -18dB → -8dB | Pitch: 1.0 (58BPM) → 1.5 (87BPM) según locura
+		var t = clamp((25.0 - s) / 25.0, 0.0, 1.0)
+		var hb_vol = lerp(-18.0, -8.0, t)
+		var hb_pitch: float
+		if GameManager.selected_character == "prince":
+			hb_pitch = 1.0   # Constante — calma del que ha aceptado el vacío
+		else:
+			hb_pitch = lerp(1.0, 1.5, t)  # Acelerante — pánico creciente
+		AudioManager.update_loop_params(HEARTBEAT_SOUND, hb_vol, hb_pitch)
+	else:
+		if _heartbeat_loop_active:
+			_heartbeat_loop_active = false
+			AudioManager.stop_loop(HEARTBEAT_SOUND)
 var _is_showing_death_dialogue: bool = false
 
 # ── Fin de combate ─────────────────────────────────────────────────────────────
@@ -886,6 +1077,10 @@ func check_combat_end() -> void:
 		AudioManager.stop_loop("king_intro_sound")
 		AudioManager.stop_loop("intro_title_song")
 		AudioManager.stop_loop("ES_The End Of All Things - Niklas Johansson")
+		AudioManager.stop_loop(HEARTBEAT_SOUND)
+		AudioManager.stop_loop(WHISPER_SOUND)
+	_heartbeat_loop_active = false
+	_whisper_loop_active   = false
 	
 	# Recuperación de Cordura al Ganar (Reducida por balance)
 	GameManager.sanity = min(100, GameManager.sanity + 5)
@@ -1400,7 +1595,11 @@ func _check_player_death() -> void:
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.stop_loop("Glith_distorsion_noised_sound")
 		AudioManager.stop_loop("Cry_whisper_woman_sound")
+		AudioManager.stop_loop(HEARTBEAT_SOUND)
+		AudioManager.stop_loop(WHISPER_SOUND)
 		AudioManager.play("defeat")
+	_heartbeat_loop_active = false
+	_whisper_loop_active   = false
 		
 	await get_tree().create_timer(2.5).timeout
 	GameManager.go_to_scene("res://scenes/ui/GameOver.tscn")

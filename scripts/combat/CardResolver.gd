@@ -31,17 +31,33 @@ func resolve(card, enemy_idx: int) -> void:
 		card_handled = true
 		for e_aoe in main.enemies:
 			if e_aoe.hp > 0:
-				e_aoe.hp -= 30
-				main._spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 30, Color(1, 0, 0))
+				e_aoe.hp -= 35
+				main._spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 35, Color(1, 0, 0))
 				if e_aoe.hp <= 0: await main._kill_enemy(e_aoe)
 
 	elif "SIGNO AMARILLO" in c_upper:
 		card_handled = true
-		GameManager.sanity = min(100, GameManager.sanity + 50)
+		GameManager.sanity = max(0, GameManager.sanity - 40)
 		GameManager.mark_level += 1
-		GameManager.player_max_energy += 1
-		main.player_max_energy = GameManager.player_max_energy
-		main.player_energy += 1
+		main.player_energy = min(main.player_max_energy, main.player_energy + 2)
+		main.flash_small("¡El Signo consume tu mente! Marca Nv." + str(GameManager.mark_level))
+
+	elif "TRONO DE CARCOSA" in c_upper:
+		card_handled = true
+		if target_e:
+			var dmg = 10
+			var absorbed = min(target_e.shield, dmg)
+			if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(target_e)
+			if dmg > 0:
+				target_e.hp -= dmg
+				main._spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
+				main._animate_enemy_hit(target_e)
+				if target_e.hp <= 0: await main._kill_enemy(target_e)
+		main.player_shield += 10
+		main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 10, Color(0.4, 0.7, 1))
+		main.trono_carcosa_active = true
+		main.flash_small("¡El Trono reclama su dominio!")
+		main.update_ui()
 
 	elif "INCISION PRECISA" in c_upper:
 		card_handled = true
@@ -109,7 +125,7 @@ func resolve(card, enemy_idx: int) -> void:
 		card_handled = true
 		main.player_shield += card.defense
 
-	elif "ECO" in c_upper:
+	elif "ECO DEL VAC" in c_upper:
 		card_handled = true
 		main.flash_small("¡ECO DEL VACÍO!")
 		for e_aoe in main.enemies:
@@ -118,6 +134,51 @@ func resolve(card, enemy_idx: int) -> void:
 				main._spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 4, Color(0.7, 0.7, 1.0))
 				main._animate_enemy_hit(e_aoe)
 				if e_aoe.hp <= 0: await main._kill_enemy(e_aoe)
+		main.update_ui()
+
+	elif "POSICION VENTAJOSA" in c_upper:
+		card_handled = true
+		var choice = await _show_choice_dialog(["⚔ 4 ATK", "🛡 4 DEF"])
+		if choice == 0:
+			# ATK: aplicar al primer enemigo vivo
+			var atk_target = null
+			for e_find in main.enemies:
+				if e_find.hp > 0: atk_target = e_find; break
+			if atk_target:
+				var dmg = 4
+				var absorbed = min(atk_target.shield, dmg)
+				if absorbed > 0: atk_target.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(atk_target)
+				if dmg > 0:
+					atk_target.hp -= dmg
+					main._spawn_damage_number(atk_target.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
+					main._animate_enemy_hit(atk_target)
+					if atk_target.hp <= 0: await main._kill_enemy(atk_target)
+			else:
+				main.flash_small("No hay enemigos.")
+		else:
+			main.player_shield += 4
+			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 4, Color(0.4, 0.7, 1))
+		main.update_ui()
+
+	elif "CONTRAOFENSIVA" in c_upper:
+		card_handled = true
+		if main.enemy_attacked_last_turn:
+			if target_e:
+				var dmg = 8
+				var absorbed = min(target_e.shield, dmg)
+				if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(target_e)
+				if dmg > 0:
+					target_e.hp -= dmg
+					main._spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
+					main._animate_enemy_hit(target_e)
+					if target_e.hp <= 0: await main._kill_enemy(target_e)
+			else:
+				main.flash_small("Selecciona un objetivo")
+				main.player_energy += effective_cost
+				card.set_disabled(false)
+				return
+		else:
+			main.flash_small("Contraofensiva: el enemigo no atacó el turno anterior.")
 		main.update_ui()
 
 	elif "SUSURRO DEBILITANTE" in c_upper:
@@ -149,11 +210,31 @@ func resolve(card, enemy_idx: int) -> void:
 				to_discard.queue_free()
 		main.update_intent_labels()
 
+	elif "FORTALEZA INTERIOR" in c_upper:
+		card_handled = true
+		var shield_amount = int(main.player_max_hp * 0.15)
+		main.player_shield += shield_amount
+		main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), shield_amount, Color(0.4, 0.7, 1))
+		main.flash_small("Fortaleza Interior: +" + str(shield_amount) + " Escudo")
+		main.update_ui()
+
 	# ── LÓGICA DE ATAQUE Y DEFENSA GENÉRICA ──
 	if not card_handled:
+		var shield_amount = card.defense
 		if target_e:
 			if target_e.peaceful and card.attack > 0: target_e.peaceful = false; main.enemy_turn.set_enemy_aggressive(target_e)
 			var dmg = card.attack
+			if card.card_data.get("scaling_sanity", false):
+				var san = GameManager.sanity
+				if san < 35:
+					dmg *= 2
+					shield_amount *= 2
+					main.flash_small("¡RESONANCIA ABISAL!")
+					main._trigger_screen_blink()
+				elif san < 60:
+					dmg = int(dmg * 1.5)
+					shield_amount = int(shield_amount * 1.5)
+					main.flash_small("Eco del Abismo...")
 			if "AVATAR" in target_e.name.to_upper(): dmg = int(dmg * (1.0 + (100 - GameManager.sanity) * 0.015))
 			if "JAQUE ETERNO" in c_upper: dmg = clamp(15 + int((main.player_max_hp - main.player_hp) * 0.4), 15, 40)
 			if GameManager.velo_broken: dmg += 2
@@ -177,13 +258,43 @@ func resolve(card, enemy_idx: int) -> void:
 				main._animate_enemy_hit(target_e)
 				if target_e.hp <= 0: await main._kill_enemy(target_e)
 
-		if card.defense > 0:
-			main.player_shield += card.defense
-			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1))
+		if shield_amount > 0:
+			main.player_shield += shield_amount
+			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), shield_amount, Color(0.4, 0.7, 1))
+
+	# ── EFECTOS GENÉRICOS (draw, sanity, energía) ──
+	# Se aplican solo si la carta no fue manejada por un caso especial,
+	# para no duplicar efectos de cartas como Analisis Profundo o Signo Amarillo.
+	if not card_handled:
+		var cd = card.card_data
+		if cd.get("gain_energy", 0) > 0:
+			main.player_energy = min(main.player_max_energy, main.player_energy + cd["gain_energy"])
+			main.flash_small("+" + str(cd["gain_energy"]) + " Energía")
+		if cd.get("sanity_gain", 0) > 0:
+			GameManager.sanity = min(GameManager.max_sanity, GameManager.sanity + cd["sanity_gain"])
+			main.flash_small("+" + str(cd["sanity_gain"]) + " Sanidad")
+		if cd.get("draw", 0) > 0:
+			await main.draw_hand(cd["draw"])
+		if cd.get("enemy_atk_debuff", 0) > 0:
+			var reduction = cd["enemy_atk_debuff"]
+			for e_deb in main.enemies:
+				if e_deb.hp > 0:
+					e_deb["atk_reduction"] = e_deb.get("atk_reduction", 0) + reduction
+			main.flash_small("¡Grito de Guerra! Todos -" + str(reduction) + " ATK")
+			main.update_intent_labels()
 
 	# ── COSTES Y LIMPIEZA ──
-	if "OFRENDA DE CARNE" in c_upper: main.player_hp -= 4
-	elif "PESO DE LA VERDAD" in c_upper: main.player_hp -= 6
+	var cd_costs = card.card_data
+	if "OFRENDA DE CARNE" in c_upper:
+		main.player_hp -= 4
+	elif "PESO DE LA VERDAD" in c_upper:
+		main.player_hp -= 6
+	elif cd_costs.get("hp_cost", 0) > 0:
+		main.player_hp -= cd_costs["hp_cost"]
+		main.flash_small("-" + str(cd_costs["hp_cost"]) + " HP")
+	if cd_costs.get("sanity_cost", 0) > 0:
+		GameManager.sanity = max(0, GameManager.sanity - cd_costs["sanity_cost"])
+		main.flash_small("-" + str(cd_costs["sanity_cost"]) + " Sanidad")
 	if main.player_hp <= 0: main._check_player_death(); return
 
 	var target_pos = Vector2.ZERO
@@ -191,7 +302,7 @@ func resolve(card, enemy_idx: int) -> void:
 	await card.play_attack_animation(target_pos)
 
 	if not card.exhaust:
-		main.discard_pile.append({"name": card.card_name, "attack": card.attack, "defense": card.defense, "cost": card.cost})
+		main.discard_pile.append(card.card_data.duplicate())
 	else:
 		main.flash_small(card.card_name + " se agota.")
 
@@ -203,6 +314,57 @@ func resolve(card, enemy_idx: int) -> void:
 		main.player_energy = min(main.player_energy + 1, main.player_max_energy); main._flash_relic("reloj_negro")
 
 	main.update_ui(); main.update_intent_labels(); main.check_combat_end()
+
+
+signal _choice_made(idx: int)
+
+func _show_choice_dialog(options: Array) -> int:
+	var vp = main.get_viewport_rect().size
+
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.5)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 300
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	main.add_child(overlay)
+
+	var panel = Panel.new()
+	panel.size = Vector2(360, 110)
+	panel.position = (vp - panel.size) / 2
+	var ps = StyleBoxFlat.new()
+	ps.bg_color = Color(0.06, 0.05, 0.08)
+	ps.set_border_width_all(2)
+	ps.border_color = Color(0.5, 0.45, 0.15)
+	ps.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", ps)
+	overlay.add_child(panel)
+
+	var lbl = Label.new()
+	lbl.text = "¿Qué efecto aplicas?"
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.position = Vector2(0, 12); lbl.size = Vector2(360, 28)
+	lbl.modulate = Color(0.85, 0.75, 0.2)
+	panel.add_child(lbl)
+
+	var hbox = HBoxContainer.new()
+	hbox.position = Vector2(20, 50); hbox.size = Vector2(320, 50)
+	hbox.add_theme_constant_override("separation", 20)
+	panel.add_child(hbox)
+
+	for i in range(options.size()):
+		var btn = Button.new()
+		btn.text = options[i]
+		btn.custom_minimum_size = Vector2(140, 46)
+		btn.add_theme_font_size_override("font_size", 16)
+		hbox.add_child(btn)
+		var idx = i
+		btn.pressed.connect(func():
+			overlay.queue_free()
+			_choice_made.emit(idx)
+		)
+
+	var result = await _choice_made
+	return result
 
 
 func get_deciphered_thought(original: String) -> String:

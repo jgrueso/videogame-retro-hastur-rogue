@@ -331,6 +331,7 @@ func _build_dynamic_background(vp: Vector2) -> void:
 	var eye_h = 160.0
 
 	var eye_bg = Panel.new() # Esclerotica (Almendra simetrica)
+	eye_bg.name = "EyeBg"
 	eye_bg.size = Vector2(eye_w, eye_h); eye_bg.position = -eye_bg.size/2
 	var es = StyleBoxFlat.new(); es.bg_color = Color(0.85, 0.8, 0.6)
 	es.set_corner_radius_all(160) # Simplificado para evitar constantes no definidas
@@ -348,6 +349,18 @@ func _build_dynamic_background(vp: Vector2) -> void:
 	pupil.size = Vector2(45, 110); pupil.position = -pupil.size/2
 	var ps = StyleBoxFlat.new(); ps.bg_color = Color(0,0,0); ps.set_corner_radius_all(22)
 	pupil.add_theme_stylebox_override("panel", ps); iris.add_child(pupil); pupil.name = "Pupil"
+
+	# VENAS (bloodshot) - se vuelven visibles con baja cordura
+	for vi in range(5):
+		var vein = ColorRect.new()
+		vein.name = "Vein%d" % vi
+		var angle = vi * (TAU / 5.0) + 0.3
+		vein.size = Vector2(randf_range(28, 48), 2)
+		vein.pivot_offset = Vector2(0, 1)
+		vein.rotation = angle
+		vein.position = Vector2(cos(angle) * 52, sin(angle) * 28) - Vector2(0, 1)
+		vein.color = Color(0.75, 0.05, 0.05, 0.0)  # Invisible al inicio
+		eye_node.add_child(vein)
 
 	var lid_top = ColorRect.new() # Parpado superior mas grueso
 	lid_top.size = Vector2(eye_w + 40, eye_h); lid_top.position = Vector2(-eye_w/2 - 20, -eye_h - 20); lid_top.color = Color.BLACK
@@ -415,12 +428,23 @@ func update_ui() -> void:
 
 	var sanity_label = GameManager.get_sanity_label()
 	lbl_sanity.text = "%s: %d / %d" % [sanity_label, GameManager.sanity, GameManager.max_sanity]
-	if GameManager.sanity < 40:
-		lbl_sanity.modulate = Color(0.8, 0.4, 1.0) # Morado brillante para Locura
+	var pulse_threshold: int
+	if GameManager.selected_character == "prince":
+		if GameManager.sanity < 35:
+			lbl_sanity.modulate = Color(0.9, 0.5, 1.0)    # Violeta eléctrico — RESONANCIA
+		elif GameManager.sanity < 60:
+			lbl_sanity.modulate = Color(0.7, 0.4, 1.0)    # Violeta — Sombra
+		else:
+			lbl_sanity.modulate = Color(0.6, 0.5, 0.8)    # Muted
+		pulse_threshold = 60
 	else:
-		lbl_sanity.modulate = Color(0.6, 0.5, 0.8)
+		if GameManager.sanity < 40:
+			lbl_sanity.modulate = Color(0.8, 0.4, 1.0)
+		else:
+			lbl_sanity.modulate = Color(0.6, 0.5, 0.8)
+		pulse_threshold = 30
 
-	if GameManager.sanity < 30:
+	if GameManager.sanity < pulse_threshold:
 		_start_sanity_pulse()
 	else:
 		_stop_sanity_pulse()
@@ -667,12 +691,14 @@ func _start_sanity_pulse() -> void:
 	if _sanity_pulse_tween != null and _sanity_pulse_tween.is_running(): return
 	if _sanity_pulse_tween != null: _sanity_pulse_tween.kill()
 	_sanity_pulse_tween = main.create_tween().set_loops()
-	_sanity_pulse_tween.tween_method(
-		func(c: Color): _sanity_fill_style.bg_color = c,
-		Color(0.38, 0.1, 0.68), Color(0.65, 0.05, 0.45), 0.7)
-	_sanity_pulse_tween.tween_method(
-		func(c: Color): _sanity_fill_style.bg_color = c,
-		Color(0.65, 0.05, 0.45), Color(0.38, 0.1, 0.68), 0.7)
+	var col_a = Color(0.38, 0.1, 0.68)
+	var col_b: Color
+	if GameManager.selected_character == "prince":
+		col_b = Color(0.75, 0.2, 1.0)  # Violeta eléctrico — poder emergente
+	else:
+		col_b = Color(0.65, 0.05, 0.45)  # Reddish — peligro
+	_sanity_pulse_tween.tween_method(func(c: Color): _sanity_fill_style.bg_color = c, col_a, col_b, 0.7)
+	_sanity_pulse_tween.tween_method(func(c: Color): _sanity_fill_style.bg_color = c, col_b, col_a, 0.7)
 
 func _stop_sanity_pulse() -> void:
 	if _sanity_pulse_tween != null:

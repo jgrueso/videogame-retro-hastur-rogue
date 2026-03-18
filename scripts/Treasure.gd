@@ -343,17 +343,20 @@ func _show_reward_modal() -> void:
 			var card_node = card_scene.instantiate()
 			vbox.add_child(card_node)
 			card_node.setup(c_data)
-			card_node.scale = Vector2(1.2, 1.2)
 			card_node.custom_minimum_size = Vector2(130, 195)
+			card_node.hover_scale_enabled = false
+			card_node.glow_enabled = true
 
 			var claim_btn = Button.new()
 			claim_btn.text = "RECLAMAR"
 			_style_btn_primary(claim_btn)
 			vbox.add_child(claim_btn)
 
-			# Entrada staggered
+			# Entrada staggered con flash dorado (vbox maneja el fade)
+			var entry_delay = 0.1 + 0.12 * ci
+			create_tween().tween_callback(card_node.flash_new_card).set_delay(entry_delay + 0.3)
 			var tw_c = create_tween()
-			tw_c.tween_interval(0.1 + 0.12 * ci)
+			tw_c.tween_interval(entry_delay)
 			tw_c.tween_property(vbox, "modulate:a", 1.0, 0.3)
 
 			var final_data = c_data
@@ -420,13 +423,16 @@ func _show_reward_modal() -> void:
 		var card = card_scene.instantiate()
 		item_area.add_child(card)
 		card.setup(reward_data["data"])
-		card.pivot_offset = Vector2(65, 95)
-		card.scale = Vector2(0.4, 0.4)
-		card.position = Vector2(520.0 / 2.0 - 65.0, 20.0)
-		# Pop de la carta
+		card.hover_scale_enabled = false
+		card.glow_enabled = true
+		card.pivot_offset = Vector2(65, 97)
+		card.position = Vector2(520.0 / 2.0 - 65.0, 30.0)
+		card.scale = Vector2(0.5, 0.5)
+		# Pop de la carta a tamaño natural (item_area ya maneja el fade)
 		var tw_card = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw_card.tween_interval(0.25)
-		tw_card.tween_property(card, "scale", Vector2(1.5, 1.5), 0.45)
+		tw_card.tween_interval(0.3)
+		tw_card.tween_property(card, "scale", Vector2(1.0, 1.0), 0.4)
+		create_tween().tween_callback(card.flash_new_card).set_delay(0.65)
 
 	elif reward_data["type"] == "prince_unlock":
 		lbl.text = "¡HAS LIBERADO AL PRÍNCIPE DE CARCOSA!"

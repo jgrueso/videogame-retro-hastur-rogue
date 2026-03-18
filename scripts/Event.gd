@@ -3,6 +3,16 @@ extends Node2D
 const DICE_REROLL_COST: int = 5
 const DICE_FACES: Array = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
 
+const UMBRAL_EVENT: Dictionary = {
+	"title": "El Umbral",
+	"text": "Está sentado contra la pared con la calma de alguien que ya no tiene miedo,\nporque ya no le queda nada que perder.\n\nSus ojos están al revés. Ves el interior de algo enorme a través de ellos.\n\n'Sabía que vendrías', dice. 'El Príncipe me envió a esperarte.\nSolo hay tres formas de llegar a donde él está.\nTú decides cuál puedes pagar.'",
+	"options": [
+		{"label": "Acepta su marca (sacrifica una reliquia)", "rift_relic_sacrifice": true},
+		{"label": "Arrebátale el camino (combate)", "miniboss": true, "rift_on_win": true},
+		{"label": "Déjalo descansar (sin Grieta esta run)", "rift_wanderer_rest": true},
+	]
+}
+
 var events: Array = [
 	{
 		"title": "El Altar Roto",
@@ -119,6 +129,20 @@ var _dice_rolling: bool = false
 var _dice_history: Array = []   # Array de {face, type}
 
 func _ready() -> void:
+	# Aparición de El Umbral
+	var can_show_rift = (
+		not GameManager.rift_visited
+		and not GameManager.rift_notified
+		and (GameManager.lore_progress >= 25 or GameManager.rift_wanderer_offered)
+		and (GameManager.relics.size() > 0 or GameManager.rift_wanderer_offered)
+	)
+	if can_show_rift:
+		GameManager.rift_notified = true
+		current_event = UMBRAL_EVENT
+		_assign_relics()
+		build_ui()
+		return
+
 	var pool = events.duplicate()
 	if GameManager.lore_progress >= 4 and not GameManager.has_relic("lengua_tablero"):
 		pool.append({
@@ -463,6 +487,25 @@ func _on_option_selected(idx: int) -> void:
 		_show_dice_game()
 		return
 
+	if opt.get("rift_relic_sacrifice", false):
+		if GameManager.relics.is_empty():
+			flash_small_event("No tienes nada que ofrecer al umbral.")
+			return
+		_show_relic_sacrifice_screen()
+		return
+
+	if opt.get("rift_wanderer_rest", false):
+		GameManager.lore_progress += 20
+		GameManager.rift_wanderer_offered = true
+		GameManager.rift_notified = false
+		# Añadir la carta más rara disponible del pool
+		var rare_cards = CardData.ALL_CARDS.filter(func(c): return c.get("rarity", "") == "legendary" or c.get("rarity", "") == "rare")
+		if not rare_cards.is_empty():
+			rare_cards.shuffle()
+			GameManager.add_card(rare_cards[0].duplicate())
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
+		return
+
 	if opt.get("hp", 0) != 0:
 		GameManager.player_hp = clamp(GameManager.player_hp + opt["hp"], 1, GameManager.player_max_hp)
 
@@ -479,6 +522,8 @@ func _on_option_selected(idx: int) -> void:
 	if opt.get("miniboss", false):
 		GameManager.is_miniboss_fight = true
 		GameManager.is_boss_fight = false
+		if opt.get("rift_on_win", false):
+			GameManager.rift_combat_pending = true
 		GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 		return
 
@@ -946,6 +991,97 @@ func _show_card_removal_screen() -> void:
 		tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
 		await tw_out.finished
 		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
+	)
+	panel.add_child(cancel_btn)
+
+func _show_relic_sacrifice_screen() -> void:
+	var vp = get_viewport_rect().size
+
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.0)
+	overlay.size = vp
+	overlay.z_index = 100
+	add_child(overlay)
+
+	var tw_bg = create_tween()
+	tw_bg.tween_property(overlay, "color:a", 0.92, 0.4)
+
+	var panel = Panel.new()
+	panel.size = Vector2(vp.x * 0.7, vp.y * 0.65)
+	panel.position = (vp - panel.size) / 2
+	panel.modulate.a = 0.0
+	panel.scale = Vector2(0.95, 0.95)
+	panel.pivot_offset = panel.size / 2
+
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.03, 0.08, 0.98)
+	style.set_corner_radius_all(10)
+	style.set_border_width_all(2)
+	style.border_color = Color(0.7, 0.5, 0.1, 0.8)
+	panel.add_theme_stylebox_override("panel", style)
+	overlay.add_child(panel)
+
+	var tw_panel = create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw_panel.tween_property(panel, "modulate:a", 1.0, 0.5)
+	tw_panel.tween_property(panel, "scale", Vector2(1.0, 1.0), 0.5)
+
+	var title = Label.new()
+	title.text = "ELIGE LA RELIQUIA QUE OFRECES"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 26)
+	title.modulate = Color(0.9, 0.75, 0.2)
+	title.position = Vector2(0, 28)
+	title.size = Vector2(panel.size.x, 46)
+	panel.add_child(title)
+
+	var subtitle = Label.new()
+	subtitle.text = "El viajero la tomará. A cambio, el camino al Umbral será tuyo."
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 14)
+	subtitle.modulate = Color(0.65, 0.6, 0.55)
+	subtitle.position = Vector2(0, 72)
+	subtitle.size = Vector2(panel.size.x, 28)
+	panel.add_child(subtitle)
+
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(40, 108)
+	scroll.size = Vector2(panel.size.x - 80, panel.size.y - 200)
+	panel.add_child(scroll)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	scroll.add_child(vbox)
+
+	for relic_id in GameManager.relics:
+		var r_data = GameManager.RELIC_DATA.get(relic_id, {})
+		if r_data.is_empty():
+			continue
+		var rid = relic_id
+
+		var btn = Button.new()
+		btn.text = "💍 " + r_data["name"] + "  —  " + r_data["desc"]
+		btn.autowrap_mode = TextServer.AUTOWRAP_WORD
+		btn.custom_minimum_size = Vector2(panel.size.x - 100, 54)
+		btn.add_theme_font_size_override("font_size", 14)
+		vbox.add_child(btn)
+
+		btn.pressed.connect(func():
+			GameManager.relics.erase(rid)
+			var tw_out = create_tween()
+			tw_out.tween_property(overlay, "modulate:a", 0.0, 0.3)
+			await tw_out.finished
+			GameManager.enter_void_path()
+		)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "RETROCEDER"
+	cancel_btn.size = Vector2(220, 46)
+	cancel_btn.position = Vector2(panel.size.x / 2 - 110, panel.size.y - 66)
+	cancel_btn.pressed.connect(func():
+		var tw_out = create_tween()
+		tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
+		await tw_out.finished
+		overlay.queue_free()
 	)
 	panel.add_child(cancel_btn)
 

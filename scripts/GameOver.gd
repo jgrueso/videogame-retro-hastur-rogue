@@ -110,6 +110,7 @@ func build_ui() -> void:
 		["Monedas acumuladas", str(GameManager.coins)],
 		["Cartas en el mazo", str(GameManager.player_deck.size())],
 		["Reliquias obtenidas", str(GameManager.relics.size())],
+		["Semilla", str(GameManager.run_seed)],
 	]
 
 	for i in range(stats.size()):

@@ -8,6 +8,8 @@ var player_deck: Array = [
 	{"name": "Cabalgante del Vacio", "attack": 4, "defense": 0, "cost": 2},
 ]
 
+var run_seed: int = 0
+
 var player_hp: int = 40
 var player_max_hp: int = 40
 var player_max_energy: int = 3
@@ -39,6 +41,9 @@ var mark_level: int = 0 # Nivel del Signo Amarillo (+25% daño y +1 Energía por
 var is_in_void_path: bool = false # Si estamos en la mini-mazmorra secreta
 var rift_visited: bool = false # Si ya entramos a una grieta en esta run
 var rift_notified: bool = false # Si ya ocurrió el evento de descubrimiento en el mapa
+var rift_map_destroyed: bool = false # DEPRECATED — mantenido por compatibilidad
+var rift_combat_pending: bool = false # Entrar a Grieta si ganamos el combate del Umbral
+var rift_wanderer_offered: bool = false # Opción C del Umbral fue elegida en una run anterior
 var void_path_step: int = 0 # 0-3 (Combate, Combate, Jefe Secreto, Tesoro)
 var came_from_room: bool = false # True al salir de una sala hacia el mapa; Map._ready() guarda entonces
 
@@ -127,7 +132,8 @@ func save_run() -> void:
 		"rift_visited": rift_visited,
 		"velo_broken": velo_broken,
 		"secret_items": secret_items,
-		"lore_progress": lore_progress
+		"lore_progress": lore_progress,
+		"run_seed": run_seed
 	}
 	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.WRITE)
 	if file:
@@ -172,6 +178,7 @@ func load_run() -> bool:
 			velo_broken = data.get("velo_broken", false)
 			secret_items = data.get("secret_items", [])
 			lore_progress = data.get("lore_progress", lore_progress)
+			run_seed = data.get("run_seed", 0)
 			file.close()
 			return true
 	return false
@@ -365,6 +372,10 @@ func has_secret_item(item_id: String) -> bool:
 	return item_id in secret_items
 
 func get_sanity_label() -> String:
+	if selected_character == "prince":
+		if sanity < 35: return "RESONANCIA"
+		if sanity < 60: return "ECO"
+		return "CORDURA"
 	return "LOCURA" if sanity < 40 else "CORDURA"
 
 func add_secret_item(item_id: String) -> void:
@@ -538,7 +549,9 @@ func show_deck_overlay(parent_node: Node) -> void:
 		
 		card_container.add_child(card)
 		card.setup(player_deck[i])
-		card.scale = Vector2(0.85, 0.85)
+		card.set_display_scale(Vector2(0.85, 0.85))
+		card.hover_scale_enabled = false
+		card.glow_enabled = true
 		card.modulate.a = 0.0
 		parent_node.create_tween().tween_property(card, "modulate:a", 1.0, 0.2).set_delay(0.1 + i * 0.03)
 	
@@ -613,6 +626,8 @@ func show_codex_overlay(parent_node: Node) -> void:
 	close_btn.pressed.connect(overlay.queue_free)
 
 func reset_run() -> void:
+	run_seed = randi()
+	seed(run_seed)
 	sanity = 100
 	max_sanity = 100
 	sanity_notified = false
@@ -648,3 +663,5 @@ func reset_run() -> void:
 	mark_level = 0
 	player_max_energy = 3
 	rift_visited = false
+	rift_combat_pending = false
+	# rift_wanderer_offered persiste entre runs (no se resetea aquí)

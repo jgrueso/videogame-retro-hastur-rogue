@@ -78,6 +78,12 @@ func _ready() -> void:
 			GameManager.save_path_node(GameManager.current_map_floor - 1, GameManager.current_map_col)
 		GameManager.save_run()
 		GameManager.came_from_room = false
+		# Si ganamos el combate del Umbral, entrar a la Grieta ahora
+		if GameManager.rift_combat_pending and GameManager.player_hp > 0:
+			GameManager.rift_combat_pending = false
+			GameManager.enter_void_path()
+			return
+		GameManager.rift_combat_pending = false
 	modulate.a = 0.0
 	build_ui()
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.4)
@@ -145,16 +151,7 @@ func _generate_map() -> Array:
 		for c in range(num_cols):
 			var t = _pick_room_type(f, num_floors, prev_type)
 			prev_type = t
-			var node_data = {"type": t, "connections": [], "has_rift": false}
-			
-			# Probabilidad de generar una GRIETA (Camino secreto lateral)
-			var has_relics = GameManager.relics.size() > 0
-			# La grieta aparece 2 pisos por delante de donde se descubre
-			var is_target_floor = (f == GameManager.current_map_floor + 2)
-			if not GameManager.rift_visited and is_target_floor and c == num_cols - 1:
-				if randf() < 0.25 and GameManager.lore_progress >= 25 and has_relics:
-					node_data["has_rift"] = true
-					
+			var node_data = {"type": t, "connections": []}
 			floor_nodes.append(node_data)
 
 		graph.append(floor_nodes)
@@ -679,95 +676,7 @@ func draw_map() -> void:
 	scroll.set_v_scroll(clamp(scroll_target, 0, total_h))
 	
 	_start_void_mist(ui_layer, vp) # Capa de niebla sobre el mapa
-	
-	# EVENTO: Descubrimiento de Grieta
-	_check_rift_discovery_event(vp)
 
-func _check_rift_discovery_event(vp: Vector2) -> void:
-	if GameManager.rift_notified or GameManager.rift_visited: return
-	
-	# Verificar condiciones (Misma lógica que el generador)
-	var has_relics = GameManager.relics.size() > 0
-	if GameManager.lore_progress >= 25 and has_relics:
-		GameManager.rift_notified = true
-		
-		# 1. Esperar un momento tras cargar
-		await get_tree().create_timer(0.8).timeout
-		
-		# 2. Sonido de derrumbe profundo (usando defeat ralentizado)
-		if get_node_or_null("/root/AudioManager"):
-			AudioManager.play("defeat")
-			# Bajamos el tono para que suene a terremoto/escombros
-			# Nota: el AudioManager usará el pitch_scale si lo permitimos
-		
-		# 3. Temblor de pantalla VIOLENTO
-		var tw = create_tween().set_parallel(false)
-		for i in range(20):
-			var intensity = 15 - i * 0.5 # Empieza fuerte, baja poco a poco
-			var off = Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity))
-			tw.tween_property(self, "position", off, 0.04)
-		tw.tween_property(self, "position", Vector2.ZERO, 0.1)
-		
-		# 4. Pensamiento del personaje (Personalizado)
-		await get_tree().create_timer(0.5).timeout
-		var char_id = GameManager.selected_character
-		var char_col = Color(0.8, 0.8, 0.8)
-		var msg = ""
-
-		match char_id:
-			"conquistador":
-				char_col = Color(0.9, 0.4, 0.4)
-				msg = "[CONQUISTADOR]: Un estruendo... el tablero se quiebra ante mi paso. ¿Acaso el Vacío intenta desafiarme?"
-			"estratega":
-				char_col = Color(0.4, 0.6, 1.0)
-				msg = "[ESTRATEGA]: Interesante... la estática ha fracturado la geometría del mapa. Se ha abierto una anomalía."
-			"guardian":
-				char_col = Color(0.4, 0.9, 0.4)
-				msg = "[GUARDIÁN]: He escuchado un derrumbe. El tablero ya no es seguro... algo antiguo está emergiendo."
-			"prince":
-				char_col = Color(0.7, 0.4, 1.0)
-				msg = "[PRÍNCIPE]: Esa vibración... conozco este pulso. Es el aliento de Carcosa filtrándose por una grieta."
-			_:
-				msg = "[HÉROE]: He escuchado un estruendo... juraría que el tablero se ha fracturado en alguna parte."
-
-		_show_map_thought(msg, char_col, vp)
-
-
-func _show_map_thought(text: String, col: Color, vp: Vector2) -> void:
-	# Contenedor con fondo
-	var panel = Panel.new()
-	panel.size = Vector2(600, 80)
-	panel.position = Vector2(vp.x/2 - 300, vp.y - 140)
-	var s = StyleBoxFlat.new()
-	s.bg_color = Color(0.02, 0.02, 0.04, 0.85) # Fondo oscuro
-	s.set_border_width_all(2); s.border_color = col; s.border_color.a = 0.5
-	s.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel", s)
-	panel.modulate.a = 0
-	ui_layer.add_child(panel)
-
-	var lbl = Label.new()
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 16)
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	lbl.size = panel.size - Vector2(40, 20)
-	lbl.position = Vector2(20, 10)
-	lbl.modulate = col
-	panel.add_child(lbl)
-	
-	var tw = create_tween().set_parallel(true)
-	tw.tween_property(panel, "modulate:a", 1.0, 0.5)
-	tw.tween_property(panel, "position:y", panel.position.y - 20, 0.5)
-	
-	await get_tree().create_timer(4.5).timeout
-	
-	var tw2 = create_tween().set_parallel(true)
-	tw2.tween_property(panel, "modulate:a", 0.0, 1.0)
-	tw2.tween_property(panel, "position:y", panel.position.y - 20, 1.0)
-	await tw2.finished
-	panel.queue_free()
 
 func _show_rift_confirmation() -> void:
 	var vp = get_viewport_rect().size

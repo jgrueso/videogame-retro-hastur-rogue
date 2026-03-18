@@ -81,16 +81,7 @@ func build_ui() -> void:
 	panel.add_child(skip_btn)
 
 func show_draft() -> void:
-	# FILTRAR: Usar CardData central y excluir legendarias
-	var pool = CardData.ALL_CARDS.filter(func(c): 
-		return not c.get("legendary", false)
-	)
-	
-	# Opcional: Priorizar cartas del personaje actual
-	var char_id = GameManager.selected_character
-	pool.shuffle()
-	
-	var choices = pool.slice(0, 3)
+	var choices = CardData.get_draft_cards(3, GameManager.selected_character)
 
 	var epic_names = ["Jaque Eterno", "Rompetablero", "Gran Maestro", "Sacrificio del Rey"]
 	for i in range(3):
@@ -98,7 +89,13 @@ func show_draft() -> void:
 		var card = card_scene.instantiate()
 		cards_container.add_child(card)
 		card.setup(choices[i])
-		card.requires_target = false  # No hay enemigos que apuntar en el draft
+		card.requires_target = false
+		card.hover_scale_enabled = false
+		card.glow_enabled = true
+		var delay = i * 0.15
+		card.modulate.a = 0.0
+		create_tween().tween_property(card, "modulate:a", 1.0, 0.25).set_delay(delay)
+		create_tween().tween_callback(card.flash_new_card).set_delay(delay + 0.25)
 		if choices[i]["name"] in epic_names:
 			var s = StyleBoxFlat.new()
 			s.bg_color = Color(0.15, 0.1, 0.05)

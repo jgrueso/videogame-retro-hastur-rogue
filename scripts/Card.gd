@@ -5,7 +5,9 @@ var attack: int = 0
 var defense: int = 0
 var cost: int = 1
 var description: String = ""
+var flavor: String = ""
 var exhaust: bool = false
+var card_data: Dictionary = {}
 var is_disabled: bool = false
 var is_upgraded: bool = false
 var cost_modifier: int = 0
@@ -20,6 +22,8 @@ var base_y: float = 0.0
 var is_hovered: bool = false
 var requires_target: bool = true
 var base_scale: Vector2 = Vector2(1.0, 1.0)
+var hover_scale_enabled: bool = true
+var glow_enabled: bool = false
 
 const DESCRIPTIONS = {
 	"Siervo Quebrado":    "Carne de cañón. Hace daño básico mientras espera su final.",
@@ -134,6 +138,7 @@ func _ready() -> void:
 	if card_name != "": update_display()
 
 func setup(data: Dictionary) -> void:
+	card_data = data
 	var raw_name = data.get("name", "")
 	card_name = raw_name.to_upper()
 	attack = data.get("attack", 0)
@@ -153,11 +158,13 @@ func setup(data: Dictionary) -> void:
 			if key.to_lower() == real_name.to_lower():
 				description = DESCRIPTIONS[key]
 				break
+
+	flavor = data.get("flavor", "")
 	
 	if GameManager.selected_character == "estratega" and "INQUISIDOR" in card_name:
 		description += "\n\n[LÓGICA: Coste -1]"
 	
-	requires_target = (attack > 0 or "JAQUE ETERNO" in card_name or "INCISION PRECISA" in card_name or "MIRADA QUE DEVORA" in card_name) and not ("ECO" in card_name)
+	requires_target = (attack > 0 or "JAQUE ETERNO" in card_name or "INCISION PRECISA" in card_name or "MIRADA QUE DEVORA" in card_name) and not ("ECO DEL VAC" in card_name or "POSICION VENTAJOSA" in card_name)
 	update_display()
 
 func update_display(force_upgrade_style: bool = false) -> void:
@@ -188,7 +195,7 @@ func update_display(force_upgrade_style: bool = false) -> void:
 	
 	if active_upgraded:
 		label_name.modulate = Color(0.2, 1.0, 0.2)
-		if "SUSURRO" in card_name:
+		if "SUSURRO DEBILITANTE" in card_name:
 			label_attack.text = "✖ DEB: " + str(6 + attack)
 			label_attack.modulate = Color(0.3, 0.9, 0.3)
 		elif "JAQUE ETERNO" in card_name:
@@ -209,7 +216,7 @@ func update_display(force_upgrade_style: bool = false) -> void:
 				label_defense.modulate = Color(0.3, 0.9, 0.3)
 	else:
 		label_name.modulate = Color(0.9, 0.85, 0.6)
-		if "SUSURRO" in card_name:
+		if "SUSURRO DEBILITANTE" in card_name:
 			label_attack.text = "✖ DEB: 6"
 			label_attack.modulate = Color(0.6, 0.4, 0.7)
 		elif "JAQUE ETERNO" in card_name:
@@ -227,7 +234,15 @@ func update_display(force_upgrade_style: bool = false) -> void:
 			label_defense.text = "🛡 DEF: " + str(defense) if defense > 0 else ""
 			label_defense.modulate = Color(0.4, 0.6, 0.8)
 
-	tooltip_panel.get_node("TooltipLabel").text = description
+	var has_real_desc = description != "" and description != "Sin descripcion."
+	var tooltip_text = description if has_real_desc else ""
+	if flavor != "":
+		if has_real_desc:
+			tooltip_text += "\n\n"
+		tooltip_text += "[color=#8a7a5a][font_size=10][i]" + flavor + "[/i][/font_size][/color]"
+	elif not has_real_desc:
+		tooltip_text = "Sin descripcion."
+	tooltip_panel.get_node("TooltipLabel").text = tooltip_text
 	print("DEBUG: Card tooltip updated: ", card_name, " -> ", description)
 	if "MARCADO" in description:
 		tooltip_panel.get_node("TooltipLabel").modulate = Color(1.0, 0.9, 0.2) # Amarillo para el estado
@@ -309,14 +324,18 @@ func _apply_style(color: Color) -> void:
 
 func _animate_hover(entering: bool) -> void:
 	is_hovered = entering
-	var tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	if entering:
-		# Zoom más sutil: 1.05 en lugar de 1.1
-		tween.tween_property(self, "scale", base_scale * 1.05, 0.1)
-		z_index = 50 # Asegurar que esté encima de otras mientras haces hover
+	if hover_scale_enabled:
+		var tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		if entering:
+			tween.tween_property(self, "scale", base_scale * 1.05, 0.1)
+			z_index = 50
+		else:
+			tween.tween_property(self, "scale", base_scale, 0.1)
+			z_index = 5
 	else:
-		tween.tween_property(self, "scale", base_scale, 0.1)
-		z_index = 5
+		z_index = 50 if entering else 5
+		if glow_enabled:
+			_animate_glow(entering)
 
 func _on_mouse_entered() -> void:
 	if not is_disabled:
@@ -339,6 +358,22 @@ func _on_gui_input(event: InputEvent) -> void:
 			if requires_target: card_selected.emit(self)
 			else: card_played.emit(self)
 
+func set_display_scale(s: Vector2) -> void:
+	scale = s
+	base_scale = s
+
+func _animate_glow(entering: bool) -> void:
+	var tw = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	if entering:
+		tw.tween_property(self, "modulate", Color(1.15, 1.1, 0.9), 0.12)
+	else:
+		tw.tween_property(self, "modulate", Color(1.0, 1.0, 1.0), 0.15)
+
+func flash_new_card() -> void:
+	modulate = Color(1.6, 1.4, 0.6)
+	var tw = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(self, "modulate", Color(1.0, 1.0, 1.0), 0.45)
+
 func animate_draw(start_pos: Vector2, delay: float) -> void:
 	var parent_node = get_parent()
 	var local_start = start_pos - parent_node.global_position
@@ -350,6 +385,10 @@ func animate_draw(start_pos: Vector2, delay: float) -> void:
 
 func play_attack_animation(target_pos: Vector2 = Vector2.ZERO) -> void:
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_play")
+	_spawn_play_burst()
+	if exhaust:
+		modulate = Color(1.4, 0.5, 0.1)
+		await get_tree().create_timer(0.07).timeout
 	var tw = create_tween().set_parallel(true).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_BACK)
 	if target_pos != Vector2.ZERO:
 		tw.tween_property(self, "global_position", target_pos, 0.2); tw.tween_property(self, "scale", Vector2(0.4, 0.4), 0.2)
@@ -358,3 +397,33 @@ func play_attack_animation(target_pos: Vector2 = Vector2.ZERO) -> void:
 		tw.chain().tween_property(self, "scale", Vector2(0.0, 0.0), 0.1)
 	tw.tween_property(self, "modulate:a", 0.0, 0.2)
 	await tw.finished
+
+func _spawn_play_burst() -> void:
+	var gpu = GPUParticles2D.new()
+	gpu.global_position = global_position + Vector2(65, 97)
+	gpu.z_index = 100
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_POINT
+	mat.spread = 180.0
+	mat.initial_velocity_min = 55.0
+	mat.initial_velocity_max = 160.0
+	mat.gravity = Vector3(0, 220, 0)
+	mat.scale_min = 2.0
+	mat.scale_max = 6.0
+	var g = Gradient.new()
+	if exhaust:
+		g.set_color(0, Color(1.0, 0.5, 0.1, 1.0))
+		g.set_color(1, Color(0.6, 0.1, 0.0, 0.0))
+	else:
+		g.set_color(0, Color(1.0, 0.85, 0.3, 1.0))
+		g.set_color(1, Color(0.7, 0.35, 0.0, 0.0))
+	var gt = GradientTexture1D.new(); gt.gradient = g
+	mat.color_ramp = gt
+	gpu.process_material = mat
+	gpu.amount = 12
+	gpu.lifetime = 0.5
+	gpu.one_shot = true
+	gpu.explosiveness = 0.9
+	get_tree().root.add_child(gpu)
+	gpu.emitting = true
+	get_tree().create_timer(1.0).timeout.connect(gpu.queue_free)

@@ -20,19 +20,14 @@ var btn_sell_mem: Button
 var btn_sell_future: Button
 var offered_cards: Array = []
 var card_shelf_container: HBoxContainer # Referencia para refrescar
+var reroll_cost: int = 25
+var reroll_btn: Button
 
 func _ready() -> void:
 	greeting = GREETINGS[randi() % GREETINGS.size()]
 	
-	# Generar cartas aleatorias una sola vez al entrar
-	# EXCLUSIÓN: No vender cartas legendarias en la tienda normal
-	var pool = CardData.ALL_CARDS.filter(func(c): return not c.get("legendary", false))
-	pool.shuffle()
-	for i in range(3):
-		var card = pool[i].duplicate()
-		card["price"] = randi_range(6, 14) # Precio individual
-		card["sold"] = false
-		offered_cards.append(card)
+	# Generar cartas al entrar filtrando por personaje y excluyendo legendarias
+	_generate_offered_cards()
 	
 	# Fondo
 	var bg = ColorRect.new()
@@ -42,6 +37,21 @@ func _ready() -> void:
 	
 	build_ui()
 	_update_info()
+
+func _generate_offered_cards() -> void:
+	offered_cards.clear()
+	var char_id = GameManager.selected_character
+	var pool = CardData.ALL_CARDS.filter(func(c):
+		if c.get("legendary", false): return false
+		var c_char = c.get("char", "")
+		return c_char == "" or c_char == char_id
+	)
+	pool.shuffle()
+	for i in range(min(3, pool.size())):
+		var card = pool[i].duplicate()
+		card["price"] = randi_range(6, 14)
+		card["sold"] = false
+		offered_cards.append(card)
 
 func build_ui() -> void:
 	var vp = get_viewport_rect().size
@@ -118,6 +128,21 @@ func build_ui() -> void:
 	shop_content.add_child(card_shelf_container)
 	_build_card_shop(card_shelf_container)
 
+	# --- BOTÓN REROLL CARTAS ---
+	reroll_btn = Button.new()
+	reroll_btn.text = "Otras cartas... (%d 🪙)" % reroll_cost
+	reroll_btn.position = Vector2(vp.x * 0.35, vp.y - 98)
+	reroll_btn.size = Vector2(400, 40)
+	reroll_btn.add_theme_font_size_override("font_size", 14)
+	var rb_style = StyleBoxFlat.new()
+	rb_style.bg_color = Color(0.08, 0.06, 0.12)
+	rb_style.set_corner_radius_all(5)
+	rb_style.border_width_bottom = 2
+	rb_style.border_color = Color(0.4, 0.3, 0.6)
+	reroll_btn.add_theme_stylebox_override("normal", rb_style)
+	shop_content.add_child(reroll_btn)
+	reroll_btn.pressed.connect(_on_reroll_pressed)
+
 	# --- SECCION SACRIFICIO (Derecha) ---
 	var sac_container = VBoxContainer.new()
 	sac_container.position = Vector2(vp.x * 0.75, 270); sac_container.size = Vector2(220, 300)
@@ -141,7 +166,7 @@ func build_ui() -> void:
 	# Boton Salir
 	var btn_exit = Button.new()
 	btn_exit.text = "DEJAR EL MERCADO"
-	btn_exit.position = Vector2(vp.x/2 - 120, 585); btn_exit.size = Vector2(240, 50)
+	btn_exit.position = Vector2(vp.x/2 - 120, vp.y - 54); btn_exit.size = Vector2(240, 50)
 	btn_exit.pressed.connect(func(): GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
 	_style_main_button(btn_exit, Color(0.15, 0.1, 0.05))
 	shop_content.add_child(btn_exit)
@@ -154,6 +179,22 @@ func build_ui() -> void:
 	btn_view.add_theme_font_size_override("font_size", 14)
 	btn_view.pressed.connect(func(): GameManager.show_deck_overlay(self))
 	shop_content.add_child(btn_view)
+
+func _on_reroll_pressed() -> void:
+	if GameManager.coins >= reroll_cost:
+		GameManager.spend_coins(reroll_cost)
+		reroll_cost += 25
+		_generate_offered_cards()
+		reroll_btn.text = "Otras cartas... (%d 🪙)" % reroll_cost
+		reroll_btn.modulate = Color(1, 1, 1)
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play("button_click")
+		_update_info()
+	else:
+		reroll_btn.modulate = Color(1, 0.3, 0.3)
+		var tw = create_tween()
+		tw.tween_interval(0.5)
+		tw.tween_callback(func(): reroll_btn.modulate = Color(1, 1, 1))
 
 func _build_card_shop(container: Control) -> void:
 	for c in container.get_children(): c.queue_free()

@@ -92,6 +92,7 @@ func process_enemy_turn() -> void:
 		e.turn_index += 1
 
 		if action.type == "attack":
+			main.enemy_attacked_last_turn = true
 			var banter = get_enemy_banter(e.name)
 			if not banter.is_empty():
 				show_enemy_banter(e.panel, banter, get_banter_color(e.name, banter))
@@ -129,6 +130,7 @@ func process_enemy_turn() -> void:
 					e.hp -= 2
 					main._spawn_damage_number(e.panel.global_position + Vector2(100, 60), 2, Color(0.9, 0.55, 0.1))
 					main._flash_relic("ojo_arrancado")
+					if e.hp <= 0: await main._kill_enemy(e)
 
 				# Pasiva Guardian: Furia (Acumulativa: 1 por cada 5 de daño total recibido)
 				if GameManager.selected_character == "guardian":
@@ -168,6 +170,11 @@ func process_enemy_turn() -> void:
 			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), action.value, Color(0.7, 0.3, 1.0))
 			main.flash_small(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
 			main.update_ui()
+			if GameManager.selected_character == "prince":
+				var shield_gain = int(action.value * 0.4)
+				if shield_gain > 0:
+					main.player_shield += shield_gain
+					main.flash_small("Absorcion Abisal: +" + str(shield_gain) + " Escudo")
 
 		# --- NUEVAS MECÁNICAS DE HASTUR ---
 		elif action.type == "possession":
@@ -292,6 +299,13 @@ func process_enemy_turn() -> void:
 
 	main.update_ui(); main.update_intent_labels()
 	await main.draw_hand()
+
+	if main.trono_carcosa_active:
+		var bonus = main.hand.size()
+		if bonus > 0:
+			main.player_shield += bonus
+			main.flash_small("Trono de Carcosa: +" + str(bonus) + " Escudo")
+
 	main.is_player_turn = true; main.end_turn_btn.disabled = false
 	main.update_card_states()
 
@@ -440,7 +454,17 @@ func animate_enemy_attack_unique(e: Dictionary) -> void:
 			var is_weak = e.get("atk_reduction", 0) > 0
 			var dist = -40 if not is_weak else -15
 
+			# Stretch de anticipación (se estira hacia la dirección del ataque)
+			var tss = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tss.tween_property(e.panel, "scale", Vector2(0.85, 1.12), 0.08)
+
 			t.tween_property(e.panel, "position:x", orig.x + dist, 0.15)
+			# Al llegar al punto máximo: squash de impacto
+			t.tween_callback(func():
+				var ti = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+				ti.tween_property(e.panel, "scale", Vector2(1.18, 0.82), 0.05)
+				ti.tween_property(e.panel, "scale", Vector2(1.0, 1.0), 0.12)
+			)
 			t.tween_property(e.panel, "position", orig, 0.2)
 
 			if is_weak:

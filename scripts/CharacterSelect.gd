@@ -13,7 +13,7 @@ const CHARACTERS = [
 		"deck": [
 			{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
 			{"name": "Susurro Debilitante", "attack": 0, "defense": 0, "cost": 0},
-			{"name": "Cabalgante del Vacio", "attack": 4, "defense": 0, "cost": 2},
+			{"name": "Cabalgante del Vacio", "attack": 6, "defense": 0, "cost": 2},
 			{"name": "Baluarte de Hueso", "attack": 3, "defense": 3, "cost": 2},
 			{"name": "Ofrenda de Carne", "attack": 8, "defense": 0, "cost": 2},
 		]
@@ -22,7 +22,7 @@ const CHARACTERS = [
 		"id": "estratega",
 		"name": "EL ESTRATEGA",
 		"style": "Senda del Cristal — TACTICO",
-		"hp": 40,
+		"hp": 47,
 		"lore": "Un erudito que paso decadas estudiando las estrellas y los mapas imposibles. Cree que Valdris es un rompecabezas que, una vez resuelto, detendra la podredumbre de su mundo.\n\n'No busco sangre, sino el patron que mueve las manos de la realidad.'",
 		"passive": "LOGICA: Tus cartas de Inquisidor Ciego cuestan -1 de energia. Robas 1 carta extra al inicio de cada combate.",
 		"color": Color(0.2, 0.4, 0.7),
@@ -30,9 +30,9 @@ const CHARACTERS = [
 		"deck": [
 			{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
 			{"name": "Susurro Debilitante", "attack": 0, "defense": 0, "cost": 0},
-			{"name": "Inquisidor Ciego", "attack": 2, "defense": 0, "cost": 2},
-			{"name": "Inquisidor Ciego", "attack": 2, "defense": 0, "cost": 2},
-			{"name": "Dama del Tablero", "attack": 6, "defense": 2, "cost": 3},
+			{"name": "Inquisidor Ciego", "attack": 4, "defense": 0, "cost": 2},
+			{"name": "Inquisidor Ciego", "attack": 4, "defense": 0, "cost": 2},
+			{"name": "Dama del Tablero", "attack": 8, "defense": 3, "cost": 3},
 		]
 	},
 	{
@@ -48,8 +48,8 @@ const CHARACTERS = [
 			{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
 			{"name": "Eco del Vacío", "attack": 4, "defense": 0, "cost": 2},
 			{"name": "Baluarte de Hueso", "attack": 3, "defense": 3, "cost": 2},
-			{"name": "Idolo Inerte", "attack": 0, "defense": 8, "cost": 3},
-			{"name": "Idolo Inerte", "attack": 0, "defense": 8, "cost": 3},
+			{"name": "Idolo Inerte", "attack": 0, "defense": 12, "cost": 3},
+			{"name": "Idolo Inerte", "attack": 0, "defense": 12, "cost": 3},
 		]
 	}
 ]
@@ -64,6 +64,7 @@ var style_lbl: Label
 var symbol_lbl: Label
 var portrait_container: Control
 var portrait_tween: Tween
+var seed_lbl: Label
 
 func _ready() -> void:
 	# Filtrar personajes disponibles
@@ -73,9 +74,9 @@ func _ready() -> void:
 			"id": "prince",
 			"name": "EL PRÍNCIPE DE CARCOSA",
 			"style": "Senda del Abismo — LOCURA",
-			"hp": 45,
+			"hp": 48,
 			"lore": "Un antiguo heredero de un reino que ya no existe. Su cuerpo es un receptáculo de la estática abisal.\n\n'No me liberaste para salvarme, sino para que termine lo que el Rey empezó.'",
-			"passive": "RESONANCIA: Si tu Cordura es inferior a 35, tus efectos de Daño y Escudo se duplican.",
+			"passive": "RESONANCIA: Cartas de Escala x1.5 (Cordura < 60) | x2 (Cordura < 35). Inicio de combate: -8 Cordura. Demencia recibida → Escudo parcial.",
 			"color": Color(0.5, 0.2, 0.8),
 			"symbol": "♔",
 			"deck": CardData.PRINCE_DECK.duplicate(true)
@@ -129,6 +130,13 @@ func _build_ui() -> void:
 	add_child(btn_dev_prince)
 	
 	var btn_select = Button.new(); btn_select.text = "ACEPTAR ESTE DESTINO"; btn_select.position = Vector2(vp.x/2 - 150, 560); btn_select.size = Vector2(300, 60); btn_select.add_theme_font_size_override("font_size", 20); btn_select.pressed.connect(_on_select_pressed); add_child(btn_select); _style_main_button(btn_select)
+
+	seed_lbl = Label.new()
+	seed_lbl.add_theme_font_size_override("font_size", 13)
+	seed_lbl.modulate = Color(0.5, 0.5, 0.6, 0.0)
+	seed_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	seed_lbl.position = Vector2(0, 630); seed_lbl.size = Vector2(vp.x, 24)
+	add_child(seed_lbl)
 
 func _update_display() -> void:
 	var c_data = available_characters[selected_idx]
@@ -185,10 +193,14 @@ func _change_selection(dir: int) -> void:
 func _on_select_pressed() -> void:
 	var c_data = available_characters[selected_idx]
 	var char_id = c_data["id"]
-	
-	# Reiniciar estado global para nueva partida
+
+	# Reiniciar estado global para nueva partida (genera run_seed)
 	GameManager.reset_run()
-	
+
+	# Mostrar semilla de la run
+	seed_lbl.text = "SEMILLA: %d" % GameManager.run_seed
+	create_tween().tween_property(seed_lbl, "modulate:a", 1.0, 0.3)
+
 	GameManager.selected_character = char_id
 	GameManager.player_hp = c_data["hp"]
 	GameManager.player_max_hp = c_data["hp"]
