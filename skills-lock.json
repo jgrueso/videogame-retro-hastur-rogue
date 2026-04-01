@@ -1,10 +1,25 @@
 {
   "version": 1,
   "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "computedHash": "d31e234f0c90694a670222cdd1dafa853e051d7066beda389f1097c22dadd461"
+    },
     "godot-2d-animation": {
       "source": "thedivergentai/gd-agentic-skills",
       "sourceType": "github",
       "computedHash": "986e94f145aae79848e31baaf0e777d5e3a765267f901ca01d178521981d62c6"
+    },
+    "godot-animation-player": {
+      "source": "thedivergentai/gd-agentic-skills",
+      "sourceType": "github",
+      "computedHash": "a6cbd622e9bba59a29dd0b35ccab18d13e0a4bdb6a59fee15dd50a556b169cdd"
+    },
+    "godot-asset-generator": {
+      "source": "jwynia/agent-skills",
+      "sourceType": "github",
+      "computedHash": "0b07b3ad870b6413ff2749c22281b09d7e5187c9ea57d9d3090a0bc4b9f69a6d"
     },
     "godot-audio-systems": {
       "source": "thedivergentai/gd-agentic-skills",
@@ -41,6 +56,11 @@
       "sourceType": "github",
       "computedHash": "3dbda48b5d5a2724aea04903db84f2fb76d6979c9f9a3e73932c6ae10f4505e1"
     },
+    "godot-genre-card-game": {
+      "source": "thedivergentai/gd-agentic-skills",
+      "sourceType": "github",
+      "computedHash": "a8195f8b68540e9d7f2615b34f1c14a775c593922b7032720563bc9e7cf72398"
+    },
     "godot-genre-horror": {
       "source": "thedivergentai/gd-agentic-skills",
       "sourceType": "github",
@@ -49,12 +69,17 @@
     "godot-genre-roguelike": {
       "source": "thedivergentai/gd-agentic-skills",
       "sourceType": "github",
-      "computedHash": "ef416b23ecb4f5349a3ef7bc766e1a1cb42bee7f056e334b0d5baee8fdaee3e8"
+      "computedHash": "88adc245c1eecaeed618652d7206c220dda6ec5280bb913995fb0716a06e43f0"
     },
     "godot-master": {
       "source": "thedivergentai/gd-agentic-skills",
       "sourceType": "github",
       "computedHash": "062d373e9bfe5d485b0fabc7f5ca80bc54fab9b8a5b79b671b14a3e687129a72"
+    },
+    "godot-mechanic-secrets": {
+      "source": "thedivergentai/gd-agentic-skills",
+      "sourceType": "github",
+      "computedHash": "b3e0baf73af9295c485439b70274655c8fb44d156cd85e1a7a97349831d9c995"
     },
     "godot-optimization": {
       "source": "zate/cc-godot",
@@ -65,6 +90,11 @@
       "source": "thedivergentai/gd-agentic-skills",
       "sourceType": "github",
       "computedHash": "cae814ad9cf8e9a0c39868b18811df824099d0798f953a591becb0848111a9f5"
+    },
+    "godot-procedural-generation": {
+      "source": "thedivergentai/gd-agentic-skills",
+      "sourceType": "github",
+      "computedHash": "c5d179d3a19f3ea45734f6272840eb2cc5f40e7287696e7cd471fe82dfd35331"
     },
     "godot-shaders-basics": {
       "source": "thedivergentai/gd-agentic-skills",
@@ -80,6 +110,11 @@
       "source": "zate/cc-godot",
       "sourceType": "github",
       "computedHash": "6dacfd4fd9f2ad8a51ebca86da470e3b9d37430914441a3c9efa4bfc5094c319"
+    },
+    "godot-ui-containers": {
+      "source": "thedivergentai/gd-agentic-skills",
+      "sourceType": "github",
+      "computedHash": "1f9bb3427e8f3d6af519636ef78c7a4a8e6a84ef8220b049d82fe0bf13acabb8"
     },
     "godot-ui-theming": {
       "source": "thedivergentai/gd-agentic-skills",

@@ -12,6 +12,9 @@ const ROOM_REST     = "rest"
 const ROOM_TREASURE = "treasure"
 const ROOM_VOID_COMBAT = "void_combat"
 const ROOM_VOID_BOSS   = "void_boss"
+const ROOM_FRAGMENT  = "fragment"
+const ROOM_FINAL_W3  = "final_w3"
+const ROOM_VAULT_W3  = "vault_w3"
 
 const ROOM_COLORS = {
 	ROOM_COMBAT:   Color(0.3, 0.3, 0.7),
@@ -26,22 +29,37 @@ const ROOM_COLORS = {
 	ROOM_TREASURE: Color(0.8, 0.6, 0.1),
 	ROOM_VOID_COMBAT: Color(0.1, 0.4, 0.6),
 	ROOM_VOID_BOSS: Color(0.2, 0.8, 1.0),
+	ROOM_FRAGMENT:  Color(0.5, 0.1, 0.8),
+	ROOM_FINAL_W3:  Color(0.35, 0.0, 0.6),
+	ROOM_VAULT_W3:  Color(0.6, 0.1, 0.9),
 }
 
 const ROOM_DESCRIPTIONS: Dictionary = {
-	"combat":      ["⚔ ECO DE BATALLA",       "Un fragmento del pasado combate por sobrevivir."],
-	"elite":       ["☠ PRESENCIA VORAZ",       "Una entidad corrompida. Recompensa mayor, riesgo letal."],
-	"event":       ["♄ AUGURIO",               "El tablero te ofrece una elección. Nada es gratis."],
-	"shop":        ["☤ EL BUHONERO",           "Monedas por poder. Reliquias, cartas, magia menor."],
-	"boss":        ["★ JEFE DE MUNDO",         "El guardián del piso. Derrótalo para avanzar."],
-	"rest":        ["🕯 HOGUERA DE CENIZA",    "Descansa, forja o sacrifica. Un momento de tregua."],
-	"treasure":    ["📦 COFRE OLVIDADO",       "Algo brilla entre la ceniza. ¿Carta o reliquia?"],
-	"void_combat": ["🌀 GRIETA DEL VACÍO",     "Camino secreto. Combate en el umbral del olvido."],
-	"void_boss":   ["✦ CENTINELA DEL ABISMO", "El guardián del paso secreto. Alta recompensa."],
-	"final":       ["♔ EL REY SIN CORONA",    "El final del primer tablero te aguarda."],
-	"final_w2":    ["♔ EL REY AMARILLO",      "El trono vacío reclama su deuda."],
-	"secret":      ["✦ FRAGMENTO DE REALIDAD","Una pieza que no debería existir aquí."],
+	"combat":      ["⚔ ECO DE BATALLA",       "Un fragmento del pasado combate por sobrevivir.",       ["Las piezas muertas nunca descansan.", "Cada victoria es una deuda pendiente.", "El tablero recuerda cada golpe."]],
+	"elite":       ["☠ PRESENCIA VORAZ",       "Una entidad corrompida. Recompensa mayor, riesgo letal.", ["No todos los que entran comprenden lo que enfrentan.", "Su hambre no tiene origen. Solo destino.", "Ha visto morir a mejores."]],
+	"event":       ["♄ AUGURIO",               "El tablero te ofrece una elección. Nada es gratis.",    ["Las elecciones aquí pesan más que las espadas.", "Cada favor tiene un nombre grabado en el reverso.", "El tablero no regala nada."]],
+	"shop":        ["☤ EL BUHONERO",           "Monedas por poder. Reliquias, cartas, magia menor.",    ["¿Cuánto vale lo que aún no sabes que necesitas?", "Compra con cuidado. Lo que no se compra, se cobra.", "El buhonero siempre vende lo que el siguiente comprador necesitará."]],
+	"boss":        ["★ JEFE DE MUNDO",         "El guardián del piso. Derrótalo para avanzar.",         ["Fue creado para detenerte. Lleva haciéndolo desde antes de que nacieras.", "No guarda el camino por lealtad. Lo hace por necesidad.", "Matar al guardián no abre la puerta. Solo la desbloquea."]],
+	"rest":        ["🕯 HOGUERA DE CENIZA",    "Descansa, forja o sacrifica. Un momento de tregua.",   ["La hoguera no calienta. Solo postpone el frío.", "Incluso aquí, algo observa desde las sombras.", "El descanso en Valdris es mentira. Pero es la única mentira útil."]],
+	"treasure":    ["📦 COFRE OLVIDADO",       "Algo brilla entre la ceniza. ¿Carta o reliquia?",       ["Quien lo dejó aquí ya no puede reclamarlo.", "El brillo no es señal de valor. A veces es señal de trampa.", "Lleva aquí esperando más tiempo del que imaginas."]],
+	"void_combat": ["🌀 GRIETA DEL VACÍO",     "Camino secreto. Combate en el umbral del olvido.",      ["El vacío no te invita. Te tolera.", "Pocas piezas regresan de aquí con la misma forma.", "El umbral tiene memoria. Y te ha visto antes."]],
+	"void_boss":   ["✦ CENTINELA DEL ABISMO", "El guardián del paso secreto. Alta recompensa.",         ["Existe para cerrar puertas. La tuya incluida.", "Lo que custodia no puede nombrarse. Aún.", "Venció a los anteriores. ¿Qué te hace diferente?"]],
+	"final":       ["♔ EL REY SIN CORONA",    "El final del primer tablero te aguarda.",                ["El trono siempre estuvo vacío. Eso no lo hace menos peligroso.", "No busca ganar. Busca que tú pierdas.", "Su nombre fue borrado. Solo queda el hambre."]],
+	"final_w2":    ["♔ EL REY AMARILLO",      "El trono vacío reclama su deuda.",                       ["Carcosa lo espera a él. Y a través de él, a ti.", "El Rey Amarillo no olvida ninguna partida.", "Has llegado demasiado lejos para fingir que no lo sabías."]],
+	"secret":      ["✦ FRAGMENTO DE REALIDAD","Una pieza que no debería existir aquí.",                  ["Este objeto no pertenece a ningún inventario conocido.", "Tómalo. O déjalo. El tablero ya tomó nota.", "Su presencia aquí no es accidental."]],
+	"fragment":    ["◈ FRAGMENTO DE CARCOSA", "Poder del umbral. El Príncipe gana resonancia. Otros pierden cordura máxima.", ["La verdad tiene un precio. Este es uno de sus recibos.", "Cada fragmento es una promesa que no hiciste.", "Carcosa se construye de pedazos como este."]],
+	"final_w3":    ["◉ EL TESTIGO PRIMORDIAL","La entidad hecha de tus muertes acumuladas te aguarda.", ["No puede ser derrotado. Solo puede ser sobrevivido.", "Te conoce mejor que tú mismo. Ha visto cada error.", "Eres la suma de todos los que fallaron antes que tú."]],
+	"vault_w3":    ["⬡ BOVEDA DEL UMBRAL",    "Tres fragmentos reunidos abren este pasaje. Reliquia única dentro.", ["Lo que se guarda aquí fue sellado con razón.", "La bóveda no protege el tesoro. Te protege a ti de él.", "Tres fragmentos de Carcosa te han llevado hasta aquí. Pregúntate por qué."]],
 }
+
+const ROOM_CORRUPTED_DESCRIPTIONS: Array = [
+	["⚠ ??????????", "el ruido no para"],
+	["☠ ACECHANDO", "ya están dentro"],
+	["✦ ERROR", "no deberías ver esto"],
+	["◉ ....", "siempre fue así"],
+	["⚔ INEVITABLE", "lo sabes, ¿verdad?"],
+	["♔ TE VE", "el tablero te conoce"],
+]
 
 const ROOM_LABELS = {
 	ROOM_COMBAT:   "⚔ Eco de Batalla",
@@ -56,44 +74,86 @@ const ROOM_LABELS = {
 	ROOM_TREASURE: "📦 Cofre Olvidado",
 	ROOM_VOID_COMBAT: "🌀 Grieta del Vacío",
 	ROOM_VOID_BOSS: "✦ Centinela del Abismo",
+	ROOM_FRAGMENT:  "◈ Fragmento de Carcosa",
+	ROOM_FINAL_W3:  "◉ EL TESTIGO PRIMORDIAL",
+	ROOM_VAULT_W3:  "⬡ Boveda del Umbral",
+}
+
+# ── Constantes de nodos visuales del mapa ────────────────────────────
+const NODE_W       : float = 90.0
+const NODE_ILLUS_H : float = 62.0
+const NODE_BADGE_H : float = 22.0
+const NODE_H       : float = NODE_ILLUS_H + 5.0 + NODE_BADGE_H  # ~89
+
+const ROOM_BIG_ICONS : Dictionary = {
+	"combat":      "⚔",
+	"elite":       "☠",
+	"event":       "♄",
+	"shop":        "☤",
+	"boss":        "★",
+	"final":       "♔",
+	"final_w2":    "♔",
+	"final_w3":    "◉",
+	"rest":        "🕯",
+	"treasure":    "◆",
+	"void_combat": "🌀",
+	"void_boss":   "✦",
+	"secret":      "✦",
+	"fragment":    "◈",
+	"vault_w3":    "⬡",
 }
 
 func _ready() -> void:
 	if get_node_or_null("/root/AudioManager"):
+		# 1. Limpieza de sonidos persistentes del menú o glitches
 		AudioManager.stop_loop("Glith_distorsion_noised_sound")
 		AudioManager.stop_loop("Cry_whisper_woman_sound")
 		AudioManager.stop_loop("intro_title_song")
-		AudioManager.stop_loop("ES_Lost in Time - Aiyo")
-		if GameManager.current_world == 1:
-			# Mundo 2: piano atmosférico (misma pista que CharacterSelect)
-			AudioManager.crossfade_loop("map_ambient_song", "ES_Lost in Time - Aiyo", 1.5)
-		else:
-			# Mundo 1: mapa oscuro habitual
-			AudioManager.crossfade_loop("resting_song", "map_ambient_song", 1.5)
+		
+		# 2. Control de música por Mundo (0:Mundo1, 1:Mundo2, 2:Mundo3)
+		match GameManager.current_world:
+			0: # MUNDO I: Búsqueda de la Verdad
+				# IMPORTANTE: Detenemos la canción del W2 si existe por error
+				AudioManager.stop_loop("ES_Lost in Time - Aiyo")
+				# Transición suave de la hoguera (si viene de ella) al ambiente del mapa
+				AudioManager.crossfade_loop("resting_song", "map_ambient_song", 1.5)
+				
+			1, 2: # MUNDO II (Carcosa) y MUNDO III (Abismo)
+				# Aquí es donde realmente queremos que suene "Lost in Time"
+				AudioManager.stop_loop("resting_song")
+				# Hacemos crossfade del ambiente base a la canción temática
+				AudioManager.crossfade_loop("map_ambient_song", "ES_Lost in Time - Aiyo", 1.5)
+			
+			_: # Caso por defecto (por seguridad)
+				AudioManager.stop_loop("ES_Lost in Time - Aiyo")
+				AudioManager.play_loop("map_ambient_song")
+
+	# 3. Lógica de generación y guardado (se mantiene igual)
 	if GameManager.map_graph.is_empty():
 		GameManager.map_graph = _generate_map()
-	# Guardar solo al volver de una sala completada (nunca al cargar partida guardada)
+		
 	if GameManager.came_from_room:
 		if GameManager.current_map_col >= 0:
 			GameManager.save_path_node(GameManager.current_map_floor - 1, GameManager.current_map_col)
 		GameManager.save_run()
 		GameManager.came_from_room = false
-		# Si ganamos el combate del Umbral, entrar a la Grieta ahora
+		
 		if GameManager.rift_combat_pending and GameManager.player_hp > 0:
 			GameManager.rift_combat_pending = false
-			GameManager.enter_void_path()
+			get_tree().create_timer(0.2).timeout.connect(func(): GameManager.enter_void_path())
 			return
 		GameManager.rift_combat_pending = false
+
 	modulate.a = 0.0
 	build_ui()
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.4)
-
 # ─── Generacion procedural del mapa ──────────────────────────────────────────
 func _generate_map() -> Array:
 	var graph: Array = []
 	var num_floors = randi_range(15, 18)
 	var is_w2 = GameManager.current_world == 1
-	var final_room = ROOM_FINAL_W2 if is_w2 else ROOM_FINAL
+	var is_w3 = GameManager.current_world == 2
+	var final_room = ROOM_FINAL_W3 if is_w3 else (ROOM_FINAL_W2 if is_w2 else ROOM_FINAL)
 
 	# 2 tiendas: una temprana (piso 4-6) y una en la zona media-tardía
 	var s1 = randi_range(4, 6)
@@ -160,30 +220,59 @@ func _generate_map() -> Array:
 	for f in range(graph.size() - 1):
 		_connect_floors(graph, f)
 
-	# Colocar objetos misteriosos de forma aleatoria y solo si faltan
+	# Colocar objetos misteriosos — 1 fragmento por mundo, restringido al mundo actual
+	var world_fragment := ""
+	if GameManager.current_world == 0: world_fragment = "simbolo_amarillo"
+	elif GameManager.current_world == 1: world_fragment = "cancion_amarilla"
+	elif GameManager.current_world == 2: world_fragment = "carta_carcosa"
+
 	var missing_items: Array = []
-	for item_id in GameManager.SECRET_ITEM_DATA.keys():
-		if not GameManager.has_secret_item(item_id):
-			missing_items.append(item_id)
-	
+	if not world_fragment.is_empty() and not GameManager.has_secret_item(world_fragment):
+		missing_items = [world_fragment]
+
 	if not missing_items.is_empty():
-		missing_items.shuffle()
-		var fixed_types = [ROOM_SHOP, ROOM_BOSS, ROOM_FINAL, ROOM_FINAL_W2]
+		var fixed_types = [ROOM_SHOP, ROOM_BOSS, ROOM_FINAL, ROOM_FINAL_W2, ROOM_FINAL_W3, ROOM_FRAGMENT, ROOM_VAULT_W3]
 		var eligible: Array = []
 		for f in range(2, graph.size() - 2):
 			if graph[f][0].type not in fixed_types:
 				eligible.append(f)
-		
+
 		eligible.shuffle()
-		# Decidir cuantos colocar en este mapa (0 a 2, maximo los que falten)
-		var to_place = min(randi_range(0, 2), missing_items.size())
-		
+		var to_place = min(1, missing_items.size())
+
 		for i in range(to_place):
 			if eligible.is_empty(): break
 			var fi = eligible.pop_back()
 			var ci = randi() % graph[fi].size()
 			graph[fi][ci].type = ROOM_SECRET
 			graph[fi][ci]["item_id"] = missing_items[i]
+
+	# Colocar Fragmentos de Carcosa (solo en W3)
+	if is_w3:
+		var frag_fixed_types = [ROOM_SHOP, ROOM_BOSS, ROOM_FINAL_W3, ROOM_REST, ROOM_FRAGMENT, ROOM_VAULT_W3]
+		var frag_eligible: Array = []
+		var third = num_floors / 3
+		for f in range(third, num_floors - 3):
+			for c in range(graph[f].size()):
+				if graph[f][c].type not in frag_fixed_types:
+					frag_eligible.append({"f": f, "c": c})
+		frag_eligible.shuffle()
+		var placed = 0
+		for slot in frag_eligible:
+			if placed >= 2: break
+			graph[slot.f][slot.c].type = ROOM_FRAGMENT
+			placed += 1
+		# Boveda del Umbral si se acumularon 3+ fragmentos entre runs
+		if GameManager.fragment_count_w3 >= 3:
+			var vault_eligible: Array = []
+			for f in range(third, num_floors - 3):
+				for c in range(graph[f].size()):
+					if graph[f][c].type not in frag_fixed_types:
+						vault_eligible.append({"f": f, "c": c})
+			if not vault_eligible.is_empty():
+				vault_eligible.shuffle()
+				var vs = vault_eligible[0]
+				graph[vs.f][vs.c].type = ROOM_VAULT_W3
 
 	return graph
 
@@ -291,120 +380,217 @@ func _connect_floors(graph: Array, f: int) -> void:
 
 # ─── UI ──────────────────────────────────────────────────────────────────────
 var ui_layer: CanvasLayer
-var lbl_info: Label
+var lbl_info: Control  # apunta al HUDBar Panel (guard para update_ui)
 var dev_panel: Panel
 
 func build_ui() -> void:
 	var vp = get_viewport_rect().size
 
-	var bg = ColorRect.new()
-	bg.color = Color(0.04, 0.04, 0.08)
-	bg.position = Vector2.ZERO
-	bg.size = vp
-	bg.z_index = -100 # Muy al fondo
-	add_child(bg)
+	# ── FONDO: pergamino por mundo + overlay oscuro ───────────────────
+	var bg_paths: Array[String] = [
+		"res://assets/mapbg.png",               # Mundo 1 — pergamino/eclipse
+		"res://assets/map_background_w2.png",   # Mundo 2 — vórtice Carcosa
+		"res://assets/map_background_w3.png",   # Mundo 3 — abismo púrpura
+	]
+	var bg_overlays: Array[Color] = [
+		Color(0.02, 0.01, 0.04, 0.50),
+		Color(0.0,  0.02, 0.04, 0.45),
+		Color(0.04, 0.0,  0.08, 0.50),
+	]
+	var world_idx: int = clamp(GameManager.current_world, 0, 2)
+	var bg_path: String = bg_paths[world_idx]
 
-	# Capa superior para que el HUD no haga scroll y los tooltips funcionen
+	var bg_tex = TextureRect.new()
+	bg_tex.texture = load(bg_path) if ResourceLoader.exists(bg_path) else null
+	bg_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg_tex.stretch_mode = TextureRect.STRETCH_SCALE
+	bg_tex.size = vp
+	bg_tex.position = Vector2.ZERO
+	bg_tex.z_index = -100
+	bg_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg_tex)
+
+	if bg_tex.texture == null:
+		var bg_fallback = ColorRect.new()
+		bg_fallback.color = Color(0.06, 0.04, 0.08)
+		bg_fallback.size = vp
+		bg_fallback.z_index = -101
+		bg_fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(bg_fallback)
+
+	var bg_overlay = ColorRect.new()
+	bg_overlay.color = bg_overlays[world_idx]
+	bg_overlay.size = vp
+	bg_overlay.position = Vector2.ZERO
+	bg_overlay.z_index = -99
+	bg_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg_overlay)
+
+	var map_dark = ColorRect.new()
+	map_dark.color = Color(0.0, 0.0, 0.0, 0.55)
+	map_dark.position = Vector2(0, 108)
+	map_dark.size = Vector2(vp.x, vp.y - 108)
+	map_dark.z_index = -1
+	map_dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(map_dark)
+
+	# ── CAPA UI (HUD fijo, no hace scroll) ───────────────────────────
 	ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
-	var world_name = "Mundo II — El Tablero Dorado" if GameManager.current_world == 1 else "Mundo I — La Caida del Rey"
+
+	# ── BARRA HUD ────────────────────────────────────────────────────
+	var hud_bar = Panel.new()
+	hud_bar.name = "HUDBar"
+	hud_bar.position = Vector2.ZERO
+	hud_bar.size = Vector2(vp.x, 50)
+	var hud_style = StyleBoxFlat.new()
+	hud_style.bg_color = Color(0.04, 0.03, 0.06, 0.88)
+	hud_style.border_width_bottom = 1
+	hud_style.border_color = Color(0.28, 0.22, 0.38, 0.5)
+	hud_bar.add_theme_stylebox_override("panel", hud_style)
+	ui_layer.add_child(hud_bar)
+
+	var graph = GameManager.map_graph
+	var stat_defs = [
+		["StatHP",     "❤ %d/%d" % [GameManager.player_hp, GameManager.player_max_hp],   Color(0.95, 0.3, 0.35),  vp.x * 0.13],
+		["StatCoins",  "◆ %d" % GameManager.coins,                                        Color(0.95, 0.78, 0.2),  vp.x * 0.28],
+		["StatSanity", "⬤ %d/%d" % [GameManager.sanity, GameManager.max_sanity],         Color(0.55, 0.3, 0.88),  vp.x * 0.44],
+		["StatLore",   "📖 %d" % GameManager.lore_progress,                               Color(0.5, 0.72, 0.52),  vp.x * 0.60],
+		["StatFloor",  "Piso %d/%d" % [GameManager.current_map_floor + 1, graph.size()], Color(0.58, 0.65, 0.82), vp.x * 0.74],
+	]
+	for sd in stat_defs:
+		var sl = Label.new()
+		sl.name = sd[0]
+		sl.text = sd[1]
+		sl.modulate = sd[2]
+		sl.add_theme_font_size_override("font_size", 15)
+		sl.position = Vector2(sd[3], 14)
+		sl.size = Vector2(170, 24)
+		hud_bar.add_child(sl)
+
+	lbl_info = hud_bar  # guard para update_ui
+
+	# Separadores verticales del HUD
+	for sep_x in [vp.x * 0.22, vp.x * 0.38, vp.x * 0.54, vp.x * 0.68]:
+		var sep = ColorRect.new()
+		sep.size = Vector2(1, 24)
+		sep.position = Vector2(sep_x, 13)
+		sep.color = Color(0.3, 0.25, 0.4, 0.4)
+		sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hud_bar.add_child(sep)
+
+	# ── TÍTULO Y SUBTÍTULO DE MUNDO ───────────────────────────────────
+	var world_name: String
+	if GameManager.current_world == 2:
+		world_name = "Mundo III — La Grieta Sin Fondo"
+	elif GameManager.current_world == 1:
+		world_name = "Mundo II — El Tablero Dorado"
+	else:
+		world_name = "Mundo I — La Caida del Rey"
 
 	var title = Label.new()
 	title.text = "Elige tu camino"
 	title.add_theme_font_size_override("font_size", 26)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 6)
-	title.size = Vector2(vp.x, 34)
+	title.position = Vector2(0, 54)
+	title.size = Vector2(vp.x, 32)
 	ui_layer.add_child(title)
 
 	var world_lbl = Label.new()
 	world_lbl.text = world_name
 	world_lbl.add_theme_font_size_override("font_size", 12)
-	world_lbl.modulate = Color(0.95, 0.8, 0.1) if GameManager.current_world == 1 else Color(0.6, 0.7, 0.9)
+	if GameManager.current_world == 2:
+		world_lbl.modulate = Color(0.6, 0.2, 0.9)
+	elif GameManager.current_world == 1:
+		world_lbl.modulate = Color(0.95, 0.8, 0.1)
+	else:
+		world_lbl.modulate = Color(0.6, 0.7, 0.9)
 	world_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	world_lbl.position = Vector2(0, 38)
-	world_lbl.size = Vector2(vp.x, 20)
+	world_lbl.position = Vector2(0, 86)
+	world_lbl.size = Vector2(vp.x, 18)
 	ui_layer.add_child(world_lbl)
 
-	var graph = GameManager.map_graph
-	lbl_info = Label.new()
-	update_ui()
-	lbl_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl_info.position = Vector2(0, 56)
-	lbl_info.size = Vector2(vp.x, 24)
-	ui_layer.add_child(lbl_info)
+	# ── BOTONES TOP-RIGHT ─────────────────────────────────────────────
+	var btn_w := 148; var btn_h := 36; var btn_y := 7
 
-	# Boton DEV
+	var deck_btn = Button.new()
+	deck_btn.text = "▣  VER MAZO"
+	deck_btn.position = Vector2(vp.x - btn_w - 8, btn_y)
+	deck_btn.size = Vector2(btn_w, btn_h)
+	deck_btn.add_theme_font_size_override("font_size", 13)
+	_style_top_button(deck_btn, Color(0.5, 0.32, 0.08))
+	ui_layer.add_child(deck_btn)
+	deck_btn.pressed.connect(func(): GameManager.show_deck_overlay(self))
+
+	var codex_btn = Button.new()
+	codex_btn.text = "📜  CÓDICE"
+	codex_btn.position = Vector2(vp.x - btn_w * 2 - 18, btn_y)
+	codex_btn.size = Vector2(btn_w, btn_h)
+	codex_btn.add_theme_font_size_override("font_size", 13)
+	_style_top_button(codex_btn, Color(0.28, 0.42, 0.18))
+	ui_layer.add_child(codex_btn)
+	codex_btn.pressed.connect(func(): GameManager.show_codex_overlay(self))
+
+	# ── BOTÓN DEV ─────────────────────────────────────────────────────
 	var dev_toggle = Button.new()
 	dev_toggle.text = "[DEV]"
-	dev_toggle.position = Vector2(10, 10); dev_toggle.size = Vector2(60, 30)
-	dev_toggle.add_theme_font_size_override("font_size", 10)
+	dev_toggle.position = Vector2(8, btn_y + 4)
+	dev_toggle.size = Vector2(56, 28)
+	dev_toggle.add_theme_font_size_override("font_size", 9)
+	_style_top_button(dev_toggle, Color(0.3, 0.3, 0.3))
+	dev_toggle.z_index = 10
 	ui_layer.add_child(dev_toggle)
-	
+
 	dev_panel = _build_dev_panel(vp)
 	dev_panel.visible = false
 	ui_layer.add_child(dev_panel)
 	dev_toggle.pressed.connect(func(): dev_panel.visible = not dev_panel.visible)
 
-	# Reliquias activas
+	# ── RELIQUIAS ACTIVAS ─────────────────────────────────────────────
 	if not GameManager.relics.is_empty():
 		var relic_label = Label.new()
 		relic_label.text = "Reliquias:"
 		relic_label.add_theme_font_size_override("font_size", 11)
 		relic_label.modulate = Color(0.8, 0.7, 0.4)
-		relic_label.position = Vector2(6, 82)
+		relic_label.position = Vector2(6, 108)
 		ui_layer.add_child(relic_label)
 
 		var relic_scene = preload("res://scenes/ui/RelicIcon.tscn")
 		for i in range(GameManager.relics.size()):
 			var icon = relic_scene.instantiate()
-			icon.position = Vector2(6 + i * 48, 96)
+			icon.position = Vector2(6 + i * 48, 120)
 			ui_layer.add_child(icon)
 			icon.setup(GameManager.relics[i])
 
-	# Boton Visor de Mazo
-	var deck_btn = Button.new()
-	deck_btn.text = " ▣ VER MAZO "
-	deck_btn.position = Vector2(vp.x - 160, 10); deck_btn.size = Vector2(150, 40)
-	deck_btn.add_theme_font_size_override("font_size", 14)
-	ui_layer.add_child(deck_btn)
-	deck_btn.pressed.connect(func(): GameManager.show_deck_overlay(self))
-
-	# Boton Códice
-	var codex_btn = Button.new()
-	codex_btn.text = "📜 CÓDICE"
-	codex_btn.position = Vector2(vp.x - 320, 10); codex_btn.size = Vector2(150, 40)
-	codex_btn.add_theme_font_size_override("font_size", 14)
-	ui_layer.add_child(codex_btn)
-	codex_btn.pressed.connect(func(): GameManager.show_codex_overlay(self))
-
-	# Indicador de objetos misteriosos
+	# ── INDICADOR DE FRAGMENTOS ───────────────────────────────────────
 	if GameManager.secret_items.size() > 0 or _map_has_secret_rooms():
 		var si_container = Panel.new()
 		var count = GameManager.secret_items.size()
-		si_container.position = Vector2(vp.x - 100, 56)
-		si_container.size = Vector2(90, 30)
+		si_container.position = Vector2(vp.x - 104, 54)
+		si_container.size = Vector2(90, 28)
 		var s_style = StyleBoxFlat.new()
-		s_style.bg_color = Color(0,0,0,0)
+		s_style.bg_color = Color(0, 0, 0, 0)
 		si_container.add_theme_stylebox_override("panel", s_style)
 		ui_layer.add_child(si_container)
 
 		var si_lbl = Label.new()
 		si_lbl.text = "✦ " + str(count) + " / 3"
-		si_lbl.add_theme_font_size_override("font_size", 14)
+		si_lbl.add_theme_font_size_override("font_size", 13)
 		si_lbl.modulate = Color(0.85, 0.72, 0.1) if count > 0 else Color(0.45, 0.42, 0.15)
 		si_lbl.size = si_container.size
 		si_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		si_container.add_child(si_lbl)
 
-		# Tooltip logic
 		si_container.mouse_entered.connect(func(): _show_secret_items_tooltip(si_container))
 		si_container.mouse_exited.connect(_hide_secret_items_tooltip)
 
 	draw_map()
 
 var _si_tooltip: Panel
+var _tooltip_panel: PanelContainer = null
 var _tooltip_label: Label = null
+var _tooltip_hide_timer: SceneTreeTimer = null
+var _tooltip_gen: int = 0  # generación para cancelar timers obsoletos
 
 func _show_secret_items_tooltip(target: Control) -> void:
 	if _si_tooltip: _si_tooltip.queue_free()
@@ -468,8 +654,8 @@ func draw_map() -> void:
 
 	# --- SCROLL CONTAINER ---
 	var scroll = ScrollContainer.new()
-	scroll.position = Vector2(0, 85) # Debajo del header
-	scroll.size = Vector2(vp.x, vp.y - 85)
+	scroll.position = Vector2(0, 108) # Debajo del header (HUD 50 + título/mundo ~58)
+	scroll.size = Vector2(vp.x, vp.y - 108)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	add_child(scroll)
@@ -557,90 +743,75 @@ func draw_map() -> void:
 			# Si cordura < 40, TODO lo que no sea el nodo actual o el pasado se vuelve un misterio
 			var is_obfuscated = GameManager.sanity < 40 and not is_current and not was_visited and not already_done
 			# Los jefes solo se revelan si estás cerca o tienes cordura
-			if is_obfuscated and (room_type == ROOM_BOSS or room_type == ROOM_FINAL or room_type == ROOM_FINAL_W2):
+			if is_obfuscated and (room_type == ROOM_BOSS or room_type == ROOM_FINAL or room_type == ROOM_FINAL_W2 or room_type == ROOM_FINAL_W3):
 				if f > GameManager.current_map_floor + 1: # Si faltan más de 2 pisos, ocultar incluso al jefe
 					is_obfuscated = true
 				else:
 					is_obfuscated = false # Revelar jefe cuando estás a punto de llegar
 			
-			var btn = Button.new()
-			btn.text = "??? (¿...)" if is_obfuscated else ROOM_LABELS[room_type]
-			btn.position = Vector2(pos.x - 52, pos.y - 20)
-			btn.size = Vector2(104, 40)
-			btn.disabled = not reachable or already_done
-			btn.add_theme_font_size_override("font_size", 11)
-
-			var style = StyleBoxFlat.new()
-			style.set_corner_radius_all(6)
-			style.content_margin_left = 4
-			style.content_margin_right = 4
-
-			if is_current:
-				style.bg_color = ROOM_COLORS[room_type].lightened(0.15)
-				style.set_border_width_all(2)
-				style.border_color = Color(1.0, 0.92, 0.35)
-				style.shadow_color = Color(1.0, 0.92, 0.35, 0.35)
-				style.shadow_size = 5
-				btn.text = "● " + btn.text + " ●"
-				var tw = btn.create_tween().set_loops()
-				tw.tween_property(btn, "scale", Vector2(1.04, 1.04), 0.55)
-				tw.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.55)
-			elif was_visited:
-				style.bg_color = Color(0.08, 0.06, 0.02, 0.9)
-				style.set_border_width_all(1)
-				style.border_color = Color(0.85, 0.75, 0.2, 0.7)
-				btn.modulate.a = 0.75
-			elif already_done:
-				style.bg_color = Color(0.02, 0.02, 0.04, 0.5)
-				style.set_border_width_all(0)
-				btn.modulate.a = 0.35
-			else:
-				if is_obfuscated:
-					style.bg_color = Color(0.05, 0.05, 0.07)
-					style.set_border_width_all(1)
-					style.border_color = Color(0.25, 0.25, 0.3, 0.4)
-					btn.modulate.a = 0.5
-					if GameManager.sanity < 25:
-						_start_shaking_node(btn)
-				else:
-					var base_col = ROOM_COLORS[room_type]
-					style.bg_color = base_col.darkened(0.25)
-					style.set_border_width_all(2)
-					if reachable:
-						style.border_color = base_col.lightened(0.3)
-						style.shadow_color = base_col
-						style.shadow_size = 4
-						btn.modulate.a = 1.0
-					else:
-						style.border_color = base_col.darkened(0.1)
-						style.set_border_width_all(1)
-						btn.modulate.a = 0.65
-				if reachable:
-					_add_dashed_rect(btn, Color(1, 1, 1, 0.6), 1.5)
-
-			btn.add_theme_stylebox_override("normal", style)
-			btn.add_theme_stylebox_override("disabled", style)
-
 			var fi = f
 			var ci = c
-			var node_data = graph[f][c] # Declarar node_data aquí
-			btn.pressed.connect(func(): _on_room_selected(fi, ci))
-			map_content.add_child(btn)
+			var node_data = graph[f][c]
 
-			# Tooltip hover (solo nodos futuros alcanzables y no ofuscados)
-			if not is_obfuscated and (is_current or reachable):
+			# ── Nodo visual de sala ──────────────────────────────────
+			var visual_state: String
+			if is_current:         visual_state = "current"
+			elif was_visited:      visual_state = "visited"
+			elif already_done:     visual_state = "past"
+			elif reachable:        visual_state = "reachable"
+			elif is_obfuscated:    visual_state = "obfuscated"
+			else:                  visual_state = "future"
+
+			var node_ctrl = Control.new()
+			node_ctrl.position = Vector2(pos.x - NODE_W / 2.0, pos.y - NODE_H / 2.0)
+			node_ctrl.size = Vector2(NODE_W, NODE_H)
+			node_ctrl.pivot_offset = Vector2(NODE_W / 2.0, NODE_H / 2.0)
+			node_ctrl.mouse_filter = Control.MOUSE_FILTER_PASS
+
+			var eff_type: String = "" if is_obfuscated else room_type
+			var illus = _build_illus_panel(eff_type, visual_state)
+			node_ctrl.add_child(illus)
+
+			var badge = _build_badge_panel(eff_type, visual_state)
+			node_ctrl.add_child(badge)
+
+			if is_obfuscated and GameManager.sanity < 25:
+				_start_shaking_node(node_ctrl)
+
+			if is_current:
+				var tw_pulse = illus.create_tween().set_loops()
+				tw_pulse.tween_property(illus, "modulate:a", 0.72, 0.65)
+				tw_pulse.tween_property(illus, "modulate:a", 1.0, 0.65)
+
+			# Botón invisible para manejar clics
+			var btn = Button.new()
+			btn.flat = true
+			btn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			btn.disabled = (not reachable) or already_done
+			var empty_style = StyleBoxEmpty.new()
+			btn.add_theme_stylebox_override("normal", empty_style)
+			btn.add_theme_stylebox_override("hover", empty_style)
+			btn.add_theme_stylebox_override("pressed", empty_style)
+			btn.add_theme_stylebox_override("disabled", empty_style)
+			btn.add_theme_stylebox_override("focus", empty_style)
+			btn.pressed.connect(func(): _on_room_selected(fi, ci))
+			node_ctrl.add_child(btn)
+
+			# Tooltip y hover — conectar al btn (confiable) no al Control padre
+			if not is_obfuscated:
 				var tip_type = node_data["type"]
-				btn.mouse_entered.connect(func(): _show_tooltip(tip_type, btn.get_global_rect()))
+				btn.mouse_entered.connect(func(): _show_tooltip(tip_type, node_ctrl.get_global_rect()))
 				btn.mouse_exited.connect(func(): _hide_tooltip())
 
 			if reachable and not already_done:
 				btn.mouse_entered.connect(func():
-					if not btn.disabled:
-						btn.create_tween().tween_property(btn, "scale", Vector2(1.06, 1.06), 0.12)
+					node_ctrl.create_tween().tween_property(node_ctrl, "scale", Vector2(1.07, 1.07), 0.1)
 				)
 				btn.mouse_exited.connect(func():
-					btn.create_tween().tween_property(btn, "scale", Vector2(1.0, 1.0), 0.12)
+					node_ctrl.create_tween().tween_property(node_ctrl, "scale", Vector2(1.0, 1.0), 0.1)
 				)
+
+			map_content.add_child(node_ctrl)
 
 			# RENDERIZAR GRIETA (Camino Secreto de 4 salas)
 			if node_data.get("has_rift", false):
@@ -710,12 +881,18 @@ func _show_rift_confirmation() -> void:
 
 func update_ui() -> void:
 	if not lbl_info: return
+	var hud = lbl_info  # lbl_info apunta al HUDBar Panel
 	var graph = GameManager.map_graph
-	lbl_info.text = "HP: %d/%d   " % [GameManager.player_hp, GameManager.player_max_hp]
-	lbl_info.text += "%s: %d/%d   " % [GameManager.get_sanity_label(), GameManager.sanity, GameManager.max_sanity]
-	lbl_info.text += "📖 LORE: %d   " % GameManager.lore_progress
-	lbl_info.text += "◈: %d   " % GameManager.coins
-	lbl_info.text += "Piso: %d/%d" % [GameManager.current_map_floor + 1, graph.size()]
+	var hp_l = hud.get_node_or_null("StatHP")
+	if hp_l: hp_l.text = "❤ %d/%d" % [GameManager.player_hp, GameManager.player_max_hp]
+	var coin_l = hud.get_node_or_null("StatCoins")
+	if coin_l: coin_l.text = "◆ %d" % GameManager.coins
+	var san_l = hud.get_node_or_null("StatSanity")
+	if san_l: san_l.text = "⬤ %d/%d" % [GameManager.sanity, GameManager.max_sanity]
+	var lore_l = hud.get_node_or_null("StatLore")
+	if lore_l: lore_l.text = "📖 %d" % GameManager.lore_progress
+	var floor_l = hud.get_node_or_null("StatFloor")
+	if floor_l: floor_l.text = "Piso %d/%d" % [GameManager.current_map_floor + 1, graph.size()]
 
 func _build_dev_panel(vp: Vector2) -> Panel:
 	var p = Panel.new()
@@ -764,10 +941,25 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		["✉ Frag: Carcosa", func():
 			if not GameManager.has_secret_item("carta_carcosa"):
 				GameManager.add_secret_item("carta_carcosa")],
-		["⚔ REY AMARILLO", func():
+		["♟ REY AMARILLO", func():
 			GameManager.is_final_boss = true
 			GameManager.current_world = 1
 			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")],
+		["◉ W3: TESTIGO", func():
+			GameManager.is_final_boss = true
+			GameManager.current_world = 2
+			GameManager.map_graph = []
+			GameManager.map_path = {}
+			GameManager.current_map_floor = 0
+			GameManager.current_map_col = -1
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")],
+		["◈ IR A MUNDO III", func():
+			GameManager.current_world = 2
+			GameManager.map_graph = []
+			GameManager.map_path = {}
+			GameManager.current_map_floor = 0
+			GameManager.current_map_col = -1
+			GameManager.go_to_scene("res://scenes/ui/Map.tscn")],
 	]
 	
 	for b_data in btns:
@@ -900,6 +1092,159 @@ func _add_map_decorations(container: Control, total_h: float, vp_x: float) -> vo
 		p.position = Vector2(randf_range(0, vp_x), randf_range(0, total_h))
 		container.add_child(p)
 
+# ─── Helpers visuales de nodos ───────────────────────────────────────────────
+func _style_top_button(btn: Button, accent: Color) -> void:
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.08, 0.06, 0.1, 0.9)
+	s.set_border_width_all(1)
+	s.border_color = accent.lightened(0.1)
+	s.set_corner_radius_all(4)
+	s.content_margin_left = 8
+	s.content_margin_right = 8
+	btn.add_theme_stylebox_override("normal", s)
+	var sh = s.duplicate()
+	sh.bg_color = accent.darkened(0.15)
+	sh.border_color = accent.lightened(0.35)
+	btn.add_theme_stylebox_override("hover", sh)
+	var sp = s.duplicate()
+	sp.bg_color = accent.darkened(0.05)
+	btn.add_theme_stylebox_override("pressed", sp)
+	btn.add_theme_stylebox_override("focus", s)
+
+func _build_illus_panel(room_type: String, visual_state: String) -> Panel:
+	var p = Panel.new()
+	p.position = Vector2.ZERO
+	p.size = Vector2(NODE_W, NODE_ILLUS_H)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var s = StyleBoxFlat.new()
+	s.set_corner_radius_all(7)
+	s.set_corner_radius(CORNER_BOTTOM_LEFT, 0)
+	s.set_corner_radius(CORNER_BOTTOM_RIGHT, 0)
+
+	if room_type.is_empty():
+		s.bg_color = Color(0.05, 0.04, 0.08, 0.82)
+		s.set_border_width_all(1)
+		s.border_color = Color(0.2, 0.18, 0.28, 0.4)
+	else:
+		var base = ROOM_COLORS[room_type]
+		match visual_state:
+			"current":
+				s.bg_color = base.darkened(0.18)
+				s.set_border_width_all(2)
+				s.border_color = Color(1.0, 0.88, 0.25)
+				s.shadow_color = Color(1.0, 0.88, 0.25, 0.55)
+				s.shadow_size = 7
+			"reachable":
+				s.bg_color = base.darkened(0.3)
+				s.set_border_width_all(2)
+				s.border_color = base.lightened(0.28)
+				s.shadow_color = base
+				s.shadow_size = 4
+			"visited":
+				s.bg_color = Color(0.07, 0.06, 0.03, 0.88)
+				s.set_border_width_all(1)
+				s.border_color = Color(0.7, 0.62, 0.2, 0.55)
+			"past":
+				s.bg_color = Color(0.03, 0.02, 0.04, 0.4)
+				s.set_border_width_all(0)
+			_:  # future / obfuscated
+				s.bg_color = base.darkened(0.55)
+				s.set_border_width_all(1)
+				s.border_color = base.darkened(0.18)
+
+	p.add_theme_stylebox_override("panel", s)
+
+	var icon_lbl = Label.new()
+	icon_lbl.text = "ᛇ ᚦ ᛟ" if room_type.is_empty() else ROOM_BIG_ICONS.get(room_type, "ᛒ")
+	icon_lbl.add_theme_font_override("font", ThemeDB.fallback_font)  # garantiza glifos unicode
+	icon_lbl.add_theme_font_size_override("font_size", 34)
+	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	icon_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	icon_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	match visual_state:
+		"past":    icon_lbl.modulate.a = 0.3
+		"future":  icon_lbl.modulate.a = 0.5
+		"visited": icon_lbl.modulate.a = 0.6
+	p.add_child(icon_lbl)
+
+	if not room_type.is_empty() and visual_state not in ["past"]:
+		_add_corner_decorations(p, ROOM_COLORS[room_type])
+
+	match visual_state:
+		"past":   p.modulate.a = 0.55
+		"future": p.modulate.a = 0.75
+
+	return p
+
+func _build_badge_panel(room_type: String, visual_state: String) -> Panel:
+	var badge_w := NODE_W * 0.72
+	var p = Panel.new()
+	p.position = Vector2((NODE_W - badge_w) / 2.0, NODE_ILLUS_H + 5.0)
+	p.size = Vector2(badge_w, NODE_BADGE_H)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.07, 0.06, 0.09, 0.92)
+	s.set_corner_radius_all(11)
+	s.set_border_width_all(1)
+
+	if room_type.is_empty():
+		s.border_color = Color(0.2, 0.18, 0.28, 0.3)
+	else:
+		var base = ROOM_COLORS[room_type]
+		match visual_state:
+			"current":
+				s.border_color = Color(1.0, 0.88, 0.25, 0.9)
+				s.bg_color = Color(0.12, 0.1, 0.04, 0.96)
+			"reachable":
+				s.border_color = base.lightened(0.3)
+			"visited":
+				s.border_color = Color(0.62, 0.55, 0.2, 0.5)
+			_:
+				s.border_color = base.darkened(0.12)
+
+	p.add_theme_stylebox_override("panel", s)
+
+	var icon_lbl = Label.new()
+	icon_lbl.text = "ᚢ ᛣ" if room_type.is_empty() else ROOM_BIG_ICONS.get(room_type, "ᛡ")
+	icon_lbl.add_theme_font_override("font", ThemeDB.fallback_font)  # garantiza glifos unicode
+	icon_lbl.add_theme_font_size_override("font_size", 14)
+	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	icon_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	icon_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if not room_type.is_empty():
+		var base = ROOM_COLORS[room_type]
+		icon_lbl.modulate = base.lightened(0.5) if visual_state in ["current", "reachable"] else base.lightened(0.15)
+	p.add_child(icon_lbl)
+
+	match visual_state:
+		"past":    p.modulate.a = 0.55
+		"future":  p.modulate.a = 0.75
+		"visited": p.modulate.a = 0.62
+
+	return p
+
+func _add_corner_decorations(parent: Panel, color: Color) -> void:
+	var sz := parent.size
+	var corners := [
+		{"pos": Vector2(3.0, 2.0),          "text": "⌜"},
+		{"pos": Vector2(sz.x - 13.0, 2.0),  "text": "⌝"},
+		{"pos": Vector2(3.0, sz.y - 15.0),  "text": "⌞"},
+		{"pos": Vector2(sz.x - 13.0, sz.y - 15.0), "text": "⌟"},
+	]
+	for cd in corners:
+		var lbl = Label.new()
+		lbl.text = cd["text"]
+		lbl.position = cd["pos"]
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.modulate = color.lightened(0.1)
+		lbl.modulate.a = 0.3
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		parent.add_child(lbl)
+
 # ─── Logica de rutas ─────────────────────────────────────────────────────────
 func _is_node_reachable(floor_idx: int, col_idx: int) -> bool:
 	# Solo el piso inmediatamente siguiente al actual es elegible
@@ -969,6 +1314,13 @@ func _on_room_selected(floor_idx: int, col_idx: int) -> void:
 		ROOM_FINAL, ROOM_FINAL_W2:
 			GameManager.is_final_boss = true
 			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
+		ROOM_FINAL_W3:
+			GameManager.is_final_boss = true
+			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
+		ROOM_FRAGMENT:
+			_show_fragment_w3_overlay(floor_idx, col_idx)
+		ROOM_VAULT_W3:
+			_show_vault_w3_overlay()
 		ROOM_SECRET:
 			var item_id = GameManager.map_graph[floor_idx][col_idx].get("item_id", "")
 			_show_secret_item_overlay(item_id)
@@ -979,6 +1331,91 @@ func _map_has_secret_rooms() -> bool:
 			if node.type == ROOM_SECRET:
 				return true
 	return false
+
+func _show_fragment_w3_overlay(floor_idx: int, col_idx: int) -> void:
+	var vp = get_viewport_rect().size
+	var layer = CanvasLayer.new(); layer.layer = 300; add_child(layer)
+	var overlay = ColorRect.new(); overlay.color = Color(0, 0, 0, 0)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP; layer.add_child(overlay)
+	create_tween().tween_property(overlay, "color:a", 0.88, 0.3)
+
+	var panel = Panel.new(); panel.size = Vector2(min(vp.x * 0.65, 540), 280)
+	panel.position = (vp - panel.size) / 2; panel.modulate.a = 0.0
+	var s = StyleBoxFlat.new(); s.bg_color = Color(0.04, 0.0, 0.1)
+	s.set_border_width_all(2); s.border_color = Color(0.5, 0.1, 0.85); s.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", s); overlay.add_child(panel)
+	create_tween().tween_property(panel, "modulate:a", 1.0, 0.3)
+
+	var title = Label.new(); title.text = "◈ FRAGMENTO DE CARCOSA"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 22)
+	title.modulate = Color(0.7, 0.2, 1.0); title.position = Vector2(0, 20)
+	title.size = Vector2(panel.size.x, 36); panel.add_child(title)
+
+	var is_prince = GameManager.selected_character == "prince"
+	var desc_text: String
+	if is_prince:
+		desc_text = "La grieta te reconoce.\n+1 RESONANCIA (permanente esta run)\nEl abismo amplifica tu poder."
+	else:
+		desc_text = "El fragmento quema tu mente.\n-15 CORDURA MÁXIMA (permanente esta run)\nCosto del conocimiento prohibido."
+
+	var desc = Label.new(); desc.text = desc_text
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	desc.add_theme_font_size_override("font_size", 16)
+	desc.modulate = Color(0.85, 0.75, 0.95)
+	desc.position = Vector2(30, 75); desc.size = Vector2(panel.size.x - 60, 120); panel.add_child(desc)
+
+	var collect_btn = Button.new(); collect_btn.text = "ABSORBER FRAGMENTO"
+	collect_btn.custom_minimum_size = Vector2(220, 44)
+	collect_btn.position = Vector2(panel.size.x / 2 - 110, 200); panel.add_child(collect_btn)
+	collect_btn.pressed.connect(func():
+		GameManager.collect_fragment_w3()
+		GameManager.map_graph[floor_idx][col_idx].type = ROOM_COMBAT  # Marcar como visitada
+		var tw_out = create_tween(); tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
+		tw_out.finished.connect(func(): layer.queue_free(); GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
+	)
+
+func _show_vault_w3_overlay() -> void:
+	var vp = get_viewport_rect().size
+	var layer = CanvasLayer.new(); layer.layer = 300; add_child(layer)
+	var overlay = ColorRect.new(); overlay.color = Color(0, 0, 0, 0)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP; layer.add_child(overlay)
+	create_tween().tween_property(overlay, "color:a", 0.92, 0.3)
+
+	var panel = Panel.new(); panel.size = Vector2(min(vp.x * 0.65, 540), 300)
+	panel.position = (vp - panel.size) / 2; panel.modulate.a = 0.0
+	var s = StyleBoxFlat.new(); s.bg_color = Color(0.05, 0.0, 0.12)
+	s.set_border_width_all(3); s.border_color = Color(0.65, 0.1, 1.0); s.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", s); overlay.add_child(panel)
+	create_tween().tween_property(panel, "modulate:a", 1.0, 0.3)
+
+	var title = Label.new(); title.text = "⬡ BÓVEDA DEL UMBRAL"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.modulate = Color(0.8, 0.3, 1.0); title.position = Vector2(0, 18)
+	title.size = Vector2(panel.size.x, 36); panel.add_child(title)
+
+	var desc = Label.new()
+	desc.text = "Has reunido los fragmentos.\nEl Testigo ha abierto su tercer ojo para ti.\n\nRELIQUIA: Ojo del Testigo\nVe el patron completo de todos los enemigos W3.\nCosto: -20 Cordura maxima permanente."
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	desc.add_theme_font_size_override("font_size", 15)
+	desc.modulate = Color(0.85, 0.75, 0.95)
+	desc.position = Vector2(30, 70); desc.size = Vector2(panel.size.x - 60, 150); panel.add_child(desc)
+
+	var take_btn = Button.new(); take_btn.text = "TOMAR EL OJO DEL TESTIGO"
+	take_btn.custom_minimum_size = Vector2(240, 44)
+	take_btn.position = Vector2(panel.size.x / 2 - 120, 230); panel.add_child(take_btn)
+	take_btn.pressed.connect(func():
+		GameManager.add_relic("ojo_testigo")
+		GameManager.max_sanity = max(20, GameManager.max_sanity - 20)
+		GameManager.sanity = min(GameManager.sanity, GameManager.max_sanity)
+		var tw_out = create_tween(); tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
+		tw_out.finished.connect(func(): layer.queue_free(); GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
+	)
 
 func _typewrite(lbl: Label, text: String, base_delay: float = 0.04) -> void:
 	lbl.text = ""
@@ -1180,13 +1617,11 @@ func _show_deck_viewer() -> void:
 		AudioManager.play("button_click")
 
 func _build_tooltip_label() -> void:
-	if _tooltip_label:
-		_tooltip_label.queue_free()
-	_tooltip_label = Label.new()
-	_tooltip_label.z_index = 200
-	_tooltip_label.visible = false
-	_tooltip_label.add_theme_font_size_override("font_size", 13)
-	_tooltip_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	if _tooltip_panel and is_instance_valid(_tooltip_panel):
+		_tooltip_panel.queue_free()
+	_tooltip_panel = PanelContainer.new()
+	_tooltip_panel.z_index = 200
+	_tooltip_panel.visible = false
 	var sbox = StyleBoxFlat.new()
 	sbox.bg_color = Color(0.05, 0.04, 0.08, 0.95)
 	sbox.set_border_width_all(1)
@@ -1196,23 +1631,63 @@ func _build_tooltip_label() -> void:
 	sbox.content_margin_right = 10
 	sbox.content_margin_top = 6
 	sbox.content_margin_bottom = 6
-	_tooltip_label.add_theme_stylebox_override("normal", sbox)
-	add_child(_tooltip_label)
+	_tooltip_panel.add_theme_stylebox_override("panel", sbox)
+	_tooltip_label = Label.new()
+	_tooltip_label.add_theme_font_size_override("font_size", 13)
+	_tooltip_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_tooltip_label.custom_minimum_size = Vector2(220, 0)
+	_tooltip_panel.add_child(_tooltip_label)
+	add_child(_tooltip_panel)
 
 func _show_tooltip(room_type: String, btn_rect: Rect2) -> void:
+	_tooltip_gen += 1              # invalida cualquier timer de hide pendiente
+	_tooltip_hide_timer = null
 	if not _tooltip_label or not ROOM_DESCRIPTIONS.has(room_type):
 		return
 	var desc = ROOM_DESCRIPTIONS[room_type]
-	_tooltip_label.text = desc[0] + "\n" + desc[1]
-	_tooltip_label.size = Vector2(240, 0)
-	_tooltip_label.visible = true
-	# Posicionar a la derecha del nodo, ajustar si sale de pantalla
+
+	# Sanity corruption: at < 30 sanity, non-current rooms show garbled text
+	var title_text: String
+	var flavor_text: String
+	if GameManager.sanity < 30 and randf() < 0.5:
+		var corrupted = ROOM_CORRUPTED_DESCRIPTIONS[randi() % ROOM_CORRUPTED_DESCRIPTIONS.size()]
+		title_text = corrupted[0]
+		flavor_text = corrupted[1]
+	else:
+		title_text = desc[0]
+		flavor_text = desc[1]
+		# Append a rotating omen from the 3rd element if present
+		if desc.size() > 2:
+			var omens: Array = desc[2]
+			if not omens.is_empty():
+				flavor_text += "\n\n« " + omens[randi() % omens.size()] + " »"
+
+	_tooltip_label.text = title_text + "\n" + flavor_text
+	_tooltip_panel.position = Vector2(-9999, -9999)
+	_tooltip_panel.visible = true
+
+	await get_tree().process_frame
+	if not is_instance_valid(_tooltip_panel): return
+
 	var vp = get_viewport_rect().size
+	var panel_w = _tooltip_panel.size.x
 	var tx = btn_rect.position.x + btn_rect.size.x + 8
-	if tx + 240 > vp.x:
-		tx = btn_rect.position.x - 248
-	_tooltip_label.position = Vector2(tx, btn_rect.position.y)
+	if tx + panel_w > vp.x:
+		tx = btn_rect.position.x - panel_w - 8
+	var panel_h = _tooltip_panel.size.y
+	var ty = btn_rect.position.y
+	if ty + panel_h > vp.y - 8:
+		ty = vp.y - panel_h - 8
+	ty = max(8.0, ty)
+	_tooltip_panel.position = Vector2(tx, ty)
 
 func _hide_tooltip() -> void:
-	if _tooltip_label:
-		_tooltip_label.visible = false
+	var gen := _tooltip_gen  # captura la generación actual
+	_tooltip_hide_timer = get_tree().create_timer(0.7)
+	_tooltip_hide_timer.timeout.connect(func():
+		if gen != _tooltip_gen:  # _show_tooltip se llamó de nuevo — no ocultar
+			return
+		_tooltip_hide_timer = null
+		if _tooltip_panel:
+			_tooltip_panel.visible = false
+	)

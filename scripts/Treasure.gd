@@ -10,7 +10,15 @@ var is_opened: bool = false
 var reward_data: Dictionary = {}
 var is_claiming: bool = false
 
+var _font_title:     FontFile
+var _font_narrative: FontFile
+var _font_ui:        FontFile
+
 func _ready() -> void:
+	_font_title     = load("res://assets/fonts/CinzelDecorative-Bold.otf")
+	_font_narrative = load("res://assets/fonts/IMFellEnglish-Italic.ttf")
+	_font_ui        = load("res://assets/fonts/rajdhani.medium.ttf")
+
 	var vp = get_viewport_rect().size
 	modulate.a = 0.0
 
@@ -26,7 +34,10 @@ func _ready() -> void:
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.stop_loop("Glith_distorsion_noised_sound")
 		AudioManager.stop_loop("Cry_whisper_woman_sound")
-		AudioManager.play_loop("map_ambient_song")
+		if GameManager.current_world == 0:
+			AudioManager.play_loop("map_ambient_song")
+		else:
+			AudioManager.play_loop("ES_Lost in Time - Aiyo")
 
 	build_ui()
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.5)
@@ -40,6 +51,7 @@ func build_ui() -> void:
 	var title = Label.new()
 	title.text = "CÁMARA DEL TESORO"
 	title.add_theme_font_size_override("font_size", 44)
+	if _font_title: title.add_theme_font_override("font", _font_title)
 	title.modulate = Color(0.85, 0.65, 0.1, 0.0)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, 50)
@@ -49,6 +61,7 @@ func build_ui() -> void:
 	var sub = Label.new()
 	sub.text = "Algo brilla entre la ceniza. Una pieza que no debería estar aquí."
 	sub.add_theme_font_size_override("font_size", 17)
+	if _font_narrative: sub.add_theme_font_override("font", _font_narrative)
 	sub.modulate = Color(0.55, 0.55, 0.55, 0.0)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.position = Vector2(0, 115)
@@ -173,8 +186,9 @@ func build_ui() -> void:
 
 	# Hint "haz clic"
 	var hint = Label.new()
-	hint.text = "[ haz clic para abrir ]"
+	hint.text = "⟨ el arcón guarda sus secretos — tócalo para reclamarlos ⟩"
 	hint.add_theme_font_size_override("font_size", 13)
+	if _font_narrative: hint.add_theme_font_override("font", _font_narrative)
 	hint.modulate = Color(0.5, 0.5, 0.5, 0.0)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.position = Vector2(0, vp.y / 2.0 + 115)
@@ -195,6 +209,7 @@ func build_ui() -> void:
 	btn_view.size = Vector2(180, 45)
 	btn_view.position = Vector2(vp.x - 220, 25)
 	btn_view.add_theme_font_size_override("font_size", 14)
+	if _font_ui: btn_view.add_theme_font_override("font", _font_ui)
 	btn_view.pressed.connect(func(): GameManager.show_deck_overlay(self))
 	add_child(btn_view)
 
@@ -311,6 +326,7 @@ func _show_reward_modal() -> void:
 		var header = Label.new()
 		header.text = "ELIGE UNA PIEZA LEGENDARIA"
 		header.add_theme_font_size_override("font_size", 26)
+		if _font_title: header.add_theme_font_override("font", _font_title)
 		header.modulate = Color(1.0, 0.85, 0.2)
 		header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		header.position = Vector2(0, vp.y * 0.08)
@@ -320,6 +336,7 @@ func _show_reward_modal() -> void:
 		var sub_header = Label.new()
 		sub_header.text = "Las no elegidas se perderán para siempre."
 		sub_header.add_theme_font_size_override("font_size", 14)
+		if _font_narrative: sub_header.add_theme_font_override("font", _font_narrative)
 		sub_header.modulate = Color(0.6, 0.55, 0.55)
 		sub_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		sub_header.position = Vector2(0, vp.y * 0.08 + 44)
@@ -350,6 +367,7 @@ func _show_reward_modal() -> void:
 			var claim_btn = Button.new()
 			claim_btn.text = "RECLAMAR"
 			_style_btn_primary(claim_btn)
+			if _font_ui: claim_btn.add_theme_font_override("font", _font_ui)
 			vbox.add_child(claim_btn)
 
 			# Entrada staggered con flash dorado (vbox maneja el fade)
@@ -394,6 +412,18 @@ func _show_reward_modal() -> void:
 	tw_modal.tween_property(modal, "modulate:a", 1.0, 0.38).set_trans(Tween.TRANS_QUAD)
 	tw_modal.tween_property(modal, "scale", Vector2(1.0, 1.0), 0.38).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
+	# Shimmer dorado en el área del ítem
+	var glow_rect = ColorRect.new()
+	glow_rect.color = Color(0.9, 0.7, 0.2, 0.06)
+	glow_rect.size = Vector2(520, 280)
+	glow_rect.position = Vector2(0, 68)
+	glow_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow_rect.z_index = 10
+	modal.add_child(glow_rect)
+	var tw_glow = create_tween().set_loops()
+	tw_glow.tween_property(glow_rect, "color:a", 0.1, 0.6).set_trans(Tween.TRANS_SINE)
+	tw_glow.tween_property(glow_rect, "color:a", 0.02, 0.6).set_trans(Tween.TRANS_SINE)
+
 	# Línea decorativa superior
 	var top_line = ColorRect.new()
 	top_line.size = Vector2(380, 2)
@@ -405,6 +435,7 @@ func _show_reward_modal() -> void:
 	var lbl = Label.new()
 	lbl.text = "¡HAS ENCONTRADO!"
 	lbl.add_theme_font_size_override("font_size", 22)
+	if _font_title: lbl.add_theme_font_override("font", _font_title)
 	lbl.modulate = Color(0.85, 0.72, 0.2)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.position = Vector2(0, 22)
@@ -509,12 +540,14 @@ func _show_reward_modal() -> void:
 	btn_take.text = "✦ ACEPTAR"
 	btn_take.custom_minimum_size = Vector2(195, 52)
 	_style_btn_primary(btn_take)
+	if _font_ui: btn_take.add_theme_font_override("font", _font_ui)
 	btn_hbox.add_child(btn_take)
 
 	var btn_leave = Button.new()
 	btn_leave.text = "DEJAR ATRÁS"
 	btn_leave.custom_minimum_size = Vector2(195, 52)
 	_style_btn_secondary(btn_leave)
+	if _font_ui: btn_leave.add_theme_font_override("font", _font_ui)
 	btn_hbox.add_child(btn_leave)
 
 	# Botones entran con delay
@@ -577,6 +610,9 @@ func _style_btn_primary(btn: Button) -> void:
 	sp.content_margin_left = 12; sp.content_margin_right = 12
 	sp.content_margin_top = 8; sp.content_margin_bottom = 8
 	btn.add_theme_stylebox_override("pressed", sp)
+	btn.pivot_offset = btn.size / 2
+	btn.mouse_entered.connect(func(): create_tween().tween_property(btn, "scale", Vector2(1.03, 1.03), 0.1))
+	btn.mouse_exited.connect(func():  create_tween().tween_property(btn, "scale", Vector2.ONE, 0.1))
 
 func _style_btn_secondary(btn: Button) -> void:
 	btn.add_theme_font_size_override("font_size", 15)
@@ -595,6 +631,9 @@ func _style_btn_secondary(btn: Button) -> void:
 	sh.content_margin_left = 12; sh.content_margin_right = 12
 	sh.content_margin_top = 8; sh.content_margin_bottom = 8
 	btn.add_theme_stylebox_override("hover", sh)
+	btn.pivot_offset = btn.size / 2
+	btn.mouse_entered.connect(func(): create_tween().tween_property(btn, "scale", Vector2(1.03, 1.03), 0.1))
+	btn.mouse_exited.connect(func():  create_tween().tween_property(btn, "scale", Vector2.ONE, 0.1))
 
 # ─── PARTÍCULAS ───────────────────────────────────────────────────────────────
 

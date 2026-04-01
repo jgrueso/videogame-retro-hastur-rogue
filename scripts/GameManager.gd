@@ -46,6 +46,8 @@ var rift_combat_pending: bool = false # Entrar a Grieta si ganamos el combate de
 var rift_wanderer_offered: bool = false # Opción C del Umbral fue elegida en una run anterior
 var void_path_step: int = 0 # 0-3 (Combate, Combate, Jefe Secreto, Tesoro)
 var came_from_room: bool = false # True al salir de una sala hacia el mapa; Map._ready() guarda entonces
+var fragment_count_w3: int = 0   # Fragmentos de Carcosa recogidos (acumulativo entre runs)
+var resonancia_stacks: int = 0   # Solo Príncipe, reset por run
 
 func enter_void_path() -> void:
 	is_in_void_path = true
@@ -54,6 +56,13 @@ func enter_void_path() -> void:
 	go_to_scene("res://scenes/ui/VoidMap.tscn")
 
 var _transitioning: bool = false
+var _close_active_overlay: Callable = Callable()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and _close_active_overlay.is_valid():
+		_close_active_overlay.call()
+		_close_active_overlay = Callable()
+		get_viewport().set_input_as_handled()
 
 func go_to_scene(path: String) -> void:
 	if _transitioning: return
@@ -133,7 +142,8 @@ func save_run() -> void:
 		"velo_broken": velo_broken,
 		"secret_items": secret_items,
 		"lore_progress": lore_progress,
-		"run_seed": run_seed
+		"run_seed": run_seed,
+		"fragment_count_w3": fragment_count_w3
 	}
 	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.WRITE)
 	if file:
@@ -179,6 +189,7 @@ func load_run() -> bool:
 			secret_items = data.get("secret_items", [])
 			lore_progress = data.get("lore_progress", lore_progress)
 			run_seed = data.get("run_seed", 0)
+			fragment_count_w3 = data.get("fragment_count_w3", 0)
 			file.close()
 			return true
 	return false
@@ -200,6 +211,13 @@ func reset_all_progress() -> void:
 	reset_run()
 
 signal lore_popup_closed
+
+const LORE_CHARACTER_REACTIONS: Dictionary = {
+	"conquistador": "«Otro fragmento del tablero ensangrentado. Cada verdad me acerca al trono... o a la tumba.»",
+	"estratega": "«El patrón se amplía. Cada dato es un eslabón de la cadena que me ata a este lugar.»",
+	"guardian": "«Cargo con esto también. El peso no me dobla. Todavía no.»",
+	"prince": "«Lo recuerdo. Siempre lo recordé. Tú aún no comprendes lo que eso significa para nosotros.»",
+}
 
 func unlock_lore(lore_id: String) -> void:
 	if not lore_id in unlocked_lore:
@@ -258,13 +276,18 @@ func _show_lore_popup(lore_id: String) -> void:
 	panel.add_child(header)
 
 	var title_lbl = Label.new()
-	title_lbl.text = data["title"]
+	title_lbl.text = ""
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.add_theme_font_size_override("font_size", 24)
 	title_lbl.modulate = Color(0.9, 0.78, 0.2)
 	title_lbl.position = Vector2(0, 50)
 	title_lbl.size = Vector2(panel.size.x, 36)
 	panel.add_child(title_lbl)
+	var _full_title: String = data["title"]
+	var tw_type = scene.create_tween()
+	tw_type.tween_interval(0.2)
+	tw_type.tween_method(func(n: int): title_lbl.text = _full_title.substr(0, n),
+		0, _full_title.length(), float(_full_title.length()) * 0.055)
 
 	var sep = ColorRect.new()
 	sep.color = Color(0.5, 0.4, 0.1, 0.5)
@@ -278,7 +301,8 @@ func _show_lore_popup(lore_id: String) -> void:
 	panel.add_child(scroll)
 
 	var text_lbl = Label.new()
-	text_lbl.text = data["text"]
+	var _reaction: String = LORE_CHARACTER_REACTIONS.get(selected_character, "")
+	text_lbl.text = (_reaction + "\n\n——\n\n" + data["text"]) if not _reaction.is_empty() else data["text"]
 	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
 	text_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text_lbl.custom_minimum_size.x = scroll.size.x - 10
@@ -296,18 +320,16 @@ func _show_lore_popup(lore_id: String) -> void:
 	close_btn.custom_minimum_size = Vector2(240, 44)
 	close_btn.position = Vector2(panel.size.x / 2 - 120, panel.size.y - 62)
 	panel.add_child(close_btn)
-	close_btn.pressed.connect(func():
+	var _lore_close = func():
+		_close_active_overlay = Callable()
 		var tw_out = scene.create_tween()
 		tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
 		tw_out.finished.connect(func():
 			layer.queue_free()
 			lore_popup_closed.emit()
 		)
-	)
-
-	if get_node_or_null("/root/AudioManager"):
-		AudioManager.play("lore_reveal")
-
+	_close_active_overlay = _lore_close
+	close_btn.pressed.connect(_lore_close)
 
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.play("lore_reveal")
@@ -392,6 +414,14 @@ func has_all_secret_items() -> bool:
 		"cancion_amarilla" in secret_items and
 		"carta_carcosa" in secret_items)
 
+func collect_fragment_w3() -> void:
+	fragment_count_w3 += 1
+	if selected_character == "prince":
+		resonancia_stacks += 1
+	else:
+		max_sanity = max(20, max_sanity - 15)
+		sanity = min(sanity, max_sanity)
+
 # ─── Reliquias disponibles ────────────────────────────────────────────────────
 const RELIC_DATA = {
 	"ficha_marfil": {
@@ -449,6 +479,18 @@ const RELIC_DATA = {
 	"ojo_arrancado": {
 		"name": "Ojo Arrancado",
 		"desc": "Cada vez que recibes daño de un enemigo, ese enemigo sufre 2 de daño de retorno.",
+	},
+	"ojo_testigo": {
+		"name": "Ojo del Testigo",
+		"desc": "Ve el patron completo de todos los enemigos W3. Costo: -20 Cordura maxima permanente.",
+	},
+	"fragmento_mapa": {
+		"name": "Fragmento de Mapa",
+		"desc": "-10% HP enemigos W3. Costo: +1 combate forzado antes de cada descanso.",
+	},
+	"ceniza_guardia": {
+		"name": "Ceniza de la Guardia",
+		"desc": "+2 Energia maxima en W3 unicamente.",
 	},
 }
 
@@ -566,12 +608,13 @@ func show_deck_overlay(parent_node: Node) -> void:
 	close_btn.position = Vector2(panel.size.x/2 - 100, panel.size.y - 75)
 	panel.add_child(close_btn)
 	
-	close_btn.pressed.connect(func():
+	var _deck_close = func():
+		_close_active_overlay = Callable()
 		var tw_out = parent_node.create_tween()
 		tw_out.tween_property(overlay, "modulate:a", 0.0, 0.25)
-		await tw_out.finished
-		overlay.queue_free()
-	)
+		tw_out.finished.connect(overlay.queue_free)
+	_close_active_overlay = _deck_close
+	close_btn.pressed.connect(_deck_close)
 
 func show_codex_overlay(parent_node: Node) -> void:
 	var vp = parent_node.get_viewport_rect().size
@@ -623,7 +666,11 @@ func show_codex_overlay(parent_node: Node) -> void:
 	
 	var close_btn = Button.new(); close_btn.text = "CERRAR"; close_btn.size = Vector2(200, 50)
 	close_btn.position = Vector2(panel.size.x/2 - 100, panel.size.y - 70); panel.add_child(close_btn)
-	close_btn.pressed.connect(overlay.queue_free)
+	var _codex_close = func():
+		_close_active_overlay = Callable()
+		overlay.queue_free()
+	_close_active_overlay = _codex_close
+	close_btn.pressed.connect(_codex_close)
 
 func reset_run() -> void:
 	run_seed = randi()
@@ -664,4 +711,6 @@ func reset_run() -> void:
 	player_max_energy = 3
 	rift_visited = false
 	rift_combat_pending = false
+	resonancia_stacks = 0
 	# rift_wanderer_offered persiste entre runs (no se resetea aquí)
+	# fragment_count_w3 persiste entre runs (no se resetea aquí)

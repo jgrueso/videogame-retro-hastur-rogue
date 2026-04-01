@@ -3,6 +3,36 @@ extends Node
 # Este script maneja toda la representación visual del combate
 # para que Combat.gd se centre únicamente en la lógica del juego.
 
+const COMBAT_FLAVOR: Dictionary = {
+	"default": [
+		"El tablero exige sangre. Como siempre.",
+		"Cada golpe es una oración al vacío.",
+		"La partida continúa, quieras o no.",
+	],
+	"low_hp": [
+		"Tu cuerpo recuerda cada herida. Tu mente empieza a olvidar por qué luchas.",
+		"Quedan pocas piezas. El tablero ya sabe quién ganará.",
+		"La carne es débil. Y el tablero lo sabe.",
+		"¿Para qué seguir? El final ya fue escrito.",
+	],
+	"low_sanity": [
+		"Las voces tienen razón. Siempre tuvieron razón.",
+		"El ojo te observa. Lleva haciéndolo desde que naciste.",
+		"Ya no distingues el combate de los sueños. ¿Importa la diferencia?",
+		"Algo te susurra el nombre del siguiente movimiento. No era tu idea.",
+	],
+	"enemy_intro": {
+		"default": "Una presencia del tablero se manifiesta.",
+		"El Conquistador Fantasma": "El Conquistador reconoce el eco de su propio error.",
+		"El Inquisidor": "El Inquisidor ya ha juzgado. Solo falta la sentencia.",
+		"La Dama": "La Dama del Tablero mueve sus piezas sin mirarte.",
+		"El Centinela": "El Centinela ha esperado este momento desde el principio.",
+		"Avatar del Rey": "El tablero tiembla. La partida final ha comenzado.",
+		"El Rey Amarillo": "Carcosa reclama lo que siempre fue suyo.",
+		"El Testigo": "Ha visto cada una de tus muertes anteriores. Te recuerda bien.",
+	}
+}
+
 var main: Node2D # Referencia al script principal de Combat
 
 # Referencias a nodos de UI (serán inicializados en build_ui)
@@ -40,6 +70,12 @@ var energy_dots: Array = []
 # --- Pulso de cordura crítica ---
 var _sanity_pulse_tween: Tween = null
 var _sanity_fill_style: StyleBoxFlat = null
+var _vignette_pulse_tween: Tween = null
+
+# --- Marca del Vacío (carta maldita) ---
+var _cursed_card_index: int = -1
+var _cursed_card_node = null
+var _cursed_overlay_tween: Tween = null
 
 # --- Estado de animación de barras de vida ---
 var _bar_tweens: Dictionary = {}         # ProgressBar -> Tween activo
@@ -289,6 +325,7 @@ func build_ui(vp: Vector2) -> void:
 	blink_overlay.color = Color.BLACK
 	blink_overlay.visible = false
 	blink_overlay.z_index = 60 # El parpadeo tapa todo
+	blink_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	main.add_child(blink_overlay)
 
 	var dev_toggle = Button.new(); dev_toggle.text = "[DEV]"
@@ -397,7 +434,7 @@ func _build_dynamic_background(vp: Vector2) -> void:
 	main.add_child(gpu_rain)
 
 func update_ui() -> void:
-	var hp_text = "SALUD: %d / %d" % [main.player_hp, main.player_max_hp]
+	var hp_text = "SALUD: %d / %d" % [max(0, main.player_hp), main.player_max_hp]
 	if main.player_shield > 0:
 		hp_text += " [color=#66ccff](+%d ESCUDO)[/color]" % main.player_shield
 
@@ -454,8 +491,14 @@ func update_ui() -> void:
 	if GameManager.mark_level > 0: lbl_energy.text = "(Signo Lv%d)" % GameManager.mark_level
 
 	if lbl_furia:
-		lbl_furia.text = "FURIA: +%d DAÑO" % main.furia_points
-		lbl_furia.visible = main.furia_points > 0
+		lbl_furia.text = "FURIA: %d/3" % main.furia_points
+		lbl_furia.visible = true
+		if main.furia_points >= 3:
+			lbl_furia.modulate = Color(1.0, 0.4, 0.1)
+		elif main.furia_points > 0:
+			lbl_furia.modulate = Color(0.7, 0.9, 0.3)
+		else:
+			lbl_furia.modulate = Color(0.4, 0.5, 0.4, 0.7)
 
 	lbl_draw_pile.text    = "MAZO: %d" % main.draw_pile.size()
 	lbl_discard_pile.text = "DESC: %d" % main.discard_pile.size()
@@ -499,6 +542,12 @@ func update_ui() -> void:
 		if e.get("lbl_status"):
 			e.lbl_status.text = "  ".join(status_parts)
 			e.lbl_status.visible = not status_parts.is_empty()
+
+	# Represalia: reducir coste visualmente cuando el escudo está activo
+	for card in hand_container.get_children():
+		if card.card_data.get("cost_reduction_if_shield", 0) > 0:
+			var mod = -card.card_data["cost_reduction_if_shield"] if main.player_shield > 0 else 0
+			card.set_cost_modifier(mod)
 
 # --- Funciones de animación de barras ---
 
@@ -584,6 +633,15 @@ func update_intent_labels() -> void:
 	var has_manual = GameManager.has_relic("manual_anatomista")
 	for e in main.enemies:
 		if e.hp <= 0 or not e.get("lbl_intent_icon"): continue
+
+		# Corrupción del nombre enemigo a cordura extremadamente baja
+		if GameManager.sanity < 15 and e.get("lbl_name"):
+			var corrupt_names = ["???????", "EL MISMO", "TÚ", "NADIE", "..."]
+			e.lbl_name.text = corrupt_names[randi() % corrupt_names.size()]
+			e.lbl_name.modulate = Color(0.7, 0.1, 0.7)
+		elif e.get("lbl_name") and e.lbl_name.modulate != Color.WHITE and e.lbl_name.modulate != Color(0.5, 1.0, 0.5):
+			e.lbl_name.text = e.name
+			e.lbl_name.modulate = Color.WHITE
 
 		# Logica de Intenciones Corruptas por Locura (Respetar Manual del Anatomista)
 		if GameManager.sanity < 20 and not has_manual:
@@ -700,11 +758,84 @@ func _start_sanity_pulse() -> void:
 	_sanity_pulse_tween.tween_method(func(c: Color): _sanity_fill_style.bg_color = c, col_a, col_b, 0.7)
 	_sanity_pulse_tween.tween_method(func(c: Color): _sanity_fill_style.bg_color = c, col_b, col_a, 0.7)
 
+	# Príncipe: viñeta respirante en lugar de flashes agresivos
+	if GameManager.selected_character == "prince" and vignette:
+		if _vignette_pulse_tween != null and _vignette_pulse_tween.is_running(): return
+		if _vignette_pulse_tween != null: _vignette_pulse_tween.kill()
+		var alpha_max = 0.30 if GameManager.sanity < 35 else 0.18
+		_vignette_pulse_tween = main.create_tween().set_loops()
+		_vignette_pulse_tween.tween_property(vignette, "modulate:a", alpha_max, 1.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_vignette_pulse_tween.tween_property(vignette, "modulate:a", 0.05, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
 func _stop_sanity_pulse() -> void:
 	if _sanity_pulse_tween != null:
 		_sanity_pulse_tween.kill(); _sanity_pulse_tween = null
 	if _sanity_fill_style != null:
 		_sanity_fill_style.bg_color = Color(0.38, 0.1, 0.68)
+	if _vignette_pulse_tween != null:
+		_vignette_pulse_tween.kill(); _vignette_pulse_tween = null
+	if vignette:
+		vignette.modulate.a = 1.0
+
+# ── Marca del Vacío ────────────────────────────────────────────────────────────
+func get_cursed_card_index() -> int:
+	return _cursed_card_index
+
+func get_cursed_card_node():
+	return _cursed_card_node
+
+func _assign_cursed_card() -> void:
+	clear_cursed_card()
+	if GameManager.sanity >= 35: return
+	var cards = hand_container.get_children()
+	if cards.is_empty(): return
+	_cursed_card_index = randi() % cards.size()
+	_cursed_card_node = cards[_cursed_card_index]
+	_apply_cursed_visual(_cursed_card_node)
+	if _cursed_card_node.has_method("set_marked"):
+		_cursed_card_node.set_marked(true)
+
+func clear_cursed_card() -> void:
+	if _cursed_overlay_tween != null:
+		_cursed_overlay_tween.kill()
+		_cursed_overlay_tween = null
+	if is_instance_valid(_cursed_card_node):
+		var mark = _cursed_card_node.get_node_or_null("_void_mark")
+		if mark:
+			mark.queue_free()
+		if _cursed_card_node.has_method("set_marked"):
+			_cursed_card_node.set_marked(false)
+	_cursed_card_index = -1
+	_cursed_card_node = null
+
+func _apply_cursed_visual(card_node: Control) -> void:
+	var mark = Control.new()
+	mark.name = "_void_mark"
+	mark.position = Vector2.ZERO
+	mark.size = card_node.size
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mark.z_index = 5
+	card_node.add_child(mark)
+
+	var overlay = ColorRect.new()
+	overlay.size = card_node.size
+	overlay.color = Color(0.5, 0.0, 0.9, 0.35)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mark.add_child(overlay)
+
+	var lbl = Label.new()
+	lbl.text = "✦ MARCADA"
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.modulate = Color(0.85, 0.0, 1.0)
+	lbl.position = Vector2(5, 3)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mark.add_child(lbl)
+
+	if _cursed_overlay_tween != null:
+		_cursed_overlay_tween.kill()
+	_cursed_overlay_tween = main.create_tween().set_loops()
+	_cursed_overlay_tween.tween_property(overlay, "color:a", 0.6, 0.7)
+	_cursed_overlay_tween.tween_property(overlay, "color:a", 0.15, 0.7)
 
 # Funciones de utilidad para creación de nodos (copiadas de Combat.gd)
 func _make_panel(pos: Vector2, size: Vector2, bg: Color, border: Color) -> Panel:
@@ -835,3 +966,50 @@ func update_targeting_arrow(from: Vector2, to: Vector2) -> void:
 	targeting_arrow_head.add_point(p3)
 	targeting_arrow_head.add_point(p1)
 	targeting_arrow_head.visible = true
+
+# --- Damage Number Popups ---
+func show_damage_popup(world_pos: Vector2, amount: int, is_heal: bool = false) -> void:
+	var lbl = Label.new()
+	lbl.text = ("+" if is_heal else "-") + str(amount)
+	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.modulate = Color(0.4, 1.0, 0.5) if is_heal else Color(1.0, 0.25, 0.25)
+	lbl.position = world_pos + Vector2(-20, -10)
+	lbl.z_index = 100
+	main.add_child(lbl)
+	var tw = main.create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.set_parallel(true)
+	tw.tween_property(lbl, "position:y", lbl.position.y - 48, 0.7)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.7)
+	tw.finished.connect(lbl.queue_free)
+
+# --- Dread / Ambient Messages ---
+func show_dread_message() -> void:
+	var messages: Array = []
+	var hp_ratio = float(main.player_hp) / float(main.player_max_hp)
+	if hp_ratio < 0.30:
+		messages = COMBAT_FLAVOR["low_hp"]
+	elif GameManager.sanity < 20:
+		messages = COMBAT_FLAVOR["low_sanity"]
+	else:
+		return
+	if messages.is_empty():
+		return
+	var msg = messages[randi() % messages.size()]
+	show_message(msg, 3.5)
+
+func show_enemy_intro(enemy_name: String) -> void:
+	var intro = COMBAT_FLAVOR["enemy_intro"].get(enemy_name,
+		COMBAT_FLAVOR["enemy_intro"]["default"])
+	show_message(intro, 3.0)
+
+func show_message(text: String, duration: float = 3.0) -> void:
+	if not panel_message or not lbl_message:
+		return
+	lbl_message.text = text
+	panel_message.visible = true
+	panel_message.modulate.a = 0.0
+	var tw_in = main.create_tween()
+	tw_in.tween_property(panel_message, "modulate:a", 1.0, 0.3)
+	tw_in.tween_interval(duration)
+	tw_in.tween_property(panel_message, "modulate:a", 0.0, 0.4)
+	tw_in.tween_callback(func(): panel_message.visible = false)

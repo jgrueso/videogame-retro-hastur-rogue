@@ -14,20 +14,34 @@ const RELIC_COLORS = {
 	"ojo_grito":          Color(0.8, 0.2, 0.3),
 	"manual_anatomista":  Color(0.55, 0.75, 0.55),
 	"ojo_arrancado":      Color(0.9, 0.55, 0.1),
+	"corona_dorada":      Color(1.0, 0.84, 0.0),
+	"reloj_negro":        Color(0.2, 0.2, 0.2),
+	"caliz_olvido":       Color(0.4, 0.1, 0.4),
+	"lengua_tablero":     Color(0.7, 0.1, 0.1),
+	"ojo_testigo":        Color(0.5, 0.5, 0.5),
+	"fragmento_mapa":     Color(0.6, 0.4, 0.2),
+	"ceniza_guardia":     Color(0.7, 0.7, 0.7),
 }
 
 const RELIC_ICONS = {
-	"ficha_marfil":       "F",
-	"escudo_astillado":   "E",
-	"ojo_oraculo":        "O",
-	"sangre_caido":       "S",
-	"velo_dama":          "V",
-	"espejo_fragmentado": "M",
-	"corona_espinas":     "C",
-	"reloj_roto":         "R",
-	"ojo_grito":          "G",
-	"manual_anatomista":  "A",
-	"ojo_arrancado":      "J",
+	"ficha_marfil":       "🦴",
+	"escudo_astillado":   "🛡️",
+	"ojo_oraculo":        "🧿",
+	"sangre_caido":       "🩸",
+	"velo_dama":          "🕸️",
+	"espejo_fragmentado": "🪞",
+	"corona_espinas":     "👑",
+	"reloj_roto":         "🕰️",
+	"ojo_grito":          "👁️",
+	"manual_anatomista":  "📕",
+	"ojo_arrancado":      "👁️‍🗨️",
+	"corona_dorada":      "👑",
+	"reloj_negro":        "⏳",
+	"caliz_olvido":       "🍷",
+	"lengua_tablero":     "👅",
+	"ojo_testigo":        "👁️‍🗨️",
+	"fragmento_mapa":     "📜",
+	"ceniza_guardia":     "⚱️",
 }
 
 var tooltip_panel: Panel
@@ -57,8 +71,7 @@ func setup(id: String) -> void:
 	# Letra del icono centrada
 	var icon_lbl = Label.new()
 	icon_lbl.text = RELIC_ICONS.get(id, "?")
-	icon_lbl.add_theme_font_size_override("font_size", 18)
-	icon_lbl.modulate = Color(0.05, 0.05, 0.05)
+	icon_lbl.add_theme_font_size_override("font_size", 20)
 	icon_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	icon_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

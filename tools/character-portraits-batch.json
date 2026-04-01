@@ -1,0 +1,23 @@
+{
+  "provider": "fal",
+  "model": "fal-ai/flux/schnell",
+  "basePrompt": "dark fantasy portrait, bust shot 3/4 view, painterly illustration style, dramatic atmospheric lighting, highly detailed, game character art, digital painting, dark moody background",
+  "assets": [
+    {
+      "name": "conquistador",
+      "prompt": "battle-worn imperial general in crimson vermillion plate armor, half-face war helmet adorned with conquest trophies, intense burning red eyes, chess rook tower motifs on pauldrons, blood-stained ancient armor, imperial military aesthetic, red and black color palette, dramatic frontal lighting casting crimson shadows, aggressive intimidating expression, scar across face, last warrior of a fallen empire"
+    },
+    {
+      "name": "estratega",
+      "prompt": "mysterious scholar in midnight blue robes covered with celestial star maps and impossible geometric patterns, glowing cold sapphire blue eyes, chess queen crown motif on dark hood, ancient astronomical instruments around neck, calculating cold expression, star charts visible on robe fabric, blue and gold color palette, dramatic blue-tinted side lighting, intellectual arcane erudite studying impossible maps"
+    },
+    {
+      "name": "guardian",
+      "prompt": "stoic broken knight in heavy moss-green ancient rusted plate armor, large cracked shield visible at shoulder, hollow melancholic grey eyes, forgotten oath carved into breastplate, overgrown vines and moss covering old armor suggesting centuries of sleep, chess knight horse-head motif on helmet, sorrowful dutiful expression, green and dark grey color palette, soft emerald dramatic lighting, knight who woke among ruins of his own oath"
+    },
+    {
+      "name": "prince",
+      "prompt": "ethereal ancient prince with translucent ghostly form, crackling abyssal purple static energy dissolving body edges, decayed royal garments of a long-dead kingdom Carcosa, fractured chess king crown floating above head, void empty eyes that have seen the end, wisps of violet-black cosmic energy unraveling at fingertips, tragic resigned expression, purple and black color palette, cosmic horror atmosphere, dramatic void purple lighting, ancient heir of a kingdom that no longer exists"
+    }
+  ]
+}

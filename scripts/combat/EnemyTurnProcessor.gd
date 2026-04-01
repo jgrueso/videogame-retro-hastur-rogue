@@ -30,6 +30,12 @@ func process_enemy_turn() -> void:
 	main.update_card_states()
 	await main.get_tree().create_timer(0.4).timeout
 
+	# Sinergia Reliquia: Ojo del Grito — aplicar reducción justo antes de procesar ataques
+	if main.ojo_grito_first_turn:
+		for e_g in main.enemies:
+			e_g["atk_reduction"] = e_g.get("atk_reduction", 0) + 999
+		main.ojo_grito_first_turn = false
+
 	for e in main.enemies:
 		if e.hp <= 0: continue
 
@@ -118,7 +124,7 @@ func process_enemy_turn() -> void:
 
 			# Mostrar siempre el daño o el fallo si es un ataque
 			if dmg > 0:
-				main.player_hp -= dmg
+				main.player_hp = max(0, main.player_hp - dmg)
 				main.update_ui() # Actualizar HP en tiempo real
 				main.log_message(e.name, "Te inflige %d de daño" % dmg, Color(1.0, 0.3, 0.3))
 				main._animate_player_hit()
@@ -132,14 +138,7 @@ func process_enemy_turn() -> void:
 					main._flash_relic("ojo_arrancado")
 					if e.hp <= 0: await main._kill_enemy(e)
 
-				# Pasiva Guardian: Furia (Acumulativa: 1 por cada 5 de daño total recibido)
-				if GameManager.selected_character == "guardian":
-					main.damage_received_pool += dmg
-					while main.damage_received_pool >= 5:
-						main.damage_received_pool -= 5
-						main.furia_points = min(3, main.furia_points + 1)
-						main.flash_small("¡RESILIENCIA! Furia acumulada: " + str(main.furia_points) + "/3")
-					main.update_ui()
+				main.update_ui()
 
 				# --- EFECTO CORONA DE ESPINAS ---
 				if GameManager.has_relic("corona_espinas"):
@@ -161,20 +160,37 @@ func process_enemy_turn() -> void:
 						main.check_combat_end()
 
 			else:
-				# Es un FALLO (daño 0)
-				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 0, Color(1, 0.3, 0.3))
+				# Es un FALLO (daño neutralizado)
+				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 0, Color(0.4, 0.7, 1.0))
+				var neu_lbl = Label.new()
+				neu_lbl.text = "NEUTRALIZADO"
+				neu_lbl.modulate = Color(0.4, 0.7, 1.0)
+				neu_lbl.add_theme_font_size_override("font_size", 16)
+				neu_lbl.position = main.player_panel.global_position + Vector2(160, 10)
+				neu_lbl.z_index = 20; main.add_child(neu_lbl)
+				var neu_tw = create_tween().set_parallel(true)
+				neu_tw.tween_property(neu_lbl, "position:y", neu_lbl.position.y - 50, 0.9)
+				neu_tw.tween_property(neu_lbl, "modulate:a", 0.0, 0.9)
+				neu_tw.chain().tween_callback(neu_lbl.queue_free)
 		elif action.type == "shield":
 			e.shield += action.value
 		elif action.type == "insanity":
-			GameManager.sanity = max(0, GameManager.sanity - action.value)
-			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), action.value, Color(0.7, 0.3, 1.0))
-			main.flash_small(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
+			if GameManager.selected_character == "prince" and GameManager.current_world == 2:
+				# W3: el daño de insanidad cura al Príncipe
+				var heal_amount = int(action.value * 0.5)
+				GameManager.sanity = min(GameManager.max_sanity, GameManager.sanity + heal_amount)
+				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), heal_amount, Color(0.7, 0.2, 1.0))
+				main.flash_small("RESONANCIA: la insanidad te fortalece. +" + str(heal_amount) + " Cordura", Color(0.7, 0.2, 1.0))
+			else:
+				GameManager.sanity = max(0, GameManager.sanity - action.value)
+				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), action.value, Color(0.7, 0.3, 1.0))
+				main.flash_small(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
+				if GameManager.selected_character == "prince":
+					var shield_gain = int(action.value * 0.4)
+					if shield_gain > 0:
+						main.player_shield += shield_gain
+						main.flash_small("Absorcion Abisal: +" + str(shield_gain) + " Escudo")
 			main.update_ui()
-			if GameManager.selected_character == "prince":
-				var shield_gain = int(action.value * 0.4)
-				if shield_gain > 0:
-					main.player_shield += shield_gain
-					main.flash_small("Absorcion Abisal: +" + str(shield_gain) + " Escudo")
 
 		# --- NUEVAS MECÁNICAS DE HASTUR ---
 		elif action.type == "possession":
@@ -271,6 +287,7 @@ func process_enemy_turn() -> void:
 		main._flash_relic("ficha_marfil")
 
 	main.player_shield = 0
+	main.shield_gained_this_turn = 0
 
 	# Sinergia Reliquia: Velo de la Dama (Negar la muerte una vez por RUN)
 	if main.player_hp <= 0 and GameManager.has_relic("velo_dama") and not GameManager.velo_broken:
@@ -369,6 +386,13 @@ func get_enemy_banter(enemy_name: String) -> String:
 
 	var threshold = 0.7 if enemy_name == "El Penitente" else 0.35
 	if randf() > threshold: return ""
+
+	# W3: usar banter especializado
+	if GameManager.current_world == 2:
+		var w3_pool = CombatData.ENEMY_COMBAT_BANTER_W3.get(enemy_name, [])
+		if not w3_pool.is_empty():
+			return w3_pool[randi() % w3_pool.size()]
+
 	var pool = ENEMY_COMBAT_BANTER.get(enemy_name, [])
 	if pool.is_empty(): return ""
 	return pool[randi() % pool.size()]
@@ -381,6 +405,8 @@ func get_banter_color(enemy_name: String, text: String) -> Color:
 		return Color(0.5, 1.0, 0.5)
 	if enemy_name in ["EL CARCELERO", "EL REY AMARILLO", "EL REY SIN CORONA"]:
 		return Color(0.95, 0.7, 0.1)
+	if GameManager.current_world == 2:
+		return Color(0.75, 0.4, 1.0)  # Violeta para enemigos W3
 	return Color(0.9, 0.8, 0.5)
 
 

@@ -129,10 +129,10 @@ static func get_death_dialogue(enemy_name: String) -> String:
 
 # ─── GARBLED ──────────────────────────────────────────────────────────────────
 const GARBLED = {
-	"Siervo Rebelde": "▓░▒ ▓▓░...",
-	"Peon Maldito":   "◌◍● ◌●◍◌",
-	"Espectro":       "░░▒▓ ░▒...",
-	"Alfil Caido":    "✦◈✦ ◈◆✦◈",
+	"Siervo Rebelde": "ᛈ ᛇ ᚦ ᛟ ᛗ ᚾ ᛁ ᛖ ...",
+	"Peon Maldito":   "◌◍●  ᚹ ᚫ ᛤ ᛞ ᚣ ᛝ ᚪ ◌●◍◌",
+	"Espectro":       "░ ᚩ ᛡ ᚢ ᛣ ᛈ ᛇ ᚦ ᛟ ᛗ...",
+	"Alfil Caido":    "✦◈✦ ᚾ ᛁ ᛖ ᚷ ᛃ ᚹ ᚫ  ◈◆✦◈",
 }
 
 const GARBLED_NARRATIVE = {

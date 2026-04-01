@@ -11,7 +11,7 @@ const CHAR_DATA = {
 const PASSIVE_DESCRIPTIONS = {
 	"conquistador": "CONQUISTA: Al matar a un enemigo, tus Siervos ganan +1 ATK permanente y recuperas 3 de vida.",
 	"estratega":    "LOGICA: Tus cartas de Inquisidor Ciego cuestan -1 de energia. Robas 1 carta extra al inicio de cada combate.",
-	"guardian":     "RESILIENCIA: Generas 1 de Furia por cada 5 de daño recibido. A las 3 cargas, tu siguiente ataque hace daño doble."
+	"guardian":     "RESILIENCIA: Cada vez que generas 10 o más Escudo en un turno, ganas 1 Furia. A las 3 cargas, tu siguiente ataque hace daño doble."
 }
 
 # ── Pools de encuentros ────────────────────────────────────────────────────────
@@ -72,3 +72,50 @@ const MYTH_20 = ["EL FINAL DEL JUEGO SE ACERCA", "SOLO QUEDA EL VACIO", "YA NO E
 const PRINCE_MYTH_60 = ["EL ECO DEL ABISMO RESPONDE", "LA CORONA RECUERDA", "EL VELO SE ADELGAZA"]
 const PRINCE_MYTH_35 = ["RESONANCIA TOTAL", "EL ABISMO TE LIBERA", "CARCOSA DESPIERTA"]
 const PRINCE_MYTH_20 = ["YA ERES EL ABISMO", "EL PRINCIPE HA MUERTO. QUEDA CARCOSA", "LA CORONA ES TUYA"]
+
+# ── Mundo III — La Grieta Sin Fondo ───────────────────────────────────────────
+const NORMAL_POOLS_W3 = [
+	[{"name": "Eco Fragmentado", "hp": 30, "pattern": [{"type": "attack", "value": 6}, {"type": "attack", "value": 8}]}],
+	[{"name": "Servidor del Umbral", "hp": 35, "pattern": [{"type": "insanity", "value": 10}, {"type": "attack", "value": 5}]}],
+	[{"name": "Carne del Tablero", "hp": 45, "pattern": [{"type": "attack", "value": 8}, {"type": "shield", "value": 10}, {"type": "insanity", "value": 6}]}],
+	[{"name": "Dama Dividida", "hp": 40, "pattern": [{"type": "attack", "value": 7}, {"type": "attack", "value": 7}]}],
+	[{"name": "Eco del Centinela", "hp": 38, "pattern": [{"type": "attack", "value": 10}, {"type": "insanity", "value": 8}]}],
+	[{"name": "Arquitecto Menor", "hp": 50, "pattern": [{"type": "insanity", "value": 12}, {"type": "attack", "value": 5}, {"type": "shield", "value": 8}]}],
+	[
+		{"name": "Eco Fragmentado", "hp": 22, "pattern": [{"type": "attack", "value": 5}]},
+		{"name": "Servidor del Umbral", "hp": 22, "pattern": [{"type": "insanity", "value": 8}]},
+	],
+]
+
+const ELITE_POOLS_W3 = [
+	[{"name": "La Dama Sin Forma", "hp": 80, "pattern": [{"type": "attack", "value": 14}, {"type": "insanity", "value": 12}, {"type": "attack", "value": 10}]}],
+	[{"name": "El Receptor", "hp": 75, "pattern": [{"type": "insanity", "value": 15}, {"type": "attack", "value": 10}, {"type": "attack", "value": 10}]}],
+	[{"name": "Fragmento Animado", "hp": 65, "pattern": [{"type": "attack", "value": 12}, {"type": "shield", "value": 15}, {"type": "insanity", "value": 10}]}],
+]
+
+const BOSS_POOLS_W3 = [
+	[{"name": "EL CARTOGRAFO DEL ABISMO", "hp": 140, "pattern": [{"type": "insanity", "value": 14}, {"type": "attack", "value": 12}, {"type": "shield", "value": 12}, {"type": "attack", "value": 18}]}],
+	[{"name": "LA GUARDIA OLVIDADA", "hp": 170, "pattern": [{"type": "attack", "value": 12}, {"type": "shield", "value": 10}, {"type": "insanity", "value": 10}, {"type": "attack", "value": 18}, {"type": "insanity", "value": 12}]}],
+]
+
+const BOSS_POOLS_W3_FINAL = [
+	{"name": "EL TESTIGO PRIMORDIAL", "hp": 280, "pattern": [{"type": "insanity", "value": 16}, {"type": "attack", "value": 14}, {"type": "shield", "value": 20}, {"type": "attack", "value": 20}, {"type": "insanity", "value": 8}, {"type": "attack", "value": 18}]}
+]
+
+const ENEMY_COMBAT_BANTER_W3 = {
+	"Eco Fragmentado":        ["...yo tambien llegue hasta aqui...", "¿cuantas veces has muerto ya?"],
+	"Servidor del Umbral":    ["No hay victoria. Solo... continuacion.", "El umbral no se cruza. Se convierte en ti."],
+	"Carne del Tablero":      ["Eres una pieza que aprendio a caminar. Eso te hace interesante."],
+	"Dama Dividida":          ["¿Me recuerdas? Yo no te recuerdo. Ya eres otro."],
+	"Eco del Centinela":      ["El centinela que eras no sobrevivio al umbral."],
+	"Arquitecto Menor":       ["Carcosa te esta leyendo. Eres un texto muy corto.", "El Rey Amarillo subrayó tu nombre."],
+	"EL CARTOGRAFO DEL ABISMO": ["Llevas mucho tiempo buscando algo sin nombre. Dejame darte las coordenadas.", "Conozco tu ruta. He visto como termina.", "Cada run tuya es un punto en mi mapa. Tengo muchos puntos."],
+	"LA GUARDIA OLVIDADA":    ["Fuimos barreras. Fuimos jefes. Fuimos la misma cosa repetida.", "Ahora somos el umbral."],
+	"EL TESTIGO PRIMORDIAL":  ["Cuantas veces he visto este momento. Tuyo es siempre el mismo gesto de esperanza.", "¿Sabes cuantas versiones tuyas estan aqui dentro? Todas fracasaron.", "No eres el primero. No seras el ultimo. Pero quizas... seas el mas interesante.", "El Rey Amarillo no te espera. Te tiene. Desde antes de que empezaras."],
+}
+
+const VICTORY_PHRASES_W3 = ["EL UMBRAL RECUERDA TU PASO", "UNA PIEZA QUE CAMINA SOLA", "LA GRIETA TE HA MEDIDO", "EL TESTIGO CIERRA UN OJO"]
+
+const MYTH_W3_60 = ["EL TABLERO SE DOBLA BAJO TUS PIES", "LOS ECOS TE RECONOCEN", "LA GRIETA TE HA ABIERTO"]
+const MYTH_W3_40 = ["ESTE LUGAR TE ESTA RECORDANDO", "TUS RUNS ANTERIORES TE OBSERVAN", "EL UMBRAL APRENDE DE TI"]
+const MYTH_W3_20 = ["YA NO ERES UN VISITANTE", "ERES PARTE DE LA GRIETA", "CARCOSA TE PUEDE OLER"]

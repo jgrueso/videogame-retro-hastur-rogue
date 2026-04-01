@@ -3,6 +3,23 @@ extends Node2D
 const DICE_REROLL_COST: int = 5
 const DICE_FACES: Array = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
 
+const EVENT_CHARACTER_REACTIONS: Dictionary = {
+	"conquistador": "«Otro obstáculo. Otro precio que pagar con sangre ajena.»",
+	"estratega": "«Cada elección aquí es una variable más en el patrón.»",
+	"guardian": "«Elijo con cuidado. Cada decisión pesa sobre las piezas que protejo.»",
+	"prince": "«Ya lo vi antes. En otro tablero, con otro nombre.»",
+}
+
+const CORRUPTION_WORDS: Array = ["....", "el ojo", "Carcosa", " ᛞ ᚣ ᛝ ᚪ ᛠ ᚩ", "inevitable", "ya sabes"]
+
+var _typewriter_done: bool = false
+var _option_buttons: Array = []
+
+var _font_title:     FontFile
+var _font_narrative: FontFile
+var _font_ui:        FontFile
+var _font_corrupt:   FontFile
+
 const UMBRAL_EVENT: Dictionary = {
 	"title": "El Umbral",
 	"text": "Está sentado contra la pared con la calma de alguien que ya no tiene miedo,\nporque ya no le queda nada que perder.\n\nSus ojos están al revés. Ves el interior de algo enorme a través de ellos.\n\n'Sabía que vendrías', dice. 'El Príncipe me envió a esperarte.\nSolo hay tres formas de llegar a donde él está.\nTú decides cuál puedes pagar.'",
@@ -128,7 +145,26 @@ var _dice_roll_count: int = 0
 var _dice_rolling: bool = false
 var _dice_history: Array = []   # Array de {face, type}
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_1: _trigger_option(0)
+			KEY_2: _trigger_option(1)
+			KEY_3: _trigger_option(2)
+
+func _trigger_option(i: int) -> void:
+	if not _typewriter_done: return
+	if i < 0 or i >= _option_buttons.size(): return
+	var btn = _option_buttons[i]
+	if is_instance_valid(btn) and not btn.disabled:
+		_on_option_selected(i)
+
 func _ready() -> void:
+	_font_title     = load("res://assets/fonts/CinzelDecorative-Bold.otf")
+	_font_narrative = load("res://assets/fonts/IMFellEnglish-Italic.ttf")
+	_font_ui        = load("res://assets/fonts/rajdhani.medium.ttf")
+	_font_corrupt   = load("res://assets/fonts/RubikGlitch-Regular.ttf")
+
 	# Aparición de El Umbral
 	var can_show_rift = (
 		not GameManager.rift_visited
@@ -181,47 +217,127 @@ func build_ui() -> void:
 	_create_background_sun(vp)
 	_start_event_rain(vp)
 
-	var info = Label.new()
-	info.name = "InfoLabel"
-	info.text = "HP: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + "   Monedas: " + str(GameManager.coins) + "   Cordura: " + str(GameManager.sanity)
-	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info.position = Vector2(0, 15)
-	info.size = Vector2(1152, 28)
-	info.z_index = 10
-	add_child(info)
+	var stats_row = Node2D.new()
+	stats_row.name = "InfoLabel"
+	stats_row.z_index = 10
+	add_child(stats_row)
+
+	var stat_defs = [
+		["StatHP",     "❤ %d/%d" % [GameManager.player_hp, GameManager.player_max_hp],   Color(0.95, 0.3, 0.35),  100.0],
+		["StatCoins",  "◆ %d" % GameManager.coins,                                        Color(0.95, 0.78, 0.2),  320.0],
+		["StatSanity", "⬤ %d/%d" % [GameManager.sanity, GameManager.max_sanity],         Color(0.55, 0.3, 0.88),  520.0],
+		["StatFloor",  "Piso %d/16" % (GameManager.current_map_floor + 1),                Color(0.58, 0.65, 0.82), 730.0],
+	]
+	for sd in stat_defs:
+		var lbl = Label.new()
+		lbl.name = sd[0]
+		lbl.text = sd[1]
+		lbl.modulate = sd[2]
+		lbl.add_theme_font_size_override("font_size", 15)
+		if _font_ui: lbl.add_theme_font_override("font", _font_ui)
+		lbl.position = Vector2(sd[3], 12)
+		lbl.size = Vector2(200, 28)
+		stats_row.add_child(lbl)
 
 	var title = Label.new()
 	title.text = current_event["title"].to_upper()
-	title.add_theme_font_size_override("font_size", 36)
-	title.modulate = Color(0.85, 0.75, 0.2)
+	title.add_theme_font_size_override("font_size", 34)
+	if _font_ui: title.add_theme_font_override("font", _font_ui)
+	title.modulate = Color(0.85, 0.75, 0.2, 0.0)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(100, 60)
+	title.position = Vector2(100, 40)
 	title.size = Vector2(952, 50)
 	title.z_index = 10
 	add_child(title)
+	var tw_title = create_tween().set_parallel(true)
+	tw_title.tween_property(title, "modulate:a", 1.0, 0.35)
+	tw_title.tween_property(title, "position:y", 60.0, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+	# Línea de reacción del personaje
+	var reaction_lbl = Label.new()
+	reaction_lbl.text = EVENT_CHARACTER_REACTIONS.get(GameManager.selected_character, "")
+	reaction_lbl.add_theme_font_size_override("font_size", 15)
+	if _font_narrative: reaction_lbl.add_theme_font_override("font", _font_narrative)
+	reaction_lbl.modulate = Color(0.55, 0.5, 0.4, 0.0)
+	reaction_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	reaction_lbl.position = Vector2(100, 108)
+	reaction_lbl.size = Vector2(952, 26)
+	reaction_lbl.z_index = 10
+	add_child(reaction_lbl)
+	create_tween().tween_property(reaction_lbl, "modulate:a", 1.0, 0.3).set_delay(0.25)
+
+	var sep = ColorRect.new()
+	sep.color = Color(0.4, 0.3, 0.1, 0.0)
+	sep.size = Vector2(320, 1)
+	sep.position = Vector2((vp.x - 320) / 2.0, 142)
+	sep.z_index = 10
+	add_child(sep)
+	create_tween().tween_property(sep, "color:a", 0.45, 0.3).set_delay(0.3)
 
 	var text_panel = Panel.new()
-	text_panel.position = Vector2(176, 120); text_panel.size = Vector2(800, 140)
+	text_panel.modulate.a = 0.0
+	text_panel.position = Vector2(146, 150); text_panel.size = Vector2(860, 170)
 	var ts = StyleBoxFlat.new()
 	ts.bg_color = Color(0.05, 0.05, 0.08, 0.85); ts.set_corner_radius_all(8)
-	ts.border_width_left = 2; ts.border_color = Color(0.4, 0.4, 0.5, 0.5)
+	ts.border_width_left = 2; ts.border_width_top = 1; ts.border_color = Color(0.5, 0.4, 0.15, 0.6)
 	text_panel.add_theme_stylebox_override("panel", ts)
 	text_panel.z_index = 5
 	add_child(text_panel)
+	var tw_panel = create_tween().set_parallel(true)
+	tw_panel.tween_property(text_panel, "modulate:a", 1.0, 0.3).set_delay(0.15)
+	tw_panel.tween_property(text_panel, "position:x", 146.0, 0.3).from(116.0).set_delay(0.15).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+	# Corrupción de texto por locura baja
+	var raw_text: String = current_event["text"]
+	var sanity = GameManager.sanity
+	if sanity < 30:
+		var words = raw_text.split(" ")
+		var corruption_count = 5 if sanity < 15 else randi_range(2, 3)
+		var indices = range(words.size())
+		indices.shuffle()
+		for ci in range(min(corruption_count, indices.size())):
+			var wi = indices[ci]
+			if words[wi].length() > 2:
+				words[wi] = CORRUPTION_WORDS[randi() % CORRUPTION_WORDS.size()]
+		raw_text = " ".join(words)
 
 	var text = Label.new()
-	text.text = current_event["text"]
-	text.add_theme_font_size_override("font_size", 17)
+	text.text = raw_text
+	text.add_theme_font_size_override("font_size", 18)
+	var chosen_font = _font_corrupt if GameManager.sanity < 30 else _font_ui
+	if chosen_font: text.add_theme_font_override("font", chosen_font)
 	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	text.position = Vector2(20, 20); text.size = Vector2(760, 100)
-	text.autowrap_mode = TextServer.AUTOWRAP_WORD
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.position = Vector2(28, 20)
 	text_panel.add_child(text)
+	text.size = Vector2(804, 130)
+
+	# Typewriter
+	_typewriter_done = false
+	_option_buttons.clear()
+	var total_chars = raw_text.length()
+	var tw_dur = clampf(total_chars * 0.018, 0.4, 0.8)
+	text.visible_characters = 0
+	var tw_type = create_tween()
+	tw_type.tween_method(func(n: int): text.visible_characters = n, 0, total_chars, tw_dur).set_delay(0.2)
+	tw_type.tween_callback(func():
+		_typewriter_done = true
+		for b in _option_buttons: b.disabled = false
+	)
+	# Skip typewriter on click
+	text_panel.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			text.visible_characters = -1
+			_typewriter_done = true
+			for b in _option_buttons: b.disabled = false
+	)
+	text_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var options = current_event["options"]
 	for i in range(options.size()):
 		var opt = options[i]
 		_create_option_button(i, opt)
-		
+
 	# --- BOTON VER MAZO ---
 	var btn_view = Button.new()
 	btn_view.text = "🎴 VER MAZO"
@@ -258,7 +374,7 @@ func _start_event_rain(vp: Vector2) -> void:
 func _create_option_button(i: int, opt: Dictionary) -> void:
 	var row = Node2D.new()
 	row.name = "OptionRow" + str(i)
-	row.position = Vector2(226, 280 + i * 85)
+	row.position = Vector2(236, 335 + i * 75)
 	row.z_index = 10
 	add_child(row)
 
@@ -274,18 +390,21 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 
 	var btn = Button.new()
 	btn.text = label_text
-	btn.size = Vector2(560, 60)
+	btn.size = Vector2(680, 60)
 	btn.add_theme_font_size_override("font_size", 15)
-	
+	if _font_ui: btn.add_theme_font_override("font", _font_ui)
+	btn.disabled = not _typewriter_done
+	btn.pivot_offset = Vector2(340, 30)
+
 	# Tooltip Dinamico
 	var tt = ""
 	var has_relic_info = false
 	var r_data_final = {}
-	
+
 	if opt.get("hp", 0) < 0: tt += "Pierdes " + str(abs(opt["hp"])) + " HP.\n"
 	if opt.get("max_hp", 0) < 0: tt += "Pierdes " + str(abs(opt["max_hp"])) + " de Vida Maxima.\n"
 	if opt.get("sanity_loss", 0) > 0: tt += "Pierdes " + str(opt["sanity_loss"]) + " de Cordura.\n"
-	
+
 	if opt.get("relic", false) and relic_assignments.has(i):
 		var r_id = relic_assignments[i]
 		r_data_final = GameManager.RELIC_DATA[r_id]
@@ -294,27 +413,47 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 		var r_id = opt["specific_relic"]
 		r_data_final = GameManager.RELIC_DATA.get(r_id, {"name": "???", "desc": "???"})
 		has_relic_info = true
-		
+
 	if opt.get("double_curse", false):
 		tt += "[!] MALDICION: Recibes 2 cartas de 'Peso de la Verdad'.\n"
 	if opt.get("add_curse", false):
 		tt += "[!] MALDICION: Recibes 1 carta de 'Peso de la Verdad'.\n"
-	
+
 	btn.tooltip_text = tt
-	
+
+	# Borde izquierdo coloreado según tipo de consecuencia
+	var border_color: Color
+	if opt.get("miniboss", false):
+		border_color = Color(0.5, 0.05, 0.05)
+	elif opt.get("add_curse", false) or opt.get("double_curse", false):
+		border_color = Color(0.4, 0.1, 0.5)
+	elif opt.get("sanity_loss", 0) > 0:
+		border_color = Color(0.5, 0.1, 0.7)
+	elif opt.get("hp", 0) < 0 or opt.get("max_hp", 0) < 0:
+		border_color = Color(0.7, 0.1, 0.1)
+	elif opt.get("heal", 0) > 0:
+		border_color = Color(0.2, 0.6, 0.2)
+	elif opt.get("relic", false) or opt.get("specific_relic", "") != "":
+		border_color = Color(0.75, 0.6, 0.1)
+	else:
+		border_color = Color(0.3, 0.3, 0.35)
+
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.08, 0.12, 0.9)
-	style.border_width_bottom = 2; style.border_color = Color(0.3, 0.3, 0.4)
-	style.set_corner_radius_all(4)
+	style.bg_color = Color(0.07, 0.07, 0.11, 0.92)
+	style.set_border_width_all(1)
+	style.border_width_left = 5
+	style.border_color = border_color
+	style.set_corner_radius_all(5)
 	btn.add_theme_stylebox_override("normal", style)
-	
+
 	var idx = i
 	btn.pressed.connect(func(): _on_option_selected(idx))
-	
+
 	var is_curse = opt.get("add_curse", false) or opt.get("double_curse", false)
 	var is_bonus = opt.get("bonus_card", false)
-	
+
 	btn.mouse_entered.connect(func():
+		btn.create_tween().tween_property(btn, "scale", Vector2(1.02, 1.02), 0.1)
 		if has_relic_info:
 			_show_relic_preview(btn, r_data_final)
 		if is_curse:
@@ -324,12 +463,18 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 			var card_data = {"name": "Reina", "attack": 6, "defense": 2, "cost": 4}
 			_show_card_preview(btn, card_data, has_relic_info)
 	)
-	
+
 	btn.mouse_exited.connect(func():
+		btn.create_tween().tween_property(btn, "scale", Vector2(1.0, 1.0), 0.1)
 		_hide_relic_preview()
 		_hide_card_preview()
 	)
-		
+
+	# Stagger fade-in
+	btn.modulate.a = 0.0
+	create_tween().tween_property(btn, "modulate:a", 1.0, 0.25).set_delay(0.3 + 0.05 * i)
+
+	_option_buttons.append(btn)
 	row.add_child(btn)
 
 var _card_preview: Control
@@ -361,7 +506,13 @@ func _show_card_preview(target: Button, data: Dictionary, is_offset: bool = fals
 	_card_preview.global_position = final_pos
 	_card_preview.scale = Vector2(1.1, 1.1)
 	_card_preview.z_index = 150
-	
+
+	# Preview-only: desactivar hover/tooltip para no solapar otros panels
+	_card_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_card_preview.hover_scale_enabled = false
+	if _card_preview.tooltip_panel:
+		_card_preview.tooltip_panel.visible = false
+
 	_card_preview.modulate.a = 0
 	var tw = create_tween().set_parallel(true)
 	tw.tween_property(_card_preview, "modulate:a", 1.0, 0.2)
@@ -406,7 +557,15 @@ func _show_relic_preview(target: Button, data: Dictionary) -> void:
 	
 	_relic_preview.size = Vector2(280, 45 + desc_h)
 	
-	_relic_preview.global_position = target.global_position + Vector2(target.size.x + 15, -20)
+	var vp2 = get_viewport_rect().size
+	var rp_w = 280.0
+	var space_right2 = vp2.x - (target.global_position.x + target.size.x)
+	var preview_y = target.global_position.y - 20
+	if space_right2 >= rp_w + 20:
+		_relic_preview.global_position = Vector2(target.global_position.x + target.size.x + 15, preview_y)
+	else:
+		var left_x = max(10.0, target.global_position.x - rp_w - 15)
+		_relic_preview.global_position = Vector2(left_x, preview_y)
 	add_child(_relic_preview)
 	
 	_relic_preview.modulate.a = 0
@@ -612,9 +771,18 @@ func _show_dice_game() -> void:
 	_dice_panel.add_theme_stylebox_override("panel", ps)
 	add_child(_dice_panel)
 
+	# Entrada animada del panel dado
+	_dice_panel.modulate.a = 0.0
+	_dice_panel.position.y -= 30.0
+	var tw_panel = create_tween().set_parallel(true)
+	tw_panel.tween_property(_dice_panel, "modulate:a", 1.0, 0.35)
+	tw_panel.tween_property(_dice_panel, "position:y",
+		_dice_panel.position.y + 30.0, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
 	var title_lbl = Label.new()
 	title_lbl.text = "El Dado del Destino"
 	title_lbl.add_theme_font_size_override("font_size", 26)
+	if _font_title: title_lbl.add_theme_font_override("font", _font_title)
 	title_lbl.modulate = Color(0.95, 0.82, 0.3)
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.position = Vector2(0, 18)
@@ -631,6 +799,7 @@ func _show_dice_game() -> void:
 
 	_dice_result_lbl = Label.new()
 	_dice_result_lbl.add_theme_font_size_override("font_size", 17)
+	if _font_narrative: _dice_result_lbl.add_theme_font_override("font", _font_narrative)
 	_dice_result_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_dice_result_lbl.position = Vector2(30, 195)
 	_dice_result_lbl.size = Vector2(640, 30)
@@ -638,6 +807,7 @@ func _show_dice_game() -> void:
 
 	_dice_detail_lbl = Label.new()
 	_dice_detail_lbl.add_theme_font_size_override("font_size", 14)
+	if _font_narrative: _dice_detail_lbl.add_theme_font_override("font", _font_narrative)
 	_dice_detail_lbl.modulate = Color(0.75, 0.75, 0.8)
 	_dice_detail_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_dice_detail_lbl.position = Vector2(30, 230)
@@ -647,6 +817,7 @@ func _show_dice_game() -> void:
 
 	_dice_status_lbl = Label.new()
 	_dice_status_lbl.add_theme_font_size_override("font_size", 13)
+	if _font_ui: _dice_status_lbl.add_theme_font_override("font", _font_ui)
 	_dice_status_lbl.modulate = Color(0.6, 0.6, 0.65)
 	_dice_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_dice_status_lbl.position = Vector2(0, 288)
@@ -665,7 +836,11 @@ func _show_dice_game() -> void:
 	roll_btn.position = Vector2(200, 340)
 	roll_btn.size = Vector2(300, 50)
 	roll_btn.add_theme_font_size_override("font_size", 16)
+	if _font_ui: roll_btn.add_theme_font_override("font", _font_ui)
 	_style_btn(roll_btn, Color(0.2, 0.45, 0.2))
+	roll_btn.pivot_offset = roll_btn.size / 2
+	roll_btn.mouse_entered.connect(func(): create_tween().tween_property(roll_btn, "scale", Vector2(1.04, 1.04), 0.1))
+	roll_btn.mouse_exited.connect(func():  create_tween().tween_property(roll_btn, "scale", Vector2.ONE, 0.1))
 	roll_btn.pressed.connect(func(): _do_dice_roll(roll_btn))
 	_dice_panel.add_child(roll_btn)
 
@@ -675,8 +850,12 @@ func _show_dice_game() -> void:
 	_dice_reroll_btn.position = Vector2(60, 340)
 	_dice_reroll_btn.size = Vector2(320, 50)
 	_dice_reroll_btn.add_theme_font_size_override("font_size", 14)
+	if _font_ui: _dice_reroll_btn.add_theme_font_override("font", _font_ui)
 	_style_btn(_dice_reroll_btn, Color(0.4, 0.22, 0.05))
 	_dice_reroll_btn.visible = false
+	_dice_reroll_btn.pivot_offset = _dice_reroll_btn.size / 2
+	_dice_reroll_btn.mouse_entered.connect(func(): create_tween().tween_property(_dice_reroll_btn, "scale", Vector2(1.04, 1.04), 0.1))
+	_dice_reroll_btn.mouse_exited.connect(func():  create_tween().tween_property(_dice_reroll_btn, "scale", Vector2.ONE, 0.1))
 	_dice_reroll_btn.pressed.connect(func(): _do_dice_reroll())
 	_dice_panel.add_child(_dice_reroll_btn)
 
@@ -686,8 +865,12 @@ func _show_dice_game() -> void:
 	cont_btn.position = Vector2(390, 340)
 	cont_btn.size = Vector2(250, 50)
 	cont_btn.add_theme_font_size_override("font_size", 14)
+	if _font_ui: cont_btn.add_theme_font_override("font", _font_ui)
 	_style_btn(cont_btn, Color(0.12, 0.12, 0.22))
 	cont_btn.visible = false
+	cont_btn.pivot_offset = cont_btn.size / 2
+	cont_btn.mouse_entered.connect(func(): create_tween().tween_property(cont_btn, "scale", Vector2(1.04, 1.04), 0.1))
+	cont_btn.mouse_exited.connect(func():  create_tween().tween_property(cont_btn, "scale", Vector2.ONE, 0.1))
 	cont_btn.pressed.connect(func(): GameManager.go_to_scene("res://scenes/ui/Map.tscn"))
 	_dice_panel.add_child(cont_btn)
 
@@ -744,6 +927,11 @@ func _on_roll_settled(roll: int) -> void:
 	_dice_result_lbl.modulate = outcome["color"]
 	_dice_detail_lbl.text = outcome["detail"]
 	_update_dice_status()
+
+	# Bounce de escala en el resultado
+	_dice_result_lbl.scale = Vector2(0.85, 0.85)
+	create_tween().tween_property(_dice_result_lbl, "scale", Vector2.ONE, 0.25) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 	if outcome["type"] == "curse":
 		_shake_screen(5.0, 0.3)
@@ -868,11 +1056,39 @@ func _update_dice_status() -> void:
 	_dice_status_lbl.text = base
 	var info = get_node_or_null("InfoLabel")
 	if info:
-		info.text = "HP: " + str(GameManager.player_hp) + "/" + str(GameManager.player_max_hp) + "   Monedas: " + str(GameManager.coins)
+		var hp_lbl = info.get_node_or_null("StatHP")
+		if hp_lbl: hp_lbl.text = "❤ %d/%d" % [GameManager.player_hp, GameManager.player_max_hp]
+		var coins_lbl = info.get_node_or_null("StatCoins")
+		if coins_lbl: coins_lbl.text = "◆ %d" % GameManager.coins
 
-func flash_small_event(text: String) -> void:
-	var lbl = get_node_or_null("InfoLabel")
-	if lbl: lbl.text = text
+func flash_small_event(msg: String) -> void:
+	# Refresh individual stat labels
+	var row = get_node_or_null("InfoLabel")
+	if row:
+		var hp_lbl = row.get_node_or_null("StatHP")
+		if hp_lbl: hp_lbl.text = "❤ %d/%d" % [GameManager.player_hp, GameManager.player_max_hp]
+		var coins_lbl = row.get_node_or_null("StatCoins")
+		if coins_lbl: coins_lbl.text = "◆ %d" % GameManager.coins
+		var sanity_lbl = row.get_node_or_null("StatSanity")
+		if sanity_lbl: sanity_lbl.text = "⬤ %d/%d" % [GameManager.sanity, GameManager.max_sanity]
+	# Show message as a temporary popup if non-empty
+	if msg.is_empty(): return
+	var existing = get_node_or_null("FlashPopup")
+	if existing: existing.queue_free()
+	var flash = Label.new()
+	flash.name = "FlashPopup"
+	flash.text = msg
+	flash.add_theme_font_size_override("font_size", 14)
+	flash.modulate = Color(1.0, 0.85, 0.3)
+	flash.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	flash.position = Vector2(200, 44)
+	flash.size = Vector2(752, 24)
+	flash.z_index = 20
+	add_child(flash)
+	var tw = create_tween()
+	tw.tween_interval(2.0)
+	tw.tween_property(flash, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(flash.queue_free)
 
 func _resolve_sanity_conditional(_opt: Dictionary) -> void:
 	var s = GameManager.sanity

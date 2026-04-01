@@ -21,6 +21,7 @@ func resolve(card, enemy_idx: int) -> void:
 	if main.get_node_or_null("/root/AudioManager"): AudioManager.play("card_play")
 	main.log_message("TU", "Juegas " + card.card_name, Color(0.4, 0.8, 1.0))
 
+	var shield_before: int = main.player_shield
 	var card_handled = false
 	var target_e = null
 	if enemy_idx >= 0 and enemy_idx < main.enemies.size(): target_e = main.enemies[enemy_idx]
@@ -238,13 +239,16 @@ func resolve(card, enemy_idx: int) -> void:
 			if "AVATAR" in target_e.name.to_upper(): dmg = int(dmg * (1.0 + (100 - GameManager.sanity) * 0.015))
 			if "JAQUE ETERNO" in c_upper: dmg = clamp(15 + int((main.player_max_hp - main.player_hp) * 0.4), 15, 40)
 			if GameManager.velo_broken: dmg += 2
+			# Resonancia del Príncipe en W3: +1 ATK por stack
+			if GameManager.selected_character == "prince" and GameManager.resonancia_stacks > 0:
+				dmg += GameManager.resonancia_stacks
 			if GameManager.selected_character == "guardian" and main.furia_points >= 3:
 				dmg *= 2; main.furia_points = 0; main.flash_small("¡RESILIENCIA!"); main._trigger_screen_blink()
 
 			var absorbed = min(target_e.shield, dmg)
 			if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(target_e)
 			if dmg > 0:
-				target_e.hp -= dmg
+				target_e.hp = max(0, target_e.hp - dmg)
 
 				# MECÁNICA: La música del Rey Sin Corona cambia al recibir el primer golpe
 				if "REY SIN CORONA" in target_e.name.to_upper() and not main.rey_music_triggered:
@@ -286,15 +290,36 @@ func resolve(card, enemy_idx: int) -> void:
 	# ── COSTES Y LIMPIEZA ──
 	var cd_costs = card.card_data
 	if "OFRENDA DE CARNE" in c_upper:
-		main.player_hp -= 4
+		main.player_hp = max(0, main.player_hp - 4)
 	elif "PESO DE LA VERDAD" in c_upper:
-		main.player_hp -= 6
+		main.player_hp = max(0, main.player_hp - 6)
 	elif cd_costs.get("hp_cost", 0) > 0:
-		main.player_hp -= cd_costs["hp_cost"]
+		main.player_hp = max(0, main.player_hp - cd_costs["hp_cost"])
 		main.flash_small("-" + str(cd_costs["hp_cost"]) + " HP")
 	if cd_costs.get("sanity_cost", 0) > 0:
 		GameManager.sanity = max(0, GameManager.sanity - cd_costs["sanity_cost"])
 		main.flash_small("-" + str(cd_costs["sanity_cost"]) + " Sanidad")
+
+	# ── MARCA DEL VACÍO ──
+	if main.ui.get_cursed_card_node() == card:
+		var curse_cost: int
+		if GameManager.sanity >= 25:
+			curse_cost = 4
+		elif GameManager.sanity >= 10:
+			curse_cost = 5
+		else:
+			curse_cost = 6
+		if GameManager.selected_character == "prince":
+			curse_cost = max(1, curse_cost / 2)
+		var overflow: int = max(0, curse_cost - GameManager.sanity)
+		GameManager.sanity = max(0, GameManager.sanity - curse_cost)
+		var msg := "La Marca se cobra su precio. -%d Cordura" % curse_cost
+		if overflow > 0:
+			main.player_hp = max(0, main.player_hp - overflow)
+			msg += " / -%d HP" % overflow
+		main.flash_small(msg, Color(0.6, 0.0, 0.9))
+		main.ui.clear_cursed_card()
+
 	if main.player_hp <= 0: main._check_player_death(); return
 
 	var target_pos = Vector2.ZERO
@@ -312,6 +337,16 @@ func resolve(card, enemy_idx: int) -> void:
 	main.cards_played_this_turn += 1
 	if GameManager.has_relic("reloj_negro") and main.cards_played_this_turn % 3 == 0:
 		main.player_energy = min(main.player_energy + 1, main.player_max_energy); main._flash_relic("reloj_negro")
+
+	# Pasiva Guardian: RESILIENCIA — 1 Furia por cada 10 escudo generado en el turno
+	if GameManager.selected_character == "guardian":
+		var gained = max(0, main.player_shield - shield_before)
+		if gained > 0:
+			main.shield_gained_this_turn += gained
+			while main.shield_gained_this_turn >= 10 and main.furia_points < 3:
+				main.shield_gained_this_turn -= 10
+				main.furia_points += 1
+				main.flash_small("¡RESILIENCIA! Furia acumulada: " + str(main.furia_points) + "/3")
 
 	main.update_ui(); main.update_intent_labels(); main.check_combat_end()
 

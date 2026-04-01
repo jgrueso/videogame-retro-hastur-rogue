@@ -1,18 +1,39 @@
 extends Node2D
 
+var _font_title:     FontFile
+var _font_narrative: FontFile
+var _font_ui:        FontFile
+var _font_corrupt:   FontFile
+
 func _ready() -> void:
+	_font_title     = load("res://assets/fonts/CinzelDecorative-Bold.otf")
+	_font_narrative = load("res://assets/fonts/IMFellEnglish-Italic.ttf")
+	_font_ui        = load("res://assets/fonts/rajdhani.medium.ttf")
+	_font_corrupt   = load("res://assets/fonts/RubikGlitch-Regular.ttf")
+
 	var vp = get_viewport_rect().size
-	
-	# Fondo abisal
-	var bg = ColorRect.new()
-	bg.color = Color(0.01, 0.01, 0.02)
-	bg.position = Vector2.ZERO; bg.size = vp
-	add_child(bg)
-	
-	_create_massive_black_sun(vp)
-	_start_heavy_rain(vp)
-	_start_lightning_system(vp)
-	
+
+	# Fondo imagen rey oscuro
+	var bg_tex = TextureRect.new()
+	bg_tex.texture = load("res://assets/bg_mainmenu.png")
+	bg_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg_tex.size = vp
+	bg_tex.position = Vector2.ZERO
+	bg_tex.z_index = -10
+	add_child(bg_tex)
+
+	var dim = ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.45)
+	dim.size = vp
+	dim.z_index = -9
+	add_child(dim)
+
+	_start_rain(vp)
+	_start_embers(vp)
+	_start_golden_sparks(vp)
+	_start_fog(vp)
+
 	if get_node_or_null("/root/AudioManager"):
 		AudioManager.stop_all()
 		AudioManager.play_loop("intro_title_song")
@@ -21,29 +42,47 @@ func _ready() -> void:
 	var title = Label.new()
 	title.text = "BLACK HOLE SONG"
 	title.add_theme_font_size_override("font_size", 72)
-	title.modulate = Color(0.85, 0.75, 0.1)
+	if _font_title: title.add_theme_font_override("font", _font_title)
+	title.modulate = Color(0.85, 0.75, 0.1, 0.0)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, vp.y * 0.2)
+	title.position = Vector2(0, vp.y * 0.2 - 40.0)
 	title.size = Vector2(vp.x, 100)
 	title.z_index = 10
 	add_child(title)
-	
+
 	var shadow = title.duplicate()
-	shadow.modulate = Color(0.4, 0.1, 0.1, 0.3)
+	shadow.modulate = Color(0.4, 0.1, 0.1, 0.0)
 	shadow.position += Vector2(4, 4)
 	add_child(shadow)
-	
+
+	# Animación de entrada del título
+	var tw_in = create_tween().set_parallel(true)
+	tw_in.tween_property(title, "modulate:a", 1.0, 0.6).set_delay(0.2)
+	tw_in.tween_property(title, "position:y", vp.y * 0.2, 0.5) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).set_delay(0.2)
+	tw_in.tween_property(shadow, "modulate:a", 0.3, 0.6).set_delay(0.2)
+	tw_in.tween_property(shadow, "position:y", vp.y * 0.2 + 4.0, 0.5) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).set_delay(0.2)
+
 	_animate_hastur_glitch(title, shadow, vp)
 
 	var sub = Label.new()
 	sub.text = "Escucha el silencio que devora los mundos."
 	sub.add_theme_font_size_override("font_size", 18)
+	if _font_narrative: sub.add_theme_font_override("font", _font_narrative)
 	sub.modulate = Color(0.6, 0.6, 0.6)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.position = Vector2(0, vp.y * 0.35)
 	sub.size = Vector2(vp.x, 30)
 	sub.z_index = 10
 	add_child(sub)
+
+	# Typewriter subtítulo
+	sub.visible_characters = 0
+	create_tween().tween_method(
+		func(n: int): sub.visible_characters = n,
+		0, sub.text.length(), 1.5
+	).set_delay(0.9)
 
 	var btn_container = VBoxContainer.new()
 	btn_container.position = Vector2(vp.x * 0.35, vp.y * 0.6)
@@ -60,11 +99,18 @@ func _ready() -> void:
 	if not FileAccess.file_exists(GameManager.RUN_SAVE_PATH):
 		btn_continue.visible = false
 	else:
-		btn_continue.modulate = Color(0.4, 0.8, 1.0)
+		btn_continue.modulate = Color(0.4, 0.8, 1.0, 0.0)
 
 	btn_container.add_child(btn_continue)
 	btn_container.add_child(btn_start)
 	btn_container.add_child(btn_exit)
+
+	# Entrada en cascada de los botones
+	for i in range(btn_container.get_child_count()):
+		var b = btn_container.get_child(i)
+		if b.visible:
+			b.modulate.a = 0.0
+			create_tween().tween_property(b, "modulate:a", 1.0, 0.3).set_delay(1.1 + i * 0.12)
 
 	# Botón borrar: esquina inferior izquierda, casi invisible
 	var btn_delete = Button.new()
@@ -72,6 +118,7 @@ func _ready() -> void:
 	btn_delete.size = Vector2(160, 30)
 	btn_delete.position = Vector2(20, vp.y - 48)
 	btn_delete.add_theme_font_size_override("font_size", 12)
+	if _font_ui: btn_delete.add_theme_font_override("font", _font_ui)
 	btn_delete.z_index = 15
 	var s_del = StyleBoxFlat.new()
 	s_del.bg_color = Color(0, 0, 0, 0)
@@ -109,82 +156,170 @@ func _ready() -> void:
 
 	btn_exit.pressed.connect(func(): get_tree().quit())
 
-func _create_massive_black_sun(vp: Vector2):
-	var sun_pos = Vector2(vp.x/2, vp.y * 0.2 + 20)
-	var sun_radius = 500.0
-	
-	var aura_node = Panel.new()
-	aura_node.size = Vector2(sun_radius + 40, sun_radius + 40)
-	aura_node.position = sun_pos - aura_node.size/2
-	var style_aura = StyleBoxFlat.new()
-	style_aura.bg_color = Color(0, 0, 0, 0)
-	style_aura.set_corner_radius_all(aura_node.size.x / 2)
-	style_aura.border_width_left = 12
-	style_aura.border_color = Color(0.95, 0.7, 0.1, 0.6)
-	style_aura.shadow_size = 60
-	aura_node.add_theme_stylebox_override("panel", style_aura)
-	aura_node.z_index = 1
-	add_child(aura_node)
-	create_tween().set_loops().tween_property(aura_node, "scale", Vector2(1.1, 1.1), 3.0).set_trans(Tween.TRANS_SINE)
-	
-	var sun_node = Panel.new()
-	sun_node.size = Vector2(sun_radius, sun_radius)
-	sun_node.position = sun_pos - sun_node.size/2
-	var style_sun = StyleBoxFlat.new()
-	style_sun.bg_color = Color(0, 0, 0)
-	style_sun.set_corner_radius_all(sun_radius / 2)
-	sun_node.add_theme_stylebox_override("panel", style_sun)
-	sun_node.z_index = 2
-	add_child(sun_node)
+func _start_golden_sparks(vp: Vector2) -> void:
+	var gp = GPUParticles2D.new()
+	gp.position = Vector2(vp.x / 2, vp.y * 0.28)
+	gp.amount = 28
+	gp.lifetime = 3.5
+	gp.z_index = 12
 
-func _start_heavy_rain(vp: Vector2):
-	for i in range(100):
-		var drop = ColorRect.new()
-		drop.size = Vector2(2, randi_range(15, 40)); drop.color = Color(0.7, 0.7, 0.9, 0.3)
-		drop.position = Vector2(randf_range(-200, vp.x), randf_range(-vp.y, 0)); drop.z_index = 4
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	mat.emission_box_extents = Vector3(vp.x * 0.35, 40, 0)
+	mat.direction = Vector3(0, -1, 0)
+	mat.spread = 35.0
+	mat.initial_velocity_min = 15.0
+	mat.initial_velocity_max = 45.0
+	mat.gravity = Vector3(0, -8, 0)
+	mat.scale_min = 1.5
+	mat.scale_max = 3.5
+
+	var gradient = Gradient.new()
+	gradient.add_point(0.0, Color(1.0, 0.85, 0.1, 0.0))
+	gradient.add_point(0.25, Color(1.0, 0.85, 0.1, 0.9))
+	gradient.add_point(0.8, Color(0.95, 0.6, 0.05, 0.5))
+	gradient.add_point(1.0, Color(0.8, 0.4, 0.0, 0.0))
+	var grad_tex = GradientTexture1D.new()
+	grad_tex.gradient = gradient
+	mat.color_ramp = grad_tex
+
+	gp.process_material = mat
+	gp.emitting = true
+	add_child(gp)
+
+func _start_fog(vp: Vector2) -> void:
+	# Paleta de colores: violeta élfico y verde muerte
+	var palettes: Array[Color] = [
+		Color(0.28, 0.05, 0.40, 0.22),
+		Color(0.06, 0.28, 0.10, 0.18),
+		Color(0.22, 0.04, 0.32, 0.20),
+		Color(0.08, 0.22, 0.08, 0.16),
+		Color(0.32, 0.08, 0.45, 0.19),
+		Color(0.05, 0.18, 0.07, 0.15),
+	]
+	for i in range(8):
+		var col: Color = palettes[i % palettes.size()]
+
+		# GradientTexture2D radial: centro tintado → bordes completamente transparentes
+		var grad := Gradient.new()
+		grad.set_color(0, Color(col.r, col.g, col.b, col.a))
+		grad.set_color(1, Color(col.r * 0.5, col.g * 0.5, col.b * 0.5, 0.0))
+
+		var gt := GradientTexture2D.new()
+		gt.gradient = grad
+		gt.fill = GradientTexture2D.FILL_RADIAL
+		gt.fill_from = Vector2(0.5, 0.5)
+		gt.fill_to = Vector2(1.0, 0.5)
+		gt.width = 256
+		gt.height = 128
+
+		var fog := TextureRect.new()
+		fog.texture = gt
+		fog.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		fog.stretch_mode = TextureRect.STRETCH_SCALE
+		fog.size = Vector2(randf_range(260.0, 480.0), randf_range(70.0, 140.0))
+		fog.position = Vector2(
+			randf_range(-80.0, vp.x - fog.size.x * 0.4),
+			randf_range(vp.y * 0.66, vp.y * 0.93)
+		)
+		fog.z_index = 8
+		add_child(fog)
+
+		var start_x := fog.position.x
+		var drift := randf_range(55.0, 120.0) * (1.0 if randf() > 0.5 else -1.0)
+		var dur := randf_range(10.0, 20.0)
+		var tw := create_tween().set_loops()
+		tw.tween_property(fog, "position:x", start_x + drift, dur).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(fog, "position:x", start_x, dur).set_trans(Tween.TRANS_SINE)
+
+func _start_embers(vp: Vector2):
+	for i in range(18):
+		var e = ColorRect.new()
+		e.size = Vector2(2, 2)
+		e.color = Color(0.9, 0.55 + randf() * 0.3, 0.1, randf_range(0.4, 0.8))
+		e.position = Vector2(randf_range(vp.x * 0.3, vp.x * 0.7), randf_range(vp.y * 0.25, vp.y * 0.55))
+		e.z_index = 6
+		add_child(e)
+		var dur = randf_range(4.0, 8.0)
+		var tw = create_tween().set_loops()
+		tw.tween_property(e, "position",
+			e.position + Vector2(randf_range(-40, 40), -randf_range(150, 350)), dur)
+		tw.tween_property(e, "modulate:a", 0.0, 0.8)
+		tw.tween_callback(func():
+			e.position = Vector2(randf_range(vp.x * 0.3, vp.x * 0.7), randf_range(vp.y * 0.3, vp.y * 0.6))
+			e.modulate.a = randf_range(0.4, 0.8)
+		)
+
+func _start_rain(vp: Vector2) -> void:
+	# Tres capas de lluvia diagonal para dar profundidad
+	_spawn_rain_layer(vp, 38, Color(0.55, 0.65, 0.80, 0.10), 0.65, 0.90, 3, Vector2(170, vp.y + 200))
+	_spawn_rain_layer(vp, 48, Color(0.65, 0.72, 0.88, 0.16), 0.42, 0.60, 4, Vector2(190, vp.y + 200))
+	_spawn_rain_layer(vp, 22, Color(0.78, 0.82, 0.95, 0.22), 0.28, 0.40, 5, Vector2(210, vp.y + 200))
+
+func _spawn_rain_layer(vp: Vector2, count: int, col: Color, dur_min: float, dur_max: float, zi: int, travel: Vector2) -> void:
+	for i in range(count):
+		var drop := ColorRect.new()
+		drop.size = Vector2(1, randi_range(18, 48))
+		drop.color = col
+		drop.rotation = deg_to_rad(12)
+		drop.position = Vector2(randf_range(-200, vp.x), randf_range(-vp.y, 0))
+		drop.z_index = zi
 		add_child(drop)
-		var dur = randf_range(0.4, 0.6)
-		create_tween().set_loops().tween_property(drop, "position", drop.position + Vector2(200, vp.y + 200), dur).from(drop.position)
-
-func _start_lightning_system(vp: Vector2):
-	var timer = get_tree().create_timer(randf_range(4.0, 12.0))
-	timer.timeout.connect(func():
-		_trigger_lightning(vp)
-		_start_lightning_system(vp)
-	)
-
-func _trigger_lightning(vp: Vector2):
-	var bolt = Line2D.new()
-	bolt.width = 3.0; bolt.default_color = Color(1, 1, 1, 0.8); bolt.z_index = 20
-	add_child(bolt)
-	var current_pos = Vector2(randf_range(100, vp.x - 100), 0)
-	bolt.add_point(current_pos)
-	for i in range(6):
-		current_pos += Vector2(randf_range(-60, 60), randf_range(80, 120)); bolt.add_point(current_pos)
-	var flash = ColorRect.new(); flash.size = vp; flash.color = Color(1, 1, 1, 0.4); flash.z_index = 21; flash.visible = false
-	add_child(flash)
-	var tw = create_tween(); tw.tween_interval(0.1); tw.tween_callback(func(): flash.visible = true)
-	if get_node_or_null("/root/AudioManager"): AudioManager.play("thunder")
-	tw.tween_property(flash, "color:a", 0.0, 0.1); tw.tween_property(flash, "color:a", 0.0, 0.5)
-	tw.tween_callback(bolt.queue_free); tw.tween_callback(flash.queue_free)
+		create_tween().set_loops().tween_property(
+			drop, "position", drop.position + travel,
+			randf_range(dur_min, dur_max)
+		).from(drop.position)
 
 func _make_menu_button(txt: String) -> Button:
-	var btn = Button.new(); btn.text = txt; btn.custom_minimum_size = Vector2(0, 55); btn.add_theme_font_size_override("font_size", 22)
-	var style = StyleBoxFlat.new(); style.bg_color = Color(0.02, 0.02, 0.03, 0.9); style.border_width_bottom = 3; style.border_color = Color(0.4, 0.4, 0.4); style.set_corner_radius_all(4)
-	var hover = style.duplicate(); hover.bg_color = Color(0.15, 0.12, 0.05); hover.border_color = Color(0.85, 0.75, 0.1)
-	btn.add_theme_stylebox_override("normal", style); btn.add_theme_stylebox_override("hover", hover)
-	btn.mouse_entered.connect(func(): if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_hover"))
+	var btn = Button.new()
+	btn.text = txt
+	btn.custom_minimum_size = Vector2(0, 55)
+	btn.add_theme_font_size_override("font_size", 22)
+	if _font_ui: btn.add_theme_font_override("font", _font_ui)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.02, 0.03, 0.9)
+	style.border_width_bottom = 3
+	style.border_color = Color(0.4, 0.4, 0.4)
+	style.set_corner_radius_all(4)
+	var hover = style.duplicate()
+	hover.bg_color = Color(0.15, 0.12, 0.05)
+	hover.border_color = Color(0.85, 0.75, 0.1)
+	var pressed = style.duplicate()
+	pressed.bg_color = Color(0.08, 0.07, 0.02, 0.95)
+	pressed.border_color = Color(0.95, 0.85, 0.15)
+	btn.add_theme_stylebox_override("normal", style)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", pressed)
+	btn.pivot_offset = Vector2(150, 27)
+	btn.mouse_entered.connect(func():
+		create_tween().tween_property(btn, "scale", Vector2(1.03, 1.03), 0.1)
+		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_hover")
+	)
+	btn.mouse_exited.connect(func():
+		create_tween().tween_property(btn, "scale", Vector2.ONE, 0.1)
+	)
 	return btn
 
 func _animate_hastur_glitch(t: Label, s: Label, vp: Vector2):
 	var tw = create_tween().set_loops(); tw.tween_interval(randf_range(5.0, 12.0))
 	tw.tween_callback(func():
 		var roll = randf()
-		if roll < 0.2: t.text = "BLACK HOLE"; t.modulate = Color(0, 0, 0); s.modulate = Color(1, 0.8, 0.2, 1.0)
-		elif roll < 0.4: t.text = "H A S T U R"; t.modulate = Color(0.8, 0.1, 0.1)
+		if roll < 0.2:
+			t.text = "BLACK HOLE"
+			t.modulate = Color(0, 0, 0)
+			s.modulate = Color(1, 0.8, 0.2, 1.0)
+			if _font_corrupt: t.add_theme_font_override("font", _font_corrupt)
+		elif roll < 0.4:
+			t.text = "H A S T U R"
+			t.modulate = Color(0.8, 0.1, 0.1)
+			if _font_corrupt: t.add_theme_font_override("font", _font_corrupt)
 		t.position += Vector2(randf_range(-20, 20), randf_range(-10, 10))
 		await get_tree().create_timer(0.2).timeout
-		t.text = "BLACK HOLE SONG"; t.modulate = Color(0.85, 0.75, 0.1); s.modulate = Color(0.4, 0.1, 0.1, 0.3); t.position = Vector2(0, vp.y * 0.2)
+		t.text = "BLACK HOLE SONG"
+		t.modulate = Color(0.85, 0.75, 0.1)
+		s.modulate = Color(0.4, 0.1, 0.1, 0.3)
+		t.position = Vector2(0, vp.y * 0.2)
+		if _font_title: t.add_theme_font_override("font", _font_title)
 	)
 
 func _play_ambient_hum():
@@ -216,6 +351,7 @@ func _show_delete_menu(vp: Vector2, btn_container: Node) -> void:
 	title.text = "¿QUÉ DESEAS BORRAR?"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 22)
+	if _font_title: title.add_theme_font_override("font", _font_title)
 	title.modulate = Color(0.9, 0.4, 0.4)
 	title.position = Vector2(0, 30)
 	title.size = Vector2(460, 36)
@@ -268,6 +404,7 @@ func _make_delete_button(txt: String, col: Color) -> Button:
 	btn.text = txt
 	btn.custom_minimum_size = Vector2(0, 48)
 	btn.add_theme_font_size_override("font_size", 17)
+	if _font_ui: btn.add_theme_font_override("font", _font_ui)
 	var s = StyleBoxFlat.new()
 	s.bg_color = Color(0.08, 0.02, 0.02, 0.9)
 	s.border_width_bottom = 2

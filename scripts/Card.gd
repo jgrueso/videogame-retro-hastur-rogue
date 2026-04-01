@@ -20,6 +20,7 @@ var tooltip_panel: Panel
 
 var base_y: float = 0.0
 var is_hovered: bool = false
+var is_marked: bool = false
 var requires_target: bool = true
 var base_scale: Vector2 = Vector2(1.0, 1.0)
 var hover_scale_enabled: bool = true
@@ -242,12 +243,15 @@ func update_display(force_upgrade_style: bool = false) -> void:
 		tooltip_text += "[color=#8a7a5a][font_size=10][i]" + flavor + "[/i][/font_size][/color]"
 	elif not has_real_desc:
 		tooltip_text = "Sin descripcion."
+
+	if is_marked:
+		var curse_cost = _get_mark_curse_cost()
+		tooltip_text += "\n\n[color=#cc44ff]✦ MARCADA DEL VACÍO[/color]\n"
+		tooltip_text += "[color=#ff66ff]Jugar cuesta " + str(curse_cost) + " Cordura.[/color]\n"
+		tooltip_text += "[color=#777777][font_size=10]Si Cordura insuficiente, el exceso daña tu Vida.[/font_size][/color]"
+
 	tooltip_panel.get_node("TooltipLabel").text = tooltip_text
-	print("DEBUG: Card tooltip updated: ", card_name, " -> ", description)
-	if "MARCADO" in description:
-		tooltip_panel.get_node("TooltipLabel").modulate = Color(1.0, 0.9, 0.2) # Amarillo para el estado
-	else:
-		tooltip_panel.get_node("TooltipLabel").modulate = Color.WHITE
+	tooltip_panel.get_node("TooltipLabel").modulate = Color.WHITE
 	var icon_lbl = get_node("IconLabel")
 	if "LEGENDARIA" in description:
 		icon_lbl.text = "👑"; icon_lbl.modulate = Color(1, 0.9, 0.4, 0.4)
@@ -357,6 +361,20 @@ func _on_gui_input(event: InputEvent) -> void:
 			tooltip_panel.visible = false
 			if requires_target: card_selected.emit(self)
 			else: card_played.emit(self)
+
+func set_marked(value: bool) -> void:
+	is_marked = value
+	update_display()
+
+func _get_mark_curse_cost() -> int:
+	var san = GameManager.sanity
+	var c: int
+	if san >= 25: c = 4
+	elif san >= 10: c = 5
+	else: c = 6
+	if GameManager.selected_character == "prince":
+		c = max(1, c / 2)
+	return c
 
 func set_display_scale(s: Vector2) -> void:
 	scale = s

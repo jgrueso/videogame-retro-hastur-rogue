@@ -19,9 +19,10 @@ var cards_played_this_turn: int = 0
 var velo_used: bool = false
 var turn_counter: int = 1 # Contador para Reloj Circular
 var furia_points: int = 0
-var damage_received_pool: int = 0 # Acumulador para la pasiva del Guardián
+var shield_gained_this_turn: int = 0 # Acumulador de escudo por turno para la pasiva del Guardián
 var enemy_attacked_last_turn: bool = false # Para Contraofensiva
 var trono_carcosa_active: bool = false
+var ojo_grito_first_turn: bool = false
 
 # ── UI & Visuals ──────────────────────────────────────────────────────────────
 var ui: Node # Instancia de CombatUI.gd
@@ -133,13 +134,20 @@ func _ready() -> void:
 		player_max_energy += 1
 		GameManager.sanity = max(0, GameManager.sanity - 5)
 
-	if GameManager.selected_character == "prince":
+	if GameManager.selected_character == "prince" and GameManager.current_world == 2:
+		GameManager.sanity = 20  # Comienza en RESONANCIA en W3
+		flash_small("HAS VUELTO A CASA. LA GRIETA TE RECONOCE.", Color(0.7, 0.2, 1.0))
+	elif GameManager.selected_character == "prince":
 		GameManager.sanity = max(0, GameManager.sanity - 8)
 		flash_small("El Abismo susurra... -8 Cordura")
 
 	# Sinergia Reliquia: Escudo Astillado
 	if GameManager.has_relic("escudo_astillado"):
 		player_shield = 5
+
+	# Sinergia Reliquia: Ceniza de la Guardia — +2 energía máxima solo en W3
+	if GameManager.has_relic("ceniza_guardia") and GameManager.current_world == 2:
+		player_max_energy += 2
 
 	player_energy = player_max_energy
 	
@@ -154,18 +162,21 @@ func _ready() -> void:
 
 	# Sinergia Reliquia: Ojo del Grito
 	if GameManager.has_relic("ojo_grito") and GameManager.sanity < 40:
-		for e_g in enemies:
-			e_g["atk_reduction"] = e_g.get("atk_reduction", 0) + 999
+		ojo_grito_first_turn = true
 		flash_small("Ojo del Grito: el miedo inmoviliza a los enemigos 1 turno.", Color(0.8, 0.2, 0.3))
 		_flash_relic("ojo_grito")
-		await get_tree().create_timer(0.1).timeout
-		# Se limpia al finalizar el primer turno enemigo (atk_reduction se resetea en _on_end_turn)
 
 	# Sinergia Reliquia: Manual del Anatomista — intenciones visibles desde el primer turno
 	if GameManager.has_relic("manual_anatomista"):
 		for e_m in enemies:
 			e_m["intent_visible"] = true
 		flash_small("Manual del Anatomista: intenciones enemigas reveladas.", Color(0.55, 0.75, 0.55))
+
+	# Sinergia Reliquia: Ojo del Testigo — revela patrones completos en W3
+	if GameManager.has_relic("ojo_testigo") and GameManager.current_world == 2:
+		for e_t in enemies:
+			e_t["intent_visible"] = true
+		flash_small("Ojo del Testigo: los patrones del umbral son visibles.", Color(0.65, 0.2, 1.0))
 
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.45)
 
@@ -248,22 +259,26 @@ func _setup_encounter() -> void:
 			{"type": "ultimate_attack", "value": 45}
 		]}]
 	elif GameManager.is_final_boss:
-		if GameManager.current_world == 1:
+		if GameManager.current_world == 2:
+			pool = CombatData.BOSS_POOLS_W3_FINAL
+		elif GameManager.current_world == 1:
 			pool = [{"name": "EL REY AMARILLO",   "hp": 220, "pattern": [
-				{"type": "attack", "value": 16}, 
+				{"type": "attack", "value": 16},
 				{"type": "anular_energia", "value": 0},
-				{"type": "shield", "value": 15}, 
+				{"type": "shield", "value": 15},
 				{"type": "attack", "value": 22},
 				{"type": "curse_hand", "value": 0}
 			]}]
 		else:
 			pool = [{"name": "EL REY SIN CORONA", "hp": 150, "pattern": [
-				{"type": "attack", "value": 12}, 
-				{"type": "shield", "value": 10},  
+				{"type": "attack", "value": 12},
+				{"type": "shield", "value": 10},
 				{"type": "attack", "value": 18}
 			]}]
 	elif GameManager.is_boss_fight:
-		if GameManager.current_world == 0:
+		if GameManager.current_world == 2:
+			pool = CombatData.BOSS_POOLS_W3[randi() % CombatData.BOSS_POOLS_W3.size()]
+		elif GameManager.current_world == 0:
 			pool = CombatData.BOSS_POOLS_W1[randi() % CombatData.BOSS_POOLS_W1.size()]
 		else:
 			pool = CombatData.BOSS_POOLS_W2[randi() % CombatData.BOSS_POOLS_W2.size()]
@@ -292,6 +307,8 @@ func _setup_encounter() -> void:
 			if p[0]["name"] == "El Penitente":
 				pool = p
 				break
+	elif GameManager.current_world == 2 and GameManager.is_elite_fight:
+		pool = CombatData.ELITE_POOLS_W3[randi() % CombatData.ELITE_POOLS_W3.size()]
 	elif GameManager.is_in_void_path:
 		# Enemigos de la Grieta (Mucho más fuertes y exclusivos)
 		if GameManager.void_path_step == 2:
@@ -309,6 +326,8 @@ func _setup_encounter() -> void:
 				[{"name": "Caballero de Carcosa", "hp": 70, "pattern": [{"type": "shield", "value": 12}, {"type": "attack", "value": 16}]}]
 			]
 			pool = void_enemies[randi() % void_enemies.size()]
+	elif GameManager.current_world == 2:
+		pool = CombatData.NORMAL_POOLS_W3[randi() % CombatData.NORMAL_POOLS_W3.size()]
 	else:
 		pool = CombatData.NORMAL_POOLS[randi() % CombatData.NORMAL_POOLS.size()]
 
@@ -350,6 +369,7 @@ func update_ui() -> void:
 
 # ── Cartas ─────────────────────────────────────────────────────────────────────
 func draw_hand(count: int = -1) -> void:
+	var is_turn_start := (count == -1)
 	if count == -1:
 		# Lógica de inicio de turno
 		var keep_hand = GameManager.has_relic("reloj_circular") and turn_counter % 3 == 0
@@ -401,6 +421,9 @@ func draw_hand(count: int = -1) -> void:
 
 	update_card_states()
 	reorganize_hand()
+
+	if is_turn_start:
+		ui._assign_cursed_card()
 
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_draw")
 
@@ -856,9 +879,11 @@ func _trigger_screen_blink() -> void:
 			blink_overlay.color = Color(0.85, 0.15, 0.1)
 		else:
 			blink_overlay.color = Color(1.0, 1.0, 1.0)
-	blink_overlay.modulate.a = 1.0
+	var max_alpha = 0.25 if GameManager.selected_character == "prince" else 0.55
+	blink_overlay.modulate.a = max_alpha
 	var tw = create_tween()
-	tw.tween_property(blink_overlay, "modulate:a", 0.0, randf_range(0.15, 0.3))
+	var fade_dur = randf_range(0.6, 1.2) if GameManager.selected_character == "prince" else randf_range(0.15, 0.3)
+	tw.tween_property(blink_overlay, "modulate:a", 0.0, fade_dur)
 	tw.tween_callback(func(): blink_overlay.visible = false)
 
 func update_intent_labels() -> void:
@@ -892,21 +917,28 @@ var sanity_20_triggered: bool = false
 func _check_sanity_myths() -> void:
 	var s = GameManager.sanity
 	var is_prince = GameManager.selected_character == "prince"
+	var is_w3 = GameManager.current_world == 2
 	if s < 60 and not sanity_60_triggered:
 		sanity_60_triggered = true
-		if is_prince:
+		if is_w3:
+			_show_mythical_text(CombatData.MYTH_W3_60[randi() % CombatData.MYTH_W3_60.size()], Color(0.45, 0.05, 0.75))
+		elif is_prince:
 			_show_mythical_text(CombatData.PRINCE_MYTH_60[randi() % CombatData.PRINCE_MYTH_60.size()], Color(0.7, 0.3, 1.0))
 		else:
 			_show_mythical_text(CombatData.MYTH_60[randi() % CombatData.MYTH_60.size()], Color(0.6, 0.4, 0.8))
 	elif s < (35 if is_prince else 40) and not sanity_40_triggered:
 		sanity_40_triggered = true
-		if is_prince:
+		if is_w3:
+			_show_mythical_text(CombatData.MYTH_W3_40[randi() % CombatData.MYTH_W3_40.size()], Color(0.45, 0.05, 0.75))
+		elif is_prince:
 			_show_mythical_text(CombatData.PRINCE_MYTH_35[randi() % CombatData.PRINCE_MYTH_35.size()], Color(0.85, 0.3, 1.0))
 		else:
 			_show_mythical_text(CombatData.MYTH_40[randi() % CombatData.MYTH_40.size()], Color(0.8, 0.3, 0.3))
 	elif s < 20 and not sanity_20_triggered:
 		sanity_20_triggered = true
-		if is_prince:
+		if is_w3:
+			_show_mythical_text(CombatData.MYTH_W3_20[randi() % CombatData.MYTH_W3_20.size()], Color(0.45, 0.05, 0.75))
+		elif is_prince:
 			_show_mythical_text(CombatData.PRINCE_MYTH_20[randi() % CombatData.PRINCE_MYTH_20.size()], Color(1.0, 0.7, 1.0))
 		else:
 			_show_mythical_text(CombatData.MYTH_20[randi() % CombatData.MYTH_20.size()], Color(1.0, 0.1, 0.1))
@@ -1098,7 +1130,11 @@ func check_combat_end() -> void:
 	
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("victory")
 	
-	var victory_phrases = CombatData.VICTORY_PHRASES
+	var victory_phrases: Array
+	if GameManager.current_world == 2:
+		victory_phrases = CombatData.VICTORY_PHRASES_W3
+	else:
+		victory_phrases = CombatData.VICTORY_PHRASES
 	show_message(victory_phrases[randi() % victory_phrases.size()], Color(0.85, 0.7, 0.2))
 	await get_tree().create_timer(1.2).timeout
 	
@@ -1115,7 +1151,28 @@ func check_combat_end() -> void:
 		_show_victory_cinematic(true)
 		GameManager.go_to_scene("res://scenes/ui/GameOver.tscn")
 	elif GameManager.is_final_boss:
-		if GameManager.current_world == 0:
+		if GameManager.current_world == 2:
+			# TESTIGO PRIMORDIAL caído → Victoria W3
+			var victory_msg = "EL TESTIGO HA CERRADO SUS OJOS. CARCOSA TE LLAMA." if GameManager.selected_character == "prince" else "EL TESTIGO HA CERRADO SUS OJOS"
+			show_message(victory_msg, Color(0.8, 0.3, 1.0))
+			await get_tree().create_timer(2.0).timeout
+
+			if GameManager.has_all_secret_items():
+				# Los 3 fragmentos responden — La Puerta se abre
+				panel_message.visible = false
+				show_message("LA PUERTA SE ABRE.", Color(0.95, 0.85, 0.1))
+				await get_tree().create_timer(1.5).timeout
+				show_message("EL REY TE ESPERA.", Color(0.95, 0.85, 0.1))
+				await get_tree().create_timer(1.5).timeout
+				await _show_carcosa_transition()
+				GameManager.is_hastur_fight = true
+				GameManager.is_final_boss = false
+				GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
+			else:
+				GameManager.player_won = true
+				await _show_victory_cinematic(false)
+				GameManager.go_to_scene("res://scenes/ui/GameOver.tscn")
+		elif GameManager.current_world == 0:
 			# REY SIN CORONA caído → Mundo 2
 			var lore_id = "rey_marfil"
 			if not lore_id in GameManager.unlocked_lore:
@@ -1127,19 +1184,20 @@ func check_combat_end() -> void:
 			_show_relic_reward("__world2__")
 			return
 		else:
-
-			# REY AMARILLO caído
-			if GameManager.has_all_secret_items():
-				# Los 3 fragmentos reunidos → Carcosa se abre → Hastur
-				await _show_carcosa_transition()
-				GameManager.is_final_boss = false
-				GameManager.is_hastur_fight = true
-				GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
-			else:
-				# Victoria normal sin secreto
-				GameManager.player_won = true
-				await _show_victory_cinematic(false)
-				GameManager.go_to_scene("res://scenes/ui/GameOver.tscn")
+			# REY AMARILLO caído → siempre va a W3
+			show_message("LA GRIETA SE EXPANDE. EL UMBRAL TE LLAMA.", Color(0.6, 0.1, 0.9))
+			await get_tree().create_timer(2.0).timeout
+			GameManager.current_world = 2
+			GameManager.is_final_boss = false
+			GameManager.map_graph = []
+			GameManager.map_path = {}
+			GameManager.current_map_floor = 0
+			GameManager.current_map_col = -1
+			GameManager.player_hp = GameManager.player_max_hp
+			GameManager.sanity = 100
+			if GameManager.selected_character == "prince":
+				GameManager.sanity = 20
+			GameManager.go_to_scene("res://scenes/ui/Map.tscn")
 	elif GameManager.is_boss_fight:
 		# EL CARCELERO → reliquia → mapa
 		_show_relic_reward("res://scenes/ui/Map.tscn")
@@ -1180,6 +1238,7 @@ func _show_single_reward_modal(title_text: String, item_data: Dictionary, next_s
 
 # ── Turno enemigo ──────────────────────────────────────────────────────────────
 func _on_end_turn_button_pressed() -> void:
+	ui.clear_cursed_card()
 	await enemy_turn.process_enemy_turn()
 
 # ── Dev ────────────────────────────────────────────────────────────────────────
@@ -1493,6 +1552,9 @@ func _hide_enemy_intent_tooltip(idx: int) -> void:
 
 func _populate_relics() -> void:
 	if not relics_container: return
+	# Clear existing relic icons to prevent visual accumulation
+	for child in relics_container.get_children():
+		child.queue_free()
 	var relic_scene = load("res://scenes/ui/RelicIcon.tscn")
 	for relic_id in GameManager.relics:
 		if not GameManager.RELIC_DATA.has(relic_id): continue
