@@ -53,7 +53,7 @@ const ROOM_DESCRIPTIONS: Dictionary = {
 }
 
 const ROOM_CORRUPTED_DESCRIPTIONS: Array = [
-	["⚠ ??????????", "el ruido no para"],
+	["ᚠᛒᚱ ᛈᛇᚦ", "ᛟᛗᚾᛁ ᛖᚷᛃ ᚹᚫ"],
 	["☠ ACECHANDO", "ya están dentro"],
 	["✦ ERROR", "no deberías ver esto"],
 	["◉ ....", "siempre fue así"],
@@ -127,6 +127,16 @@ func _ready() -> void:
 			_: # Caso por defecto (por seguridad)
 				AudioManager.stop_loop("ES_Lost in Time - Aiyo")
 				AudioManager.play_loop("map_ambient_song")
+
+	# Audio de baja cordura en el mapa
+	var _hb = "ES_Human, Heartbeat, Cinematic, 58 BPM - Epidemic Sound"
+	AudioManager.stop_loop(_hb)  # limpiar si venía de combate
+	if GameManager.sanity < 40:
+		AudioManager.play_loop(_hb)
+		AudioManager.update_loop_params(_hb, lerp(-22.0, -14.0, clamp((40.0 - GameManager.sanity) / 40.0, 0.0, 1.0)), 1.0)
+		# Bajar música ambiente según profundidad de baja cordura
+		var _music_vol = lerp(-10.0, -22.0, clamp((40.0 - GameManager.sanity) / 40.0, 0.0, 1.0))
+		AudioManager.set_music_volume(_music_vol)
 
 	# 3. Lógica de generación y guardado (se mantiene igual)
 	if GameManager.map_graph.is_empty():
@@ -1074,7 +1084,7 @@ func _add_map_decorations(container: Control, total_h: float, vp_x: float) -> vo
 		tw.tween_property(eye, "modulate:a", 0.02, randf_range(2.0, 5.0))
 
 	# Runas y susurros visuales
-	var runes = ["᚛", "ᚙ", " Holden", " King", " Yellow", "⟁", "⌬"]
+	var runes = ["ᚠ", "ᛒ", "ᚱ", "ᛈ", "ᛇ", "ᚦ", "ᛟ", "ᛗ", "ᚾ", "ᛁ", "ᛖ", "ᚷ", "ᛃ", "ᚹ", "ᚫ", "ᛤ", "ᛞ", "ᚣ", "ᛝ", "ᚪ", "ᛠ", "ᚩ", "ᛡ", "ᚢ", "ᛣ"]
 	for i in range(30):
 		var r = Label.new()
 		r.text = runes[randi() % runes.size()]
@@ -1156,9 +1166,13 @@ func _build_illus_panel(room_type: String, visual_state: String) -> Panel:
 	p.add_theme_stylebox_override("panel", s)
 
 	var icon_lbl = Label.new()
-	icon_lbl.text = "ᛇ ᚦ ᛟ" if room_type.is_empty() else ROOM_BIG_ICONS.get(room_type, "ᛒ")
+	if room_type.is_empty():
+		var _r = ["ᚠ","ᛒ","ᚱ","ᛈ","ᛇ","ᚦ","ᛟ","ᛗ","ᚾ","ᛁ","ᛖ","ᚷ","ᛃ","ᚹ","ᚫ","ᛤ","ᛞ","ᚣ","ᛝ","ᚪ","ᛠ","ᚩ","ᛡ","ᚢ","ᛣ"]
+		icon_lbl.text = _r[randi()%_r.size()] + " " + _r[randi()%_r.size()] + " " + _r[randi()%_r.size()]
+	else:
+		icon_lbl.text = ROOM_BIG_ICONS.get(room_type, "ᛒ")
 	icon_lbl.add_theme_font_override("font", ThemeDB.fallback_font)  # garantiza glifos unicode
-	icon_lbl.add_theme_font_size_override("font_size", 34)
+	icon_lbl.add_theme_font_size_override("font_size", 20 if room_type.is_empty() else 34)
 	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	icon_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	icon_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1208,7 +1222,11 @@ func _build_badge_panel(room_type: String, visual_state: String) -> Panel:
 	p.add_theme_stylebox_override("panel", s)
 
 	var icon_lbl = Label.new()
-	icon_lbl.text = "ᚢ ᛣ" if room_type.is_empty() else ROOM_BIG_ICONS.get(room_type, "ᛡ")
+	if room_type.is_empty():
+		var _r = ["ᚠ","ᛒ","ᚱ","ᛈ","ᛇ","ᚦ","ᛟ","ᛗ","ᚾ","ᛁ","ᛖ","ᚷ","ᛃ","ᚹ","ᚫ","ᛤ","ᛞ","ᚣ","ᛝ","ᚪ","ᛠ","ᚩ","ᛡ","ᚢ","ᛣ"]
+		icon_lbl.text = _r[randi()%_r.size()] + " " + _r[randi()%_r.size()]
+	else:
+		icon_lbl.text = ROOM_BIG_ICONS.get(room_type, "ᛡ")
 	icon_lbl.add_theme_font_override("font", ThemeDB.fallback_font)  # garantiza glifos unicode
 	icon_lbl.add_theme_font_size_override("font_size", 14)
 	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

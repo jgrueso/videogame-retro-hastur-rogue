@@ -599,8 +599,8 @@ func _process(_delta: float) -> void:
 		var t = Time.get_ticks_msec() / 1000.0
 		var beat = abs(sin(t * 0.9 * PI)) * abs(sin(t * 1.8 * PI))
 		position = Vector2(
-			sin(t * 7.3) * shake_intensity * beat,
-			cos(t * 6.1) * shake_intensity * beat * 0.5
+			sin(t * 3.2) * shake_intensity * beat,
+			cos(t * 2.5) * shake_intensity * beat * 0.5
 		)
 	else:
 		position = Vector2.ZERO

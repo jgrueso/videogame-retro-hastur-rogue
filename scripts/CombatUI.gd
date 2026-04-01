@@ -636,7 +636,7 @@ func update_intent_labels() -> void:
 
 		# Corrupción del nombre enemigo a cordura extremadamente baja
 		if GameManager.sanity < 15 and e.get("lbl_name"):
-			var corrupt_names = ["???????", "EL MISMO", "TÚ", "NADIE", "..."]
+			var corrupt_names = ["ᛗᚾᛁ ᛖᚷ", "EL MISMO", "TÚ", "ᚦᛟᚱ ᚠᛒ", "..."]
 			e.lbl_name.text = corrupt_names[randi() % corrupt_names.size()]
 			e.lbl_name.modulate = Color(0.7, 0.1, 0.7)
 		elif e.get("lbl_name") and e.lbl_name.modulate != Color.WHITE and e.lbl_name.modulate != Color(0.5, 1.0, 0.5):
@@ -645,7 +645,7 @@ func update_intent_labels() -> void:
 
 		# Logica de Intenciones Corruptas por Locura (Respetar Manual del Anatomista)
 		if GameManager.sanity < 20 and not has_manual:
-			var creepy = ["TE OBSERVA", "ACECHANDO", "...", "INEVITABLE"]
+			var creepy = ["ᚠᛒ ᛈᛇᚦ", "ᛟᛗ ᚾᛁᛖ", "...", "ᚷᛃ ᚹᚫᛤ", "INEVITABLE", "ᛞᚣᛝ ᚪᛠ"]
 			e.lbl_intent_icon.text = creepy[randi() % creepy.size()]
 			e.lbl_intent_icon.modulate = Color(0.8, 0.2, 0.2)
 			if e.get("intent_badge_style"):
