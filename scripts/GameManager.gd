@@ -28,7 +28,7 @@ var is_boss_fight: bool = false
 var is_miniboss_fight: bool = false
 var is_final_boss: bool = false
 var is_elite_fight: bool = false
-var selected_character: String = "conquistador"
+var selected_character: String = "mahar"
 var lore_progress: int = 0       # avanza con cada combate ganado, persiste entre runs
 var total_runs: int = 0          # cuantas runs completas ha hecho el jugador
 var current_world: int = 0       # 0 = Mundo I, 1 = Mundo II
@@ -48,6 +48,12 @@ var void_path_step: int = 0 # 0-3 (Combate, Combate, Jefe Secreto, Tesoro)
 var came_from_room: bool = false # True al salir de una sala hacia el mapa; Map._ready() guarda entonces
 var fragment_count_w3: int = 0   # Fragmentos de Carcosa recogidos (acumulativo entre runs)
 var resonancia_stacks: int = 0   # Solo Príncipe, reset por run
+
+# ─── Destilados ───────────────────────────────────────────────────────────────
+const MAX_DESTILADOS: int = 2
+var destilados: Array = []           # IDs de destilados en inventario (máx MAX_DESTILADOS)
+var destilados_blocked: bool = false # True tras usar El Último Vial (bloquea el resto del run)
+var relic_fragments: int = 0         # Fragmentos de Reliquia (Conocimiento Prohibido)
 
 func enter_void_path() -> void:
 	is_in_void_path = true
@@ -183,7 +189,7 @@ func load_run() -> bool:
 				
 			mark_level = data.get("mark_level", 0)
 			player_max_energy = data.get("max_energy", 3)
-			selected_character = data.get("char_id", "conquistador")
+			selected_character = data.get("char_id", "mahar")
 			rift_visited = data.get("rift_visited", false)
 			velo_broken = data.get("velo_broken", false)
 			secret_items = data.get("secret_items", [])
@@ -213,7 +219,7 @@ func reset_all_progress() -> void:
 signal lore_popup_closed
 
 const LORE_CHARACTER_REACTIONS: Dictionary = {
-	"conquistador": "«Otro fragmento del tablero ensangrentado. Cada verdad me acerca al trono... o a la tumba.»",
+	"mahar": "«Otro fragmento. La Cofradia nunca me hablo de esto. Cuanto mas hay que no me dijeron.»",
 	"estratega": "«El patrón se amplía. Cada dato es un eslabón de la cadena que me ata a este lugar.»",
 	"guardian": "«Cargo con esto también. El peso no me dobla. Todavía no.»",
 	"prince": "«Lo recuerdo. Siempre lo recordé. Tú aún no comprendes lo que eso significa para nosotros.»",
@@ -443,6 +449,7 @@ const RELIC_DATA = {
 	"corona_dorada": {
 		"name": "Corona de Espinas Doradas",
 		"desc": "+1 Energia maxima. Pierdes 5 de Cordura al iniciar combate.",
+		"flavor": "Una corona hecha para alguien que ya no tiene cabeza que coronar.",
 	},
 	"reloj_negro": {
 		"name": "Reloj de Arena Negra",
@@ -455,6 +462,7 @@ const RELIC_DATA = {
 	"velo_dama": {
 		"name": "Velo de la Dama",
 		"desc": "Anula la muerte una vez por RUN, recuperando 25% HP. Tras romperse, otorga +2 ATK permanente.",
+		"flavor": "Pertenecio a alguien que supo ver el final antes de llegar a el.",
 	},
 	"espejo_fragmentado": {
 		"name": "Espejo Fragmentado",
@@ -467,6 +475,7 @@ const RELIC_DATA = {
 	"lengua_tablero": {
 		"name": "Lengua del Tablero",
 		"desc": "Entiendes a los enemigos que hablan en idioma desconocido.\nMaldicion: una carta 'Peso de la Verdad' aparece en tu mano cada combate.",
+		"flavor": "No es un don. Es una condena con mejor diccion.",
 	},
 	"ojo_grito": {
 		"name": "Ojo del Grito",
@@ -484,6 +493,11 @@ const RELIC_DATA = {
 		"name": "Ojo del Testigo",
 		"desc": "Ve el patron completo de todos los enemigos W3. Costo: -20 Cordura maxima permanente.",
 	},
+	"fragmento_mascara_palida": {
+		"name": "Fragmento de la Mascara",
+		"desc": "+2 Energia al inicio de combate. Con Cordura < 40, revela el patron completo del enemigo.",
+		"flavor": "Todavia frio. Tallado con una precision que las manos humanas no deberian tener.",
+	},
 	"fragmento_mapa": {
 		"name": "Fragmento de Mapa",
 		"desc": "-10% HP enemigos W3. Costo: +1 combate forzado antes de cada descanso.",
@@ -493,6 +507,151 @@ const RELIC_DATA = {
 		"desc": "+2 Energia maxima en W3 unicamente.",
 	},
 }
+
+# ─── Destilados disponibles ───────────────────────────────────────────────────
+# target: "auto" | "enemy" | "all_enemies" | "card"
+# out_of_combat: puede usarse fuera de combate
+const DESTILADO_DATA = {
+	# COMUNES
+	"sangre_ejecutor": {
+		"name": "Sangre del Ejecutor",
+		"desc": "Tu próximo ataque inflige +50% de daño.",
+		"flavor": "Extraída de la vena de una pieza que ejecutó a tres reyes. Caliente todavía.",
+		"rarity": "comun",
+		"target": "auto",
+		"out_of_combat": false,
+	},
+	"recuerdo_robado": {
+		"name": "Recuerdo Robado",
+		"desc": "Roba 3 cartas. Descarta 1 carta al azar.",
+		"flavor": "La memoria de alguien más. Parcialmente intacta.",
+		"rarity": "comun",
+		"target": "auto",
+		"out_of_combat": false,
+	},
+	"polvo_dama_ceniza": {
+		"name": "Polvo de la Dama de Ceniza",
+		"desc": "Aplica Sangrado a todos los enemigos (3 daño/turno × 3 turnos). Pierdes 5 de Cordura.",
+		"flavor": "Ceniza de su pira funeraria. Todavía arde.",
+		"rarity": "comun",
+		"target": "all_enemies",
+		"out_of_combat": false,
+	},
+	# POCO COMUNES
+	"bruma_rey_caido": {
+		"name": "Bruma del Rey Caído",
+		"desc": "Inflige 15 de daño a todos los enemigos. Pierdes 10 de Cordura.",
+		"flavor": "El último aliento de un rey que creyó merecer más.",
+		"rarity": "poco_comun",
+		"target": "all_enemies",
+		"out_of_combat": false,
+	},
+	"chispa_efimera": {
+		"name": "Chispa Efímera",
+		"desc": "+2 energía este turno. El siguiente turno empiezas con -1 energía.",
+		"flavor": "Energía que no te pertenece. Se cobra sola.",
+		"rarity": "poco_comun",
+		"target": "auto",
+		"out_of_combat": false,
+	},
+	"susurro_abismo": {
+		"name": "Susurro del Abismo",
+		"desc": "Aplica Locura a 1 enemigo: -30% ATK por 2 turnos. Pierdes 10 de Cordura.",
+		"flavor": "Un fragmento de la locura del vacío, brevemente contenido.",
+		"rarity": "poco_comun",
+		"target": "enemy",
+		"out_of_combat": false,
+	},
+	"olvido_puro": {
+		"name": "Olvido Puro",
+		"desc": "Elimina una carta de tu mazo permanentemente. Ganas 10 de oro.",
+		"flavor": "En Valdris, olvidar es una habilidad rara y codiciada.",
+		"rarity": "poco_comun",
+		"target": "card",
+		"out_of_combat": true,
+	},
+	"lucidez_prestada": {
+		"name": "Lucidez Prestada",
+		"desc": "Restaura 35 de Cordura. Añade 'Deuda de Cordura' a tu mazo (−15 Cordura al inicio del próximo combate).",
+		"flavor": "La cordura pedida al vacío. Siempre cobra intereses.",
+		"rarity": "poco_comun",
+		"target": "auto",
+		"out_of_combat": true,
+	},
+	# RAROS
+	"tinta_sacrificio": {
+		"name": "Tinta del Sacrificio",
+		"desc": "Elige una carta en mano. La agota (Exhaust) e inflige su ATK como daño a todos los enemigos.",
+		"flavor": "Firmó el pergamino. No miró a quién.",
+		"rarity": "raro",
+		"target": "card",
+		"out_of_combat": false,
+	},
+	"resonancia_cero": {
+		"name": "Resonancia de Coste Cero",
+		"desc": "Todas las cartas en mano cuestan 0 este turno. Las cartas jugadas se consumen (Exhaust).",
+		"flavor": "Por un instante, el tablero te lo debe todo.",
+		"rarity": "raro",
+		"target": "auto",
+		"out_of_combat": false,
+	},
+	"fragmento_principe": {
+		"name": "Fragmento del Príncipe",
+		"desc": "Sacrifica 25 de Cordura. Gana +30% de daño por 3 turnos.",
+		"flavor": "Una astilla de la locura del Príncipe de Carcosa.",
+		"rarity": "raro",
+		"target": "auto",
+		"out_of_combat": false,
+	},
+	"conocimiento_prohibido": {
+		"name": "Conocimiento Prohibido",
+		"desc": "Revela el patrón completo de todos los enemigos. Gana 1 Fragmento de Reliquia. Costo: −20 Cordura y −5 Cordura máxima permanente.",
+		"flavor": "El conocimiento verdadero de Valdris siempre tiene precio.",
+		"rarity": "raro",
+		"target": "auto",
+		"out_of_combat": false,
+	},
+	# MALDITOS
+	"sangre_rey_amarillo": {
+		"name": "Sangre del Rey Amarillo",
+		"desc": "+3 energía este turno. Todos tus ataques hacen el doble de daño este turno. Costo: −20 HP máximo y −15 Cordura permanentes.",
+		"flavor": "No es su sangre real. Nada de Hastur debería existir en esta forma.",
+		"rarity": "maldito",
+		"target": "auto",
+		"out_of_combat": false,
+	},
+	"ultimo_vial": {
+		"name": "El Último Vial",
+		"desc": "Cura al máximo de HP y Cordura. No puedes usar Destilados por el resto del run.",
+		"flavor": "Una sola oportunidad. Úsala bien.",
+		"rarity": "maldito",
+		"target": "auto",
+		"out_of_combat": true,
+	},
+	"eco_grieta": {
+		"name": "Eco de la Grieta",
+		"desc": "Efecto desconocido.",
+		"flavor": "La grieta no ofrece. Toma.",
+		"rarity": "maldito",
+		"target": "auto",
+		"out_of_combat": false,
+	},
+}
+
+func has_destilado(destilado_id: String) -> bool:
+	return destilado_id in destilados
+
+func can_carry_destilado() -> bool:
+	return not destilados_blocked and destilados.size() < MAX_DESTILADOS
+
+func add_destilado(destilado_id: String) -> bool:
+	if not can_carry_destilado():
+		return false
+	destilados.append(destilado_id)
+	return true
+
+func remove_destilado(destilado_id: String) -> void:
+	destilados.erase(destilado_id)
 
 func has_relic(relic_id: String) -> bool:
 	return relic_id in relics
@@ -698,7 +857,7 @@ func reset_run() -> void:
 	is_miniboss_fight = false
 	is_final_boss = false
 	is_elite_fight = false
-	selected_character = "conquistador"
+	selected_character = "mahar"
 	total_runs += 1
 	relics = []
 	secret_items = []
@@ -712,5 +871,8 @@ func reset_run() -> void:
 	rift_visited = false
 	rift_combat_pending = false
 	resonancia_stacks = 0
+	destilados = []
+	destilados_blocked = false
+	relic_fragments = 0
 	# rift_wanderer_offered persiste entre runs (no se resetea aquí)
 	# fragment_count_w3 persiste entre runs (no se resetea aquí)

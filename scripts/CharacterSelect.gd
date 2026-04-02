@@ -2,21 +2,21 @@ extends Node2D
 
 const CHARACTERS = [
 	{
-		"id": "conquistador",
-		"name": "EL CONQUISTADOR",
-		"style": "Senda del Acero — AGRESIVO",
+		"id": "mahar",
+		"name": "MAHAR, EL CRUZADO",
+		"style": "Senda del Acero — MARCIAL-RELIGIOSO",
 		"hp": 55,
-		"lore": "Un general de armadura bermellon, el ultimo de un imperio que el tiempo olvido. Llego a Valdris buscando la gloria eterna que sus poetas prometieron. Nadie le advirtio que los tableros de los dioses no tienen victorias, solo sacrificios mas utiles.\n\n'Si este es el tablero de los dioses, lo teñire de rojo hasta que mi nombre sea ley.'",
-		"fate": "El tablero ya trazó tu fin. Solo resta elegir con cuánta sangre lo escribes.",
-		"passive": "CONQUISTA: Al matar a un enemigo, tus Siervos ganan +1 ATK permanente y recuperas 3 de vida.",
-		"color": Color(0.7, 0.2, 0.2),
+		"lore": "Un cruzado de la Cofradia de los Palidos. Decadas de peregrinacion, ciudades quemadas y herejes ejecutados, todo en nombre de un objeto sagrado que nadie en la Cofradia le ha descrito del todo.\n\nSus superiores le dijeron que estaba aqui. Le dijeron que lo reconoceria cuando lo viera. No le dijeron mas.\n\n'He cruzado mares de ceniza por mi fe. Si este es su purgatorio, lo atravesare con el acero.'",
+		"fate": "Lo que buscas existe. Esta aqui. Cuando lo encuentres, entenderas por que nadie regreso a contarlo.",
+		"passive": "FERVOR: Cordura >= 60 -> Tu primer ataque de cada turno inflige +4 de dano (el golpe guiado). Cordura < 40 -> Pierdes 2 HP por turno, pero todos tus ataques infligen +2 de dano (fe rota).",
+		"color": Color(0.8, 0.3, 0.3),
 		"symbol": "♜",
 		"deck": [
 			{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
 			{"name": "Susurro Debilitante", "attack": 0, "defense": 0, "cost": 0},
-			{"name": "Cabalgante del Vacio", "attack": 6, "defense": 0, "cost": 2},
-			{"name": "Baluarte de Hueso", "attack": 3, "defense": 3, "cost": 2},
-			{"name": "Ofrenda de Carne", "attack": 8, "defense": 0, "cost": 2},
+			{"name": "Golpe del Cruzado", "attack": 6, "defense": 0, "cost": 1},
+			{"name": "Escudo de la Fe", "attack": 0, "defense": 8, "cost": 1},
+			{"name": "Reliquia Rota", "attack": 4, "defense": 4, "cost": 2},
 		]
 	},
 	{
@@ -407,7 +407,7 @@ func _draw_portrait(char_id: String) -> void:
 func _animate_portrait_features(char_id: String, portrait: TextureRect) -> void:
 	portrait_tween = create_tween().set_loops()
 	match char_id:
-		"conquistador":
+		"mahar":
 			portrait_tween.tween_property(portrait, "modulate", Color(1.15, 0.9, 0.9), 1.8)
 			portrait_tween.tween_property(portrait, "modulate", Color(1.0, 1.0, 1.0), 1.8)
 		"estratega":

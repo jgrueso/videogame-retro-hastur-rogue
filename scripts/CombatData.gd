@@ -3,13 +3,13 @@ class_name CombatData
 
 # ── Datos de Personajes ────────────────────────────────────────────────────────
 const CHAR_DATA = {
-	"conquistador": {"symbol": "♜", "color": Color(0.8, 0.3, 0.3)},
+	"mahar": {"symbol": "♜", "color": Color(0.8, 0.3, 0.3)},
 	"estratega":    {"symbol": "♝", "color": Color(0.3, 0.5, 0.8)},
 	"guardian":     {"symbol": "♞", "color": Color(0.4, 0.75, 0.4)},
 }
 
 const PASSIVE_DESCRIPTIONS = {
-	"conquistador": "CONQUISTA: Al matar a un enemigo, tus Siervos ganan +1 ATK permanente y recuperas 3 de vida.",
+	"mahar": "FERVOR: Cordura >= 60: tu primer ataque de cada turno inflige +4 de dano (el golpe guiado). Cordura < 40: pierdes 2 HP por turno, todos los ataques infligen +2 de dano (fe rota).",
 	"estratega":    "LOGICA: Tus cartas de Inquisidor Ciego cuestan -1 de energia. Robas 1 carta extra al inicio de cada combate.",
 	"guardian":     "RESILIENCIA: Cada vez que generas 10 o más Escudo en un turno, ganas 1 Furia. A las 3 cargas, tu siguiente ataque hace daño doble."
 }

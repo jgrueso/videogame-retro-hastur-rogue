@@ -279,6 +279,21 @@ func process_enemy_turn() -> void:
 
 	# Reset de energía (Basado en el nuevo máximo sincronizado)
 	main.player_energy = main.player_max_energy
+	# Deuda de Chispa Efímera
+	if main.destilado_chispa_debt > 0:
+		main.player_energy = max(0, main.player_energy - main.destilado_chispa_debt)
+		main.destilado_chispa_debt = 0
+		main.flash_small("Chispa Efímera: el tablero cobra su deuda. -1 Energía.", Color(0.9, 0.8, 0.3))
+	# Tick de bonus de daño por destilado (Fragmento del Príncipe)
+	if main.destilado_dmg_turns > 0:
+		main.destilado_dmg_turns -= 1
+		if main.destilado_dmg_turns <= 0:
+			main.destilado_dmg_mult = 1.0
+
+	# Pasiva Mahar: FERVOR (fe rota) — drena 2 HP por turno cuando cordura < 40
+	if GameManager.selected_character == "mahar" and GameManager.sanity < 40:
+		main.player_hp = max(1, main.player_hp - 2)
+		main.flash_small("FERVOR (fe rota): -2 HP", Color(0.8, 0.3, 0.1))
 
 	# Sinergia Reliquia: Ficha de Marfil — drena 1 HP por turno
 	if GameManager.has_relic("ficha_marfil"):

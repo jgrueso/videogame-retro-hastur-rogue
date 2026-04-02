@@ -122,6 +122,19 @@ func resolve(card, enemy_idx: int) -> void:
 		card_handled = true
 		await main.draw_hand(2)
 
+	elif "NOMBRE SIN PRONUNCIAR" in c_upper:
+		card_handled = true
+		var killed_any = false
+		for e_kill in main.enemies.duplicate():
+			if e_kill.hp > 0:
+				e_kill.hp = 0
+				await main._kill_enemy(e_kill)
+				killed_any = true
+		if killed_any:
+			main.flash_small("¡NOMBRE SIN PRONUNCIAR!", Color(0.9, 0.0, 0.2))
+			main._trigger_screen_blink()
+		main.update_ui()
+
 	elif "FORMACION" in c_upper:
 		card_handled = true
 		main.player_shield += card.defense
@@ -225,6 +238,14 @@ func resolve(card, enemy_idx: int) -> void:
 		if target_e:
 			if target_e.peaceful and card.attack > 0: target_e.peaceful = false; main.enemy_turn.set_enemy_aggressive(target_e)
 			var dmg = card.attack
+			# Modificadores de Destilados
+			if main.destilado_next_atk_mult > 1.0:
+				dmg = int(dmg * main.destilado_next_atk_mult)
+				main.destilado_next_atk_mult = 1.0
+			if main.destilado_dmg_mult > 1.0:
+				dmg = int(dmg * main.destilado_dmg_mult)
+			if main.destilado_rey_amarillo:
+				dmg *= 2
 			if card.card_data.get("scaling_sanity", false):
 				var san = GameManager.sanity
 				if san < 35:
@@ -244,6 +265,14 @@ func resolve(card, enemy_idx: int) -> void:
 				dmg += GameManager.resonancia_stacks
 			if GameManager.selected_character == "guardian" and main.furia_points >= 3:
 				dmg *= 2; main.furia_points = 0; main.flash_small("¡RESILIENCIA!"); main._trigger_screen_blink()
+			# Pasiva Mahar: FERVOR
+			if GameManager.selected_character == "mahar" and dmg > 0:
+				if GameManager.sanity >= 60 and not main.mahar_guided_struck:
+					dmg += 4
+					main.mahar_guided_struck = true
+					main.flash_small("FERVOR: +4 al golpe guiado", Color(0.9, 0.6, 0.2))
+				elif GameManager.sanity < 40:
+					dmg += 2
 
 			var absorbed = min(target_e.shield, dmg)
 			if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(target_e)
@@ -284,7 +313,7 @@ func resolve(card, enemy_idx: int) -> void:
 			for e_deb in main.enemies:
 				if e_deb.hp > 0:
 					e_deb["atk_reduction"] = e_deb.get("atk_reduction", 0) + reduction
-			main.flash_small("¡Grito de Guerra! Todos -" + str(reduction) + " ATK")
+			main.flash_small("¡" + card.card_name + "! Todos -" + str(reduction) + " ATK")
 			main.update_intent_labels()
 
 	# ── COSTES Y LIMPIEZA ──

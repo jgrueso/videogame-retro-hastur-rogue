@@ -22,12 +22,16 @@ var offered_cards: Array = []
 var card_shelf_container: HBoxContainer # Referencia para refrescar
 var reroll_cost: int = 25
 var reroll_btn: Button
+var offered_destilados: Array = []  # [{id, label, cost, action, desc, sold}]
+var destilados_grid: VBoxContainer  # Sección separada de destilados
+var _dest_tooltip: Panel = null     # Tooltip flotante compartido
 
 func _ready() -> void:
 	greeting = GREETINGS[randi() % GREETINGS.size()]
 	
 	# Generar cartas al entrar filtrando por personaje y excluyendo legendarias
 	_generate_offered_cards()
+	_generate_offered_destilados()
 	
 	# Fondo
 	var bg = ColorRect.new()
@@ -52,6 +56,114 @@ func _generate_offered_cards() -> void:
 		card["price"] = randi_range(6, 14)
 		card["sold"] = false
 		offered_cards.append(card)
+
+func _generate_offered_destilados() -> void:
+	offered_destilados.clear()
+	if GameManager.destilados_blocked:
+		return
+	const RARITY_COSTS = {"comun": 15, "poco_comun": 20, "raro": 30, "maldito": 22}
+	var pool = GameManager.DESTILADO_DATA.keys().duplicate()
+	pool.shuffle()
+	var count = 0
+	for dest_id in pool:
+		if count >= 2:
+			break
+		var data = GameManager.DESTILADO_DATA[dest_id]
+		offered_destilados.append({
+			"id": dest_id,
+			"label": data["name"],
+			"cost": RARITY_COSTS.get(data.get("rarity", "comun"), 20),
+			"action": "destilado",
+			"desc": data["desc"] + "\n\n\"" + data["flavor"] + "\"",
+			"sold": false,
+		})
+		count += 1
+
+func _build_destilados_section(vp: Vector2) -> void:
+	if destilados_grid:
+		destilados_grid.queue_free()
+	destilados_grid = VBoxContainer.new()
+	destilados_grid.position = Vector2(vp.x * 0.1, 570)
+	destilados_grid.add_theme_constant_override("separation", 8)
+	shop_content.add_child(destilados_grid)
+
+	if GameManager.destilados_blocked:
+		var blocked_lbl = Label.new()
+		blocked_lbl.text = "[ Destilados sellados — El Último Vial ]"
+		blocked_lbl.add_theme_font_size_override("font_size", 10)
+		blocked_lbl.modulate = Color(0.4, 0.4, 0.4)
+		destilados_grid.add_child(blocked_lbl)
+		return
+
+	var header = Label.new()
+	header.text = "◈  DESTILADOS  ◈"
+	header.add_theme_font_size_override("font_size", 11)
+	header.modulate = Color(0.7, 0.5, 0.9)
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	destilados_grid.add_child(header)
+
+	if offered_destilados.is_empty():
+		var empty_lbl = Label.new()
+		empty_lbl.text = "Sin existencias."
+		empty_lbl.add_theme_font_size_override("font_size", 10)
+		empty_lbl.modulate = Color(0.4, 0.4, 0.4)
+		destilados_grid.add_child(empty_lbl)
+		return
+
+	for item in offered_destilados:
+		if item["sold"]:
+			continue
+		var btn = _create_destilado_button(item)
+		destilados_grid.add_child(btn)
+
+func _create_destilado_button(item: Dictionary) -> Button:
+	const RARITY_COLORS = {"comun": Color(0.65,0.65,0.65), "poco_comun": Color(0.35,0.55,0.95),
+		"raro": Color(0.9,0.75,0.2), "maldito": Color(0.7,0.2,0.85)}
+	var data = GameManager.DESTILADO_DATA.get(item["id"], {})
+	var rarity = data.get("rarity", "comun")
+	var r_col = RARITY_COLORS.get(rarity, Color(0.5, 0.5, 0.5))
+
+	var btn = Button.new()
+	btn.custom_minimum_size = Vector2(240, 54)
+
+	var n = StyleBoxFlat.new()
+	n.bg_color = Color(0.07, 0.05, 0.12)
+	n.set_border_width_all(1); n.border_color = r_col
+	n.set_corner_radius_all(3)
+	btn.add_theme_stylebox_override("normal", n)
+	var h = n.duplicate(); h.bg_color = Color(0.12, 0.09, 0.2); h.set_border_width_all(2)
+	btn.add_theme_stylebox_override("hover", h)
+	var d = n.duplicate(); d.bg_color = Color(0.04,0.03,0.06); d.border_color = Color(0.2,0.2,0.2)
+	btn.add_theme_stylebox_override("disabled", d)
+
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(vbox)
+
+	var lbl_name = Label.new()
+	lbl_name.text = item["label"].to_upper()
+	lbl_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_name.add_theme_font_size_override("font_size", 10)
+	lbl_name.modulate = Color(0.95, 0.92, 0.85)
+	vbox.add_child(lbl_name)
+
+	var lbl_cost = Label.new()
+	lbl_cost.text = "◈ %d Monedas  [%s]" % [item["cost"], rarity.replace("_", " ")]
+	lbl_cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_cost.add_theme_font_size_override("font_size", 9)
+	lbl_cost.modulate = r_col
+	vbox.add_child(lbl_cost)
+
+	var can_carry = GameManager.can_carry_destilado()
+	var can_afford = GameManager.coins >= item["cost"]
+	btn.disabled = not can_afford or not can_carry
+
+	btn.mouse_entered.connect(func(): _show_dest_tooltip(item["id"], btn))
+	btn.mouse_exited.connect(_hide_dest_tooltip)
+	btn.pressed.connect(func(): _on_buy_destilado(item))
+	return btn
 
 func build_ui() -> void:
 	var vp = get_viewport_rect().size
@@ -180,6 +292,8 @@ func build_ui() -> void:
 	btn_view.pressed.connect(func(): GameManager.show_deck_overlay(self))
 	shop_content.add_child(btn_view)
 
+	_build_destilados_section(vp)
+
 func _on_reroll_pressed() -> void:
 	if GameManager.coins >= reroll_cost:
 		GameManager.spend_coins(reroll_cost)
@@ -304,6 +418,10 @@ func _update_info() -> void:
 		else:
 			btn.tooltip_text = data["desc"]
 	
+	# Actualizar sección destilados
+	if destilados_grid and is_instance_valid(destilados_grid):
+		_build_destilados_section(get_viewport_rect().size)
+
 	# Actualizar botones de sacrificio
 	if btn_sell_mem:
 		btn_sell_mem.disabled = mem_sold or GameManager.player_deck.size() <= 3
@@ -337,6 +455,67 @@ func _on_buy_pressed(item: Dictionary) -> void:
 		
 		if get_node_or_null("/root/AudioManager"):
 			AudioManager.play("button_click")
+		_update_info()
+
+func _show_dest_tooltip(dest_id: String, anchor: Control) -> void:
+	if _dest_tooltip and is_instance_valid(_dest_tooltip):
+		_dest_tooltip.queue_free()
+	var data = GameManager.DESTILADO_DATA.get(dest_id, {})
+	var rarity = data.get("rarity", "comun").replace("_", " ").to_upper()
+	const RARITY_COLS = {"COMUN": Color(0.65,0.65,0.65), "POCO COMUN": Color(0.35,0.55,0.95),
+		"RARO": Color(0.9,0.75,0.2), "MALDITO": Color(0.7,0.2,0.85)}
+	var r_col = RARITY_COLS.get(rarity, Color(0.6, 0.5, 0.9))
+
+	var txt = "[%s]\n%s\n\n\"%s\"" % [
+		data.get("name", dest_id),
+		data.get("desc", ""),
+		data.get("flavor", "")
+	]
+	var est_lines = txt.count("\n") + int(txt.length() / 34) + 2
+	var panel_h = max(100, est_lines * 15 + 24)
+	var panel_w = 260
+
+	_dest_tooltip = Panel.new()
+	_dest_tooltip.z_index = 300
+	var ts = StyleBoxFlat.new()
+	ts.bg_color = Color(0.04, 0.03, 0.08, 0.97)
+	ts.set_border_width_all(2); ts.border_color = r_col
+	ts.set_corner_radius_all(4)
+	_dest_tooltip.add_theme_stylebox_override("panel", ts)
+	var lbl = Label.new()
+	lbl.text = txt
+	lbl.position = Vector2(10, 10)
+	lbl.size = Vector2(panel_w - 20, panel_h - 20)
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dest_tooltip.size = Vector2(panel_w, panel_h)
+	_dest_tooltip.add_child(lbl)
+	# Posicionar a la derecha del botón
+	var global_pos = anchor.get_global_rect()
+	_dest_tooltip.position = global_pos.position + Vector2(global_pos.size.x + 8, 0)
+	# Ajuste si se sale de la pantalla
+	var vp = get_viewport_rect().size
+	if _dest_tooltip.position.x + panel_w > vp.x:
+		_dest_tooltip.position.x = global_pos.position.x - panel_w - 8
+	add_child(_dest_tooltip)
+	_dest_tooltip.modulate.a = 0.0
+	create_tween().tween_property(_dest_tooltip, "modulate:a", 1.0, 0.15)
+
+func _hide_dest_tooltip() -> void:
+	if _dest_tooltip and is_instance_valid(_dest_tooltip):
+		_dest_tooltip.queue_free()
+		_dest_tooltip = null
+
+func _on_buy_destilado(item: Dictionary) -> void:
+	if item["sold"] or not GameManager.can_carry_destilado():
+		return
+	if GameManager.spend_coins(item["cost"]):
+		GameManager.add_destilado(item["id"])
+		item["sold"] = true
+		if get_node_or_null("/root/AudioManager"):
+			AudioManager.play("button_click")
+		_build_destilados_section(get_viewport_rect().size)
 		_update_info()
 
 var mem_sold: bool = false

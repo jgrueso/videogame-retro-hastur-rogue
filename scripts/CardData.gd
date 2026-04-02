@@ -2,28 +2,30 @@ extends Node
 class_name CardData
 
 const ALL_CARDS = [
-	# Conquistador
-	{"name": "Cabalgante del Vacio", "attack": 6, "defense": 0, "cost": 2, "char": "conquistador", "rarity": "common",
-		"flavor": "El caballo no recuerda el nombre del jinete. Solo el camino."},
-	{"name": "Ofrenda de Carne", "attack": 8, "defense": 0, "cost": 2, "char": "conquistador", "rarity": "uncommon",
-		"flavor": "El tablero acepta el pago. El tablero siempre acepta el pago."},
-	{"name": "Baluarte de Hueso", "attack": 3, "defense": 3, "cost": 2, "char": "conquistador", "rarity": "common",
-		"flavor": "Construido con lo que quedo de la ultima pieza en este lugar."},
-	# Conquistador — nuevas
-	{"name": "Carga Brutal", "attack": 7, "defense": 0, "cost": 1, "char": "conquistador", "rarity": "common",
-		"flavor": "El primer golpe no mata el miedo. Solo lo convierte en algo manejable."},
-	{"name": "Sangre por Sangre", "attack": 5, "defense": 0, "cost": 1, "char": "conquistador", "rarity": "uncommon", "hp_cost": 6,
-		"description": "5 ATK. Cuesta ademas 6 HP.",
-		"flavor": "El precio no es justo. Nunca fue justo. Pero sigue siendo el precio."},
-	{"name": "Grito de Guerra", "attack": 0, "defense": 0, "cost": 0, "char": "conquistador", "rarity": "uncommon", "enemy_atk_debuff": 2,
+	# Mahar, el Cruzado
+	{"name": "Golpe del Cruzado", "attack": 6, "defense": 0, "cost": 1, "char": "mahar", "rarity": "common",
+		"flavor": "No es venganza. Es correccion."},
+	{"name": "Escudo de la Fe", "attack": 0, "defense": 8, "cost": 1, "char": "mahar", "rarity": "common",
+		"flavor": "Resistir no es cobardia. Es oracion en movimiento."},
+	{"name": "Marcha Sangrienta", "attack": 7, "defense": 0, "cost": 2, "char": "mahar", "rarity": "common", "hp_cost": 5,
+		"description": "7 ATK. Cuesta ademas 5 HP.",
+		"flavor": "El camino al objeto sagrado esta pavimentado de cicatrices propias."},
+	# Mahar — poco comunes
+	{"name": "Reliquia Rota", "attack": 4, "defense": 4, "cost": 2, "char": "mahar", "rarity": "uncommon",
+		"flavor": "Rota o entera, una reliquia guarda el recuerdo de lo que prometio."},
+	{"name": "Sentencia del Palido", "attack": 5, "defense": 0, "cost": 2, "char": "mahar", "rarity": "uncommon", "apply_vulnerable": 1,
+		"description": "5 ATK + aplica Vulnerable (enemigo recibe +25% dano 1 turno).",
+		"flavor": "No juzga el cruzado. Ejecuta el juicio que ya fue dictado."},
+	{"name": "Grito de la Cofradia", "attack": 0, "defense": 0, "cost": 0, "char": "mahar", "rarity": "uncommon", "enemy_atk_debuff": 2,
 		"description": "Todos los enemigos pierden 2 ATK este turno.",
-		"flavor": "No los asusta el grito. Los asusta que hayas sobrevivido para darlo."},
-	{"name": "Marca del Conquistador", "attack": 3, "defense": 0, "cost": 2, "char": "conquistador", "rarity": "rare", "apply_vulnerable": 1,
-		"description": "3 ATK + aplica Vulnerable (enemigo recibe +25% dano 1 turno).",
-		"flavor": "Tocar algo es afirmar que existes. Que importas. Que dejaras una senal."},
-	{"name": "Invasion Total", "attack": 2, "defense": 0, "cost": 3, "char": "conquistador", "rarity": "rare", "atk_per_enemy": true,
+		"flavor": "No los asusta el grito. Los asusta que alguien todavia crea en algo."},
+	# Mahar — raras
+	{"name": "Purga Sagrada", "attack": 2, "defense": 0, "cost": 3, "char": "mahar", "rarity": "rare", "atk_per_enemy": true,
 		"description": "2 ATK x numero de enemigos vivos.",
-		"flavor": "El tablero lleno la sala. El lleno la sala de gritos."},
+		"flavor": "La sala no se limpio. Solo dejo de recordar que estaba sucia."},
+	{"name": "Nombre Sin Pronunciar", "attack": 0, "defense": 0, "cost": 4, "char": "mahar", "rarity": "rare", "kill_all": true, "sanity_cost": 15,
+		"description": "Mata a todos los enemigos. Pierde 15 Cordura.",
+		"flavor": "Hay palabras que el cruzado tiene prohibido decir. Las lleva talladas en la lengua de todas formas."},
 
 	# Estratega
 	{"name": "Inquisidor Ciego", "attack": 4, "defense": 0, "cost": 2, "char": "estratega", "rarity": "common",

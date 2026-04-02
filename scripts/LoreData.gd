@@ -39,15 +39,15 @@ static func _get_high_sanity_thought(char_id: String, enemy_name: String) -> Str
 	var is_w2 = GameManager.current_world == 1
 	
 	match char_id:
-		"conquistador":
+		"mahar":
 			match enemy_name:
 				"El Penitente":
-					if has_trans: return "Habla de perdón, pero yo solo escucho el eco de un peón quebrado. No habrá piedad en mi tablero."
-					return "Un cobarde que se rinde ante el tablero. Mi acero no conoce la piedad."
-				"EL CARCELERO": return "Un obstáculo digno. Tomaré sus llaves y su corona de ceniza."
-				"Avatar de Hastur": return "¿Un dios? He quemado templos más grandes que este ser."
-				_: 
-					var pool = ["Otra pieza que se interpone en mi conquista.", "El tablero se teñirá de rojo hoy.", "Este mundo se doblegará ante mi voluntad."]
+					if has_trans: return "Dice que lleva aqui mas tiempo que yo. Que todos los que buscaron algo llegaron aqui primero."
+					return "Un hombre que cedio. La fe que no resiste la adversidad nunca fue fe."
+				"EL CARCELERO": return "He cruzado muros mas altos que este. En nombre de algo mas grande que yo."
+				"Avatar de Hastur": return "Esta entidad... lleva algo que reconozco. No. No puede ser."
+				_:
+					var pool = ["La Mascara esta cerca. Lo siento en el peso del acero.", "Esto no es una trampa. Es una prueba. Toda fe tiene su purgatorio.", "Los de la Cofradia llevamos siglos buscando. Este lugar es la respuesta."]
 					return pool.pick_random()
 		
 		"estratega":
@@ -75,9 +75,9 @@ static func _get_mid_sanity_thought(char_id: String, enemy_name: String) -> Stri
 	var has_trans = GameManager.has_relic("lengua_tablero")
 	
 	match char_id:
-		"conquistador":
-			if enemy_name == "El Penitente" and has_trans: return "Dice que ya he muerto mil veces. Que mi gloria es solo una repetición de su dolor."
-			return ["El aire sabe a metal oxidado... ¿He matado a este ser antes?", "Mis cicatrices pican bajo la armadura. ¿Son mías o del tablero?", "Mis victorias se sienten huecas. Como si ganara en un mundo de cartón."].pick_random()
+		"mahar":
+			if enemy_name == "El Penitente" and has_trans: return "El Penitente afirma que todos los que buscaron algo sagrado llegaron aqui antes que yo."
+			return ["Los rituales que aprendi describian exactamente este lugar. Como lo sabian?", "La Cofradia me envio aqui. Me dijeron que el objeto sagrado estaba aqui. Como lo sabian?", "He matado en nombre de una fe que nadie me supo explicar del todo. Solo obedecer y buscar.", "Hay algo en la obra que cargamos como texto sagrado. Siempre me dijeron que no la leyera completa."].pick_random()
 		"estratega":
 			if enemy_name == "El Penitente" and has_trans: return "El Penitente afirma que los datos se resetean, pero el trauma permanece en el código."
 			return ["Hay un error en la suma total de este universo. Los números no mienten.", "Las variables están cambiando de forma no lineal. El tablero parece respirar.", "¿Quién mueve mi lógica? Mi mente procesa pensamientos ajenos."].pick_random()
@@ -94,7 +94,7 @@ static func _get_low_sanity_thought(char_id: String, enemy_name: String) -> Stri
 
 	var common = ["¡NO SON MIS MANOS! ¡SON MADERA!", "El Rey... me mira desde mis propios ojos.", "¿Cuántas veces he muerto ya?", "TODO ES UNA BROMA TALLADA EN HUESO."]
 	match char_id:
-		"conquistador": return ["¡SANGRE PARA EL TABLERO DORADO!", "¡MI CORONA ESTÁ HECHA DE DIENTES!"].pick_random()
+		"mahar": return ["¡MI CORONA ESTA HECHA DE DIENTES! ¡LOS DIENTES DE TODOS LOS QUE CREYERON ANTES QUE YO!", "¡El objeto sagrado es su ROSTRO! ¡SIEMPRE FUE SU ROSTRO!", "¡Decadas. Decadas buscando. Y era ESTO."].pick_random()
 		"estratega": return ["¡LA ECUACIÓN ES CERO! ¡TODO ES CERO!", "¡ERROR DE SISTEMA! ¡HUMANO NO ENCONTRADO!"].pick_random()
 		"guardian": return ["¡EL ESCUDO ES UNA LÁPIDA!", "¡PROTEJO UNA TUMBA VACÍA!"].pick_random()
 	
@@ -205,5 +205,25 @@ const LORE_BOOK = {
 		"title": "EL CENTINELA Y SU NOMBRE",
 		"text": "El Centinela Abisal no siempre fue un monstruo.\n\nEra el último caballero de Carcosa. Siguió a su príncipe hasta la Grieta, jurando que no volvería sin él.\n\nSiglos de estática abisal borraron casi todo. Quedó solo la función: guardar. Guardar el lugar donde estaba el príncipe. Guardar el recuerdo de que había algo que valía la pena guardar.\n\nSu nombre era Aldric. En el idioma de Carcosa: \"aquel que sostiene lo que los demás sueltan.\"\n\nNunca supo si su príncipe estaba a un metro o a un universo de donde él montaba guardia.",
 		"min_lore": 999
+	},
+	"banquete_rey_olvidado": {
+		"title": "EL BANQUETE DEL REY OLVIDADO",
+		"text": "Antes de Yhtill, hubo otro reino. Su nombre no sobrevivio.\n\nSu rey era un gran patron de las artes. Comisiono la obra mas ambiciosa de su era y abrio las puertas del palacio a todo su pueblo para la premiere.\n\nLos artistas que escribieron la obra no la inventaron. La dictaron. Decian escuchar las escenas como si alguien las susurrara desde adentro de las paredes.\n\nLa obra se llamaba El Rey Amarillo. Nadie llego al Acto II con la mente intacta.\n\nEl rey fue el ultimo en entender lo que habia invitado a su propio hogar.",
+		"min_lore": 8
+	},
+	"artista_y_la_dictadura": {
+		"title": "EL ARTISTA Y LA DICTADURA",
+		"text": "El autor de la obra no tiene nombre en los registros. Solo un titulo: El Primer Palido.\n\nFundo una cofradía alrededor de lo que sobrevivio del banquete: un objeto. Palido. Tallado por la ultima persona cuerda que vio lo que entro al salon.\n\nDijo que el objeto era sagrado. Que quien lo encontrara hablaria con El Anterior directamente.\n\nMurio sin decir como sabia que existia. Sin decir como sabia donde buscarlo.\n\nSus sucesores llevan siglos haciendo las mismas preguntas incorrectas.",
+		"min_lore": 16
+	},
+	"promesa_palida": {
+		"title": "LA PROMESA PALIDA",
+		"text": "La Cofradia tiene dos doctrinas. Una para los cruzados. Otra para los que los envian.\n\nLos cruzados aprenden: busca el objeto sagrado, encuentra a El Anterior, recibe la verdad.\n\nLos que los envian saben: el objeto no da acceso a El Anterior. El objeto es El Anterior. Quien lo toque ya pertenece a el.\n\nNadie en la Cofradia ha preguntado en voz alta por que los cruzados que encuentran el objeto sagrado nunca regresan a contarlo.",
+		"min_lore": 24
+	},
+	"primera_mascara": {
+		"title": "LA PRIMERA MASCARA",
+		"text": "La persona que la tallo no era un artista. Era un guardia de palacio que sobrevivio por estar en el pasillo cuando el Acto II comenzo.\n\nVio el rostro dos segundos antes de que su mente decidiera que era mas seguro no recordar.\n\nDos segundos fueron suficientes. Sus manos trabajaron solas durante tres dias. Cuando termino, no recordaba haber empezado.\n\nLa mascara es perfecta. Ese es el problema.\n\nNadie que solo vea una cara puede tallar asi. Tenia que haber algo guiando sus manos.",
+		"min_lore": 35
 	}
 }

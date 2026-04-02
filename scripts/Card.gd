@@ -42,6 +42,10 @@ const DESCRIPTIONS = {
 	"Analisis Profundo":  "LÓGICA. Observas el patrón. Robas 2 cartas adicionales.",
 	"Pawn Promocionado":  "PODER. Un peón que alcanzó el final del tablero. Daño y defensa equilibrados.",
 	"Gambito de Dama":    "ESTRATEGIA. Gran daño a cambio de una posición arriesgada.",
+	# Mahar, el Cruzado
+	"Golpe del Cruzado":  "6 ATK. Un golpe directo, sin adornos.",
+	"Escudo de la Fe":    "8 Escudo. La defensa como acto de devocion.",
+	"Reliquia Rota":      "4 ATK + 4 Escudo. Aun sirve. Aun duele.",
 	# Principe de Carcosa
 	"Susurro del Vacio":  "ABISAL. Escala con tu LOCURA. Daño x2 si tienes menos de 35 Cordura.",
 	"Daga de Cristal":    "ABISAL. Un golpe rápido que ignora parte del escudo.",

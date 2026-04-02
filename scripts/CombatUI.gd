@@ -49,6 +49,7 @@ var lbl_draw_pile: Label
 var lbl_discard_pile: Label
 var end_turn_btn: Button
 var relics_container: HBoxContainer
+var destilados_container: VBoxContainer
 var log_panel: Panel
 var log_vbox: VBoxContainer
 var lbl_message: Label
@@ -92,7 +93,13 @@ func setup(p_main: Node2D) -> void:
 func build_ui(vp: Vector2) -> void:
 	_build_dynamic_background(vp)
 
-	# Crear panel del jugador e inmediatamente guardar referencia al StyleBox para el pulso de HP crítico
+	# ── Panel del jugador compacto con retrato ───────────────────────────────
+	const PP_W   = 295
+	const PP_H   = 112
+	const PORT_W = 72   # Ancho del área de retrato
+	const ST_X   = 80   # X de inicio de stats (PORT_W + margen)
+	const BAR_W  = 208  # PP_W - ST_X - 7
+
 	var _pp_style = StyleBoxFlat.new()
 	_pp_style.bg_color = Color(0.07, 0.05, 0.13)
 	_pp_style.set_border_width_all(2)
@@ -100,40 +107,80 @@ func build_ui(vp: Vector2) -> void:
 	_pp_style.set_corner_radius_all(4)
 	player_panel = Panel.new()
 	player_panel.position = Vector2(20, 280)
-	player_panel.size = Vector2(560, 100)
+	player_panel.size = Vector2(PP_W, PP_H)
 	player_panel.add_theme_stylebox_override("panel", _pp_style)
 	_player_panel_style = _pp_style
 	main.add_child(player_panel)
 
 	var char_id = GameManager.selected_character
 	var char_info = CombatData.CHAR_DATA.get(char_id, {"symbol": "♟", "color": Color(0.8, 0.8, 0.8)})
+
+	# Contenedor de retrato — sirve como sprite_label para bob e interacción
 	player_sprite_label = Label.new()
-	player_sprite_label.text = char_info["symbol"]
-	player_sprite_label.modulate = char_info["color"]
-	player_sprite_label.add_theme_font_size_override("font_size", 44)
-	player_sprite_label.position = Vector2(2, 0)
-	player_sprite_label.size = Vector2(90, 100)
-	player_sprite_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	player_sprite_label.text = ""   # Sin símbolo — el retrato lo reemplaza
+	player_sprite_label.position = Vector2(3, 4)
+	player_sprite_label.size = Vector2(PORT_W, PP_H - 8)
 	player_sprite_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	player_panel.add_child(player_sprite_label)
+
+	# Retrato clipeado dentro del contenedor
+	var port_clip = Control.new()
+	port_clip.clip_contents = true
+	port_clip.position = Vector2(0, 0)
+	port_clip.size = Vector2(PORT_W, PP_H - 8)
+	port_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	player_sprite_label.add_child(port_clip)
+
+	var port_bg = ColorRect.new()
+	port_bg.color = Color(0.04, 0.03, 0.06)
+	port_bg.size = port_clip.size
+	port_clip.add_child(port_bg)
+
+	var portrait_path = "res://assets/characters/%s.png" % char_id
+	if ResourceLoader.exists(portrait_path):
+		var portrait_tex = TextureRect.new()
+		portrait_tex.texture = load(portrait_path)
+		portrait_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		portrait_tex.size = port_clip.size
+		portrait_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		port_clip.add_child(portrait_tex)
+
+	# Borde del retrato con color del personaje
+	var port_border = Panel.new()
+	port_border.position = Vector2(0, 0)
+	port_border.size = Vector2(PORT_W, PP_H - 8)
+	port_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var pb_style = StyleBoxFlat.new()
+	pb_style.bg_color = Color(0, 0, 0, 0)
+	pb_style.set_border_width_all(2)
+	pb_style.border_color = char_info["color"]
+	pb_style.set_corner_radius_all(2)
+	port_border.add_theme_stylebox_override("panel", pb_style)
+	player_sprite_label.add_child(port_border)
 
 	player_sprite_label.mouse_entered.connect(main._show_player_passive_tooltip)
 	player_sprite_label.mouse_exited.connect(main._hide_player_passive_tooltip)
 
 	main._start_player_idle_bob()
 
-	# Barra fantasma del jugador (debajo de la barra principal)
-	ghost_bar_player = _make_ghost_bar(main.player_max_hp, 300, 7)
-	ghost_bar_player.position = Vector2(100, 32)
+	# ── Barras de HP / Escudo ──
+	ghost_bar_player = _make_ghost_bar(main.player_max_hp, BAR_W, 6)
+	ghost_bar_player.position = Vector2(ST_X, 26)
 	player_panel.add_child(ghost_bar_player)
 
-	hp_bar_player = _make_hp_bar(main.player_max_hp, 300, 7); hp_bar_player.position = Vector2(100, 32); player_panel.add_child(hp_bar_player)
+	hp_bar_player = _make_hp_bar(main.player_max_hp, BAR_W, 6)
+	hp_bar_player.position = Vector2(ST_X, 26)
+	player_panel.add_child(hp_bar_player)
 
-	shield_bar_player = _make_shield_bar(main.player_max_hp, 300, 7)
-	shield_bar_player.position = Vector2(100, 32)
+	shield_bar_player = _make_shield_bar(main.player_max_hp, BAR_W, 5)
+	shield_bar_player.position = Vector2(ST_X, 26)
 	player_panel.add_child(shield_bar_player)
 
-	sanity_bar_player = _make_hp_bar(100, 300, 5); sanity_bar_player.position = Vector2(100, 43); player_panel.add_child(sanity_bar_player)
+	# ── Barra de Cordura ──
+	sanity_bar_player = _make_hp_bar(100, BAR_W, 5)
+	sanity_bar_player.position = Vector2(ST_X, 55)
+	player_panel.add_child(sanity_bar_player)
 	var sb_style = StyleBoxFlat.new(); sb_style.bg_color = Color(0.04, 0.01, 0.1); sb_style.set_corner_radius_all(2)
 	sb_style.set_content_margin_all(0)
 	var sb_fill = StyleBoxFlat.new(); sb_fill.bg_color = Color(0.38, 0.1, 0.68)
@@ -142,29 +189,37 @@ func build_ui(vp: Vector2) -> void:
 	sanity_bar_player.add_theme_stylebox_override("fill", sb_fill)
 	_sanity_fill_style = sb_fill
 
+	# ── Labels ──
 	lbl_player_hp = RichTextLabel.new()
-	lbl_player_hp.position = Vector2(100, 10)
-	lbl_player_hp.size = Vector2(240, 24)
+	lbl_player_hp.position = Vector2(ST_X, 8)
+	lbl_player_hp.size = Vector2(BAR_W, 18)
 	lbl_player_hp.bbcode_enabled = true
 	lbl_player_hp.fit_content = true
-	lbl_player_hp.add_theme_font_size_override("font_size", 13)
+	lbl_player_hp.add_theme_font_size_override("font_size", 11)
 	player_panel.add_child(lbl_player_hp)
 
-	lbl_sanity = Label.new(); lbl_sanity.position = Vector2(350, 10); lbl_sanity.add_theme_font_size_override("font_size", 13); player_panel.add_child(lbl_sanity)
+	lbl_sanity = Label.new()
+	lbl_sanity.position = Vector2(ST_X, 37)
+	lbl_sanity.size = Vector2(BAR_W, 18)
+	lbl_sanity.add_theme_font_size_override("font_size", 11)
+	player_panel.add_child(lbl_sanity)
 
 	var lbl_energy_title = Label.new()
 	lbl_energy_title.text = "ENERGÍA"
-	lbl_energy_title.position = Vector2(100, 50)
-	lbl_energy_title.add_theme_font_size_override("font_size", 10)
+	lbl_energy_title.position = Vector2(ST_X, 66)
+	lbl_energy_title.add_theme_font_size_override("font_size", 9)
 	lbl_energy_title.modulate = Color(0.7, 0.6, 0.3)
 	player_panel.add_child(lbl_energy_title)
 
-	lbl_energy = Label.new(); lbl_energy.position = Vector2(100, 58); player_panel.add_child(lbl_energy)
+	lbl_energy = Label.new()
+	lbl_energy.position = Vector2(ST_X + 56, 64)
+	lbl_energy.add_theme_font_size_override("font_size", 9)
+	player_panel.add_child(lbl_energy)
 
 	if char_id == "guardian":
 		lbl_furia = Label.new()
-		lbl_furia.position = Vector2(300, 58)
-		lbl_furia.add_theme_font_size_override("font_size", 14)
+		lbl_furia.position = Vector2(ST_X, 90)
+		lbl_furia.add_theme_font_size_override("font_size", 11)
 		lbl_furia.modulate = Color(0.4, 0.9, 0.4)
 		player_panel.add_child(lbl_furia)
 
@@ -286,6 +341,12 @@ func build_ui(vp: Vector2) -> void:
 	relics_container.add_theme_constant_override("separation", 6)
 	main.add_child(relics_container)
 	main._populate_relics()
+
+	# Slots de Destilados (a la derecha del panel compacto del jugador)
+	destilados_container = VBoxContainer.new()
+	destilados_container.position = Vector2(322, 280)
+	destilados_container.add_theme_constant_override("separation", 4)
+	main.add_child(destilados_container)
 
 	# --- HISTORIAL DE COMBATE (Log) ---
 	log_panel = Panel.new()
@@ -723,8 +784,8 @@ func _build_energy_dots(max_energy: int) -> void:
 	energy_dots.clear()
 	for i in range(max_energy):
 		var dot = Panel.new()
-		dot.size = Vector2(16, 16)
-		dot.position = Vector2(100 + i * 22, 84)
+		dot.size = Vector2(14, 14)
+		dot.position = Vector2(80 + i * 19, 88)
 		var dot_style = StyleBoxFlat.new()
 		dot_style.bg_color = Color(0.9, 0.7, 0.1)
 		dot_style.set_corner_radius_all(8)
@@ -1013,3 +1074,120 @@ func show_message(text: String, duration: float = 3.0) -> void:
 	tw_in.tween_interval(duration)
 	tw_in.tween_property(panel_message, "modulate:a", 0.0, 0.4)
 	tw_in.tween_callback(func(): panel_message.visible = false)
+
+# ─── Destilados ───────────────────────────────────────────────────────────────
+func _show_destilado_tooltip(anchor: Control, dest_id: String) -> void:
+	if anchor.get_node_or_null("DestiladoTooltip"):
+		return
+	var data = GameManager.DESTILADO_DATA.get(dest_id, {})
+	var rarity = data.get("rarity", "comun").replace("_", " ").to_upper()
+	var txt = "[%s]\n%s\n\n\"%s\"\n\n─ %s" % [
+		data.get("name", dest_id),
+		data.get("desc", ""),
+		data.get("flavor", ""),
+		rarity
+	]
+	var est_lines = txt.count("\n") + int(txt.length() / 32) + 2
+	var panel_h = max(110, est_lines * 15 + 20)
+	var panel_w = 240
+	# Aparece a la izquierda del slot (los slots están en el lado derecho de la UI)
+	var p = _make_panel(Vector2(-panel_w - 6, 0), Vector2(panel_w, panel_h),
+		Color(0.04, 0.02, 0.08, 0.97), Color(0.55, 0.35, 0.75))
+	p.name = "DestiladoTooltip"
+	p.z_index = 200
+	var lbl = Label.new()
+	lbl.text = txt
+	lbl.position = Vector2(10, 10)
+	lbl.size = Vector2(panel_w - 20, panel_h - 20)
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(lbl)
+	anchor.add_child(p)
+
+const _RARITY_COLORS = {
+	"comun":       Color(0.65, 0.65, 0.65),
+	"poco_comun":  Color(0.35, 0.55, 0.95),
+	"raro":        Color(0.9,  0.75, 0.2),
+	"maldito":     Color(0.7,  0.2,  0.85),
+}
+
+func populate_destilados(on_click: Callable) -> void:
+	if not destilados_container:
+		return
+	for child in destilados_container.get_children():
+		child.queue_free()
+
+	var blocked = GameManager.destilados_blocked
+
+	for slot_idx in range(GameManager.MAX_DESTILADOS):
+		var has_item = slot_idx < GameManager.destilados.size()
+		var dest_id: String = GameManager.destilados[slot_idx] if has_item else ""
+		var data: Dictionary = GameManager.DESTILADO_DATA.get(dest_id, {}) if has_item else {}
+		var rarity: String   = data.get("rarity", "comun")
+		var border_col: Color = _RARITY_COLORS.get(rarity, Color(0.5, 0.5, 0.5))
+
+		var slot = Panel.new()
+		slot.custom_minimum_size = Vector2(118, 42)
+		slot.size = Vector2(118, 42)
+
+		var style = StyleBoxFlat.new()
+		style.set_corner_radius_all(3)
+		if has_item and not blocked:
+			style.bg_color    = Color(0.07, 0.05, 0.13)
+			style.border_color = border_col
+			style.set_border_width_all(2)
+		else:
+			# Slot vacío o bloqueado
+			style.bg_color    = Color(0.05, 0.04, 0.08, 0.5)
+			style.border_color = Color(0.25, 0.22, 0.3)
+			style.set_border_width_all(1)
+		slot.add_theme_stylebox_override("panel", style)
+
+		if has_item:
+			# Nombre del destilado
+			var lbl_name = Label.new()
+			lbl_name.text = data.get("name", dest_id)
+			lbl_name.position = Vector2(5, 4)
+			lbl_name.size = Vector2(108, 20)
+			lbl_name.add_theme_font_size_override("font_size", 9)
+			lbl_name.modulate = Color(0.95, 0.92, 0.85) if not blocked else Color(0.4, 0.4, 0.4)
+			lbl_name.clip_text = true
+			slot.add_child(lbl_name)
+
+			# Rareza + estado
+			var lbl_sub = Label.new()
+			lbl_sub.text = ("BLOQUEADO" if blocked else rarity.replace("_", " ").to_upper())
+			lbl_sub.position = Vector2(5, 25)
+			lbl_sub.size = Vector2(108, 14)
+			lbl_sub.add_theme_font_size_override("font_size", 8)
+			lbl_sub.modulate = Color(0.4, 0.4, 0.4) if blocked else border_col
+			slot.add_child(lbl_sub)
+
+			# Hover glow + tooltip
+			slot.mouse_entered.connect(func():
+				if not blocked:
+					style.border_color = border_col.lightened(0.3)
+				_show_destilado_tooltip(slot, dest_id))
+			slot.mouse_exited.connect(func():
+				style.border_color = border_col
+				var t = slot.get_node_or_null("DestiladoTooltip")
+				if t: t.queue_free())
+
+			# Click → callback con el ID
+			if not blocked:
+				slot.gui_input.connect(func(event: InputEvent):
+					if event is InputEventMouseButton and event.pressed \
+							and event.button_index == MOUSE_BUTTON_LEFT:
+						on_click.call(dest_id))
+		else:
+			var lbl_empty = Label.new()
+			lbl_empty.text = "[ destilado ]"
+			lbl_empty.position = Vector2(5, 13)
+			lbl_empty.size = Vector2(108, 16)
+			lbl_empty.add_theme_font_size_override("font_size", 8)
+			lbl_empty.modulate = Color(0.3, 0.28, 0.35)
+			slot.add_child(lbl_empty)
+
+		slot.mouse_filter = Control.MOUSE_FILTER_STOP
+		destilados_container.add_child(slot)

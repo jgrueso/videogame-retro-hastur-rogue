@@ -23,6 +23,7 @@ var shield_gained_this_turn: int = 0 # Acumulador de escudo por turno para la pa
 var enemy_attacked_last_turn: bool = false # Para Contraofensiva
 var trono_carcosa_active: bool = false
 var ojo_grito_first_turn: bool = false
+var mahar_guided_struck: bool = false # Pasiva FERVOR: rastrear primer golpe del turno
 
 # ── UI & Visuals ──────────────────────────────────────────────────────────────
 var ui: Node # Instancia de CombatUI.gd
@@ -76,6 +77,16 @@ var targeting_arrow: Line2D:
 
 var targeting_active: bool = false
 var targeting_card = null
+var targeting_destilado: String = ""        # ID del destilado en targeting de enemigo
+var targeting_destilado_card: String = ""   # ID del destilado en targeting de carta
+var _destilado_targeting_origin: Vector2 = Vector2.ZERO
+# Estados de combate por destilados (se resetean por turno o por uso)
+var destilado_next_atk_mult: float = 1.0   # Sangre del Ejecutor: +50% próximo ataque
+var destilado_dmg_mult: float = 1.0        # Fragmento del Príncipe: +30% N turnos
+var destilado_dmg_turns: int = 0
+var destilado_chispa_debt: int = 0         # Chispa Efímera: -1 energía próximo turno
+var destilado_rey_amarillo: bool = false    # Sangre del Rey Amarillo: daño x2 este turno
+var destilado_resonancia_zero: bool = false # Resonancia de Coste Cero: cartas cuestan 0
 var time_since_mouse_move: float = 0.0
 var is_eye_breaking_4th_wall: bool = false
 
@@ -145,6 +156,11 @@ func _ready() -> void:
 	if GameManager.has_relic("escudo_astillado"):
 		player_shield = 5
 
+	# Sinergia Reliquia: Fragmento de la Mascara Palida — +2 energía
+	if GameManager.has_relic("fragmento_mascara_palida"):
+		player_energy += 2
+		flash_small("Fragmento de la Mascara: +2 Energia")
+
 	# Sinergia Reliquia: Ceniza de la Guardia — +2 energía máxima solo en W3
 	if GameManager.has_relic("ceniza_guardia") and GameManager.current_world == 2:
 		player_max_energy += 2
@@ -203,7 +219,7 @@ func _ready() -> void:
 			# Sobrescribir pensamiento si es el Rey Sin Corona
 			if enemies[0].name == "EL REY SIN CORONA":
 				match char_id:
-					"conquistador": thought = "He servido a tronos de oro... pero este solo huele a muerte y polvo."
+					"mahar": thought = "He servido a coronas de carne... pero esta solo huele a algo que llevaba siglos esperando."
 					"estratega": thought = "Las crónicas hablaban de un soberano, no de esta aberración esquelética."
 					"guardian": thought = "Juré proteger la corona... pero no queda cabeza donde ponerla."
 					"prince": thought = "Padre... ¿qué te han hecho los susurros de Carcosa?"
@@ -363,6 +379,7 @@ func _setup_encounter() -> void:
 # ── Build UI ───────────────────────────────────────────────────────────────────
 func build_ui() -> void:
 	ui.build_ui(get_viewport_rect().size)
+	ui.populate_destilados(_on_destilado_clicked)
 
 func update_ui() -> void:
 	ui.update_ui()
@@ -381,6 +398,9 @@ func draw_hand(count: int = -1) -> void:
 		else:
 			flash_small("RELOJ CIRCULAR: Mantienes tu mano.")
 			_flash_relic("reloj_circular")
+
+		# Pasiva Mahar: FERVOR — resetear flag de primer golpe guiado
+		mahar_guided_struck = false
 
 		# Calcular robo base
 		count = 3
@@ -479,9 +499,19 @@ func _spawn_card_node(data_in: Dictionary, start_pos: Vector2 = Vector2.ZERO, de
 	card.connect("card_played",   _on_card_played)
 
 func _on_card_selected(card) -> void:
+	if targeting_destilado_card != "":
+		var dest_id = targeting_destilado_card
+		_clear_destilado_card_highlight()
+		_apply_destilado(dest_id, -1, card)
+		return
 	targeting_active = true; targeting_card = card; targeting_arrow.visible = true; card.set_disabled(true)
 
 func _on_card_played(card) -> void:
+	if targeting_destilado_card != "":
+		var dest_id = targeting_destilado_card
+		_clear_destilado_card_highlight()
+		_apply_destilado(dest_id, -1, card)
+		return
 	_resolve_card(card, -1)
 
 # ── Targeting ──────────────────────────────────────────────────────────────────
@@ -617,9 +647,10 @@ func _process(_delta: float) -> void:
 				e.lbl_name.position.x = sin(t * 2.0 + e.hp) * 5.0
 				e.lbl_name.modulate.a = 0.6 + sin(t * 3.0) * 0.4
 
-	if targeting_active and targeting_card:
+	if targeting_active:
 		var m = get_global_mouse_position()
-		var from = targeting_card.global_position + Vector2(65, 0)
+		var from: Vector2 = _destilado_targeting_origin if targeting_card == null \
+			else targeting_card.global_position + Vector2(65, 0)
 		ui.update_targeting_arrow(from, m)
 
 		# Detectar enemigo bajo el cursor y destacarlo
@@ -634,6 +665,11 @@ func _process(_delta: float) -> void:
 			ui.clear_target_highlight()
 
 func _input(event: InputEvent) -> void:
+	# Cancelar selección de carta para destilado con Escape
+	if targeting_destilado_card != "" and event is InputEventKey \
+			and event.pressed and event.keycode == KEY_ESCAPE:
+		_clear_destilado_card_highlight()
+		return
 	if targeting_active and event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 			_check_targeting()
@@ -645,14 +681,25 @@ func _check_targeting() -> void:
 		if enemies[i].hp > 0 and enemies[i].panel.get_global_rect().has_point(m_pos):
 			target = i; break
 	ui.clear_target_highlight()
-	if target >= 0:
-		_resolve_card(targeting_card, target)
-	else:
-		targeting_card.set_disabled(false)
 	targeting_active = false
 	targeting_arrow.visible = false
 	if ui.targeting_arrow_head:
 		ui.targeting_arrow_head.visible = false
+
+	if targeting_destilado != "":
+		# Targeting de enemigo para un destilado
+		var dest_id = targeting_destilado
+		targeting_destilado = ""
+		if target >= 0:
+			_apply_destilado(dest_id, target)
+		# Si no hay target válido: destilado queda en inventario (cancelado)
+		return
+
+	if target >= 0:
+		_resolve_card(targeting_card, target)
+	else:
+		if targeting_card:
+			targeting_card.set_disabled(false)
 	targeting_card = null
 
 var _is_resolving_extra_mirror_card: bool = false
@@ -1239,6 +1286,8 @@ func _show_single_reward_modal(title_text: String, item_data: Dictionary, next_s
 # ── Turno enemigo ──────────────────────────────────────────────────────────────
 func _on_end_turn_button_pressed() -> void:
 	ui.clear_cursed_card()
+	destilado_rey_amarillo = false
+	destilado_resonancia_zero = false
 	await enemy_turn.process_enemy_turn()
 
 # ── Dev ────────────────────────────────────────────────────────────────────────
@@ -1549,6 +1598,242 @@ func _hide_enemy_intent_tooltip(idx: int) -> void:
 		var p = enemies[idx].panel.get_node_or_null("TooltipPanel")
 		if p: p.queue_free()
 
+
+# ── Destilados ─────────────────────────────────────────────────────────────────
+func _on_destilado_clicked(dest_id: String) -> void:
+	if not is_player_turn or combat_ended:
+		return
+	var data = GameManager.DESTILADO_DATA.get(dest_id, {})
+	match data.get("target", "auto"):
+		"auto", "all_enemies":
+			_apply_destilado(dest_id)
+		"enemy":
+			targeting_destilado = dest_id
+			targeting_active = true
+			_destilado_targeting_origin = Vector2(665, 302)
+			targeting_arrow.visible = true
+		"card":
+			targeting_destilado_card = dest_id
+			_highlight_hand_for_destilado()
+
+func _highlight_hand_for_destilado() -> void:
+	for card in hand_container.get_children():
+		if not card.is_queued_for_deletion():
+			card.set_disabled(false)
+			card.modulate = Color(1.1, 0.9, 0.4)
+
+func _clear_destilado_card_highlight() -> void:
+	targeting_destilado_card = ""
+	for card in hand_container.get_children():
+		if not card.is_queued_for_deletion():
+			card.modulate = Color(1.0, 1.0, 1.0)
+	update_card_states()
+
+func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card = null) -> void:
+	GameManager.remove_destilado(dest_id)
+	var d_name = GameManager.DESTILADO_DATA.get(dest_id, {}).get("name", dest_id)
+	log_message("DESTILADO", d_name, Color(0.7, 0.5, 0.9))
+
+	match dest_id:
+		"sangre_ejecutor":
+			destilado_next_atk_mult = 1.5
+			flash_small("Sangre del Ejecutor: +50% al próximo ataque.", Color(0.9, 0.3, 0.3))
+
+		"recuerdo_robado":
+			await draw_hand(3)
+			if not hand.is_empty():
+				var idx = randi() % hand.size()
+				var lost = hand[idx]
+				hand.remove_at(idx)
+				discard_pile.append(lost)
+				var nodes = hand_container.get_children()
+				if idx < nodes.size(): nodes[idx].queue_free()
+				reorganize_hand()
+				flash_small("Recuerdo Robado: +3 cartas. Descartada: " + lost.get("name", "?"), Color(0.5, 0.6, 0.9))
+
+		"polvo_dama_ceniza":
+			for e in enemies:
+				if e.hp > 0:
+					e["bleed"] = e.get("bleed", 0) + 3
+			GameManager.sanity = max(0, GameManager.sanity - 5)
+			flash_small("Polvo de la Dama: Sangrado ×3 a todos. -5 Cordura.", Color(0.8, 0.2, 0.3))
+			update_ui()
+
+		"bruma_rey_caido":
+			for e in enemies:
+				if e.hp > 0:
+					var dmg = 15
+					var abs_val = min(e.shield, dmg)
+					if abs_val > 0: e.shield -= abs_val; dmg -= abs_val
+					if dmg > 0:
+						e.hp = max(0, e.hp - dmg)
+						_spawn_damage_number(e.panel.global_position + Vector2(100, 60), dmg, Color(0.4, 0.7, 0.9))
+						_animate_enemy_hit(e)
+						if e.hp <= 0: await _kill_enemy(e)
+			GameManager.sanity = max(0, GameManager.sanity - 10)
+			flash_small("Bruma del Rey Caído: 15 daño a todos. -10 Cordura.", Color(0.4, 0.7, 0.9))
+			update_ui()
+
+		"chispa_efimera":
+			player_energy = min(player_max_energy, player_energy + 2)
+			destilado_chispa_debt = 1
+			flash_small("Chispa Efímera: +2 Energía. El tablero cobrará el próximo turno.", Color(0.9, 0.8, 0.3))
+			update_ui()
+
+		"susurro_abismo":
+			if target_enemy_idx >= 0 and target_enemy_idx < enemies.size():
+				var e = enemies[target_enemy_idx]
+				var debuff = int(e.get("attack", e.hp) * 0.3)
+				e["atk_reduction"] = e.get("atk_reduction", 0) + debuff
+				e["locura_turns"] = 2
+				GameManager.sanity = max(0, GameManager.sanity - 10)
+				flash_small("Susurro del Abismo: Locura en " + e.name + ". -10 Cordura.", Color(0.6, 0.2, 0.9))
+				update_ui()
+
+		"olvido_puro":
+			if target_card != null:
+				var c_name = target_card.card_name if target_card.get("card_name") != null else ""
+				for i in range(hand.size()):
+					if hand[i].get("name", "") == c_name:
+						hand.remove_at(i); break
+				for i in range(GameManager.player_deck.size()):
+					if GameManager.player_deck[i].get("name", "") == c_name:
+						GameManager.player_deck.remove_at(i); break
+				target_card.queue_free()
+				reorganize_hand()
+				GameManager.coins += 10
+				flash_small("Olvido Puro: '" + c_name + "' olvidada. +10 oro.", Color(0.7, 0.7, 0.5))
+				update_ui()
+
+		"lucidez_prestada":
+			GameManager.sanity = min(GameManager.max_sanity, GameManager.sanity + 35)
+			var deuda = {"name": "Deuda de Cordura", "attack": 0, "defense": 0, "cost": 0,
+				"curse": true, "sanity_cost": 15, "innate": true, "exhaust": true}
+			GameManager.player_deck.append(deuda)
+			flash_small("Lucidez Prestada: +35 Cordura. El vacío anota tu deuda.", Color(0.5, 0.3, 0.8))
+			update_ui()
+
+		"tinta_sacrificio":
+			if target_card != null:
+				var atk_val = target_card.card_data.get("attack", 0) if target_card.get("card_data") != null else 0
+				var c_name = target_card.card_name if target_card.get("card_name") != null else ""
+				for i in range(hand.size()):
+					if hand[i].get("name", "") == c_name:
+						hand.remove_at(i); break
+				target_card.queue_free()
+				reorganize_hand()
+				for e in enemies:
+					if e.hp > 0 and atk_val > 0:
+						var dmg = atk_val
+						var abs_val = min(e.shield, dmg)
+						if abs_val > 0: e.shield -= abs_val; dmg -= abs_val
+						if dmg > 0:
+							e.hp = max(0, e.hp - dmg)
+							_spawn_damage_number(e.panel.global_position + Vector2(100, 60), dmg, Color(0.9, 0.4, 0.2))
+							_animate_enemy_hit(e)
+							if e.hp <= 0: await _kill_enemy(e)
+				flash_small("Tinta del Sacrificio: " + str(atk_val) + " daño a todos. '" + c_name + "' consumida.", Color(0.9, 0.4, 0.2))
+				update_ui()
+
+		"resonancia_cero":
+			destilado_resonancia_zero = true
+			for card in hand_container.get_children():
+				if not card.is_queued_for_deletion():
+					card.set_cost_modifier(-card.get_effective_cost())
+			flash_small("Resonancia de Coste Cero: todas las cartas cuestan 0 este turno.", Color(0.3, 0.9, 0.7))
+			update_card_states()
+
+		"fragmento_principe":
+			GameManager.sanity = max(0, GameManager.sanity - 25)
+			destilado_dmg_mult = 1.3
+			destilado_dmg_turns = 3
+			flash_small("Fragmento del Príncipe: -25 Cordura. +30% daño por 3 turnos.", Color(0.7, 0.2, 0.9))
+			update_ui()
+
+		"conocimiento_prohibido":
+			for e in enemies:
+				e["intent_visible"] = true
+			update_intent_labels()
+			GameManager.relic_fragments += 1
+			if GameManager.relic_fragments >= 3:
+				GameManager.relic_fragments = 0
+				var available = GameManager.RELIC_DATA.keys().filter(
+					func(r): return not GameManager.has_relic(r))
+				if not available.is_empty():
+					var r_id = available[randi() % available.size()]
+					GameManager.add_relic(r_id)
+					_populate_relics()
+					flash_small("¡3 Fragmentos! Reliquia: " + GameManager.RELIC_DATA[r_id]["name"], Color(0.9, 0.8, 0.2))
+			else:
+				flash_small("Conocimiento Prohibido: patrones revelados. Fragmento %d/3." % GameManager.relic_fragments, Color(0.5, 0.3, 0.8))
+			GameManager.sanity = max(0, GameManager.sanity - 20)
+			GameManager.max_sanity = max(20, GameManager.max_sanity - 5)
+			GameManager.sanity = min(GameManager.sanity, GameManager.max_sanity)
+			update_ui()
+
+		"sangre_rey_amarillo":
+			player_energy = min(player_max_energy + 3, player_energy + 3)
+			destilado_rey_amarillo = true
+			GameManager.player_max_hp = max(10, GameManager.player_max_hp - 20)
+			player_max_hp = GameManager.player_max_hp
+			player_hp = min(player_hp, player_max_hp)
+			GameManager.player_hp = player_hp
+			GameManager.sanity = max(0, GameManager.sanity - 15)
+			flash_small("¡SANGRE DEL REY AMARILLO! Daño ×2. -20 HP máx, -15 Cordura.", Color(1.0, 0.85, 0.1))
+			_trigger_screen_blink()
+			update_ui()
+
+		"ultimo_vial":
+			player_hp = player_max_hp
+			GameManager.player_hp = player_hp
+			GameManager.sanity = GameManager.max_sanity
+			GameManager.destilados_blocked = true
+			flash_small("El Último Vial: curación total. Los Destilados se han sellado para siempre.", Color(0.6, 0.9, 0.6))
+			update_ui()
+
+		"eco_grieta":
+			await _apply_eco_grieta()
+
+	ui.populate_destilados(_on_destilado_clicked)
+	update_ui()
+
+func _apply_eco_grieta() -> void:
+	var outcomes: Array[Callable] = [
+		func():
+			player_hp = min(player_max_hp, player_hp + 30)
+			update_ui()
+			flash_small("Eco de la Grieta: +30 HP.", Color(0.4, 1.0, 0.5)),
+		func():
+			await draw_hand(2)
+			flash_small("Eco de la Grieta: +2 cartas.", Color(0.5, 0.7, 0.9)),
+		func():
+			GameManager.coins += 30
+			update_ui()
+			flash_small("Eco de la Grieta: +30 oro.", Color(0.9, 0.8, 0.2)),
+		func():
+			player_hp = max(1, player_hp - 15)
+			update_ui()
+			flash_small("Eco de la Grieta: -15 HP.", Color(1.0, 0.3, 0.3))
+			_trigger_screen_blink(),
+		func():
+			GameManager.sanity = max(0, GameManager.sanity - 20)
+			update_ui()
+			flash_small("Eco de la Grieta: -20 Cordura.", Color(0.6, 0.2, 0.9)),
+		func():
+			if not hand.is_empty():
+				var best_idx = 0
+				for i in range(hand.size()):
+					if hand[i].get("attack", 0) + hand[i].get("defense", 0) > \
+							hand[best_idx].get("attack", 0) + hand[best_idx].get("defense", 0):
+						best_idx = i
+				var lost = hand[best_idx]
+				hand.remove_at(best_idx)
+				var nodes = hand_container.get_children()
+				if best_idx < nodes.size(): nodes[best_idx].queue_free()
+				reorganize_hand()
+				flash_small("Eco de la Grieta: '" + lost.get("name", "carta") + "' consumida para siempre.", Color(0.5, 0.1, 0.6)),
+	]
+	await outcomes[randi() % outcomes.size()].call()
 
 func _populate_relics() -> void:
 	if not relics_container: return

@@ -4,7 +4,7 @@ const DICE_REROLL_COST: int = 5
 const DICE_FACES: Array = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
 
 const EVENT_CHARACTER_REACTIONS: Dictionary = {
-	"conquistador": "«Otro obstáculo. Otro precio que pagar con sangre ajena.»",
+	"mahar": "«La Cofradia no me preparo para esto. Pero la fe no pide permiso para ser puesta a prueba.»",
 	"estratega": "«Cada elección aquí es una variable más en el patrón.»",
 	"guardian": "«Elijo con cuidado. Cada decisión pesa sobre las piezas que protejo.»",
 	"prince": "«Ya lo vi antes. En otro tablero, con otro nombre.»",

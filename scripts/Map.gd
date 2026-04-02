@@ -541,6 +541,17 @@ func build_ui() -> void:
 	ui_layer.add_child(codex_btn)
 	codex_btn.pressed.connect(func(): GameManager.show_codex_overlay(self))
 
+	# Botón Destilados (visible solo si llevas alguno)
+	if not GameManager.destilados.is_empty():
+		var dest_btn = Button.new()
+		dest_btn.text = "◈  DESTILADOS"
+		dest_btn.position = Vector2(vp.x - btn_w * 3 - 28, btn_y)
+		dest_btn.size = Vector2(btn_w, btn_h)
+		dest_btn.add_theme_font_size_override("font_size", 13)
+		_style_top_button(dest_btn, Color(0.3, 0.15, 0.45))
+		ui_layer.add_child(dest_btn)
+		dest_btn.pressed.connect(_show_destilados_overlay)
+
 	# ── BOTÓN DEV ─────────────────────────────────────────────────────
 	var dev_toggle = Button.new()
 	dev_toggle.text = "[DEV]"
@@ -1101,6 +1112,201 @@ func _add_map_decorations(container: Control, total_h: float, vp_x: float) -> vo
 		p.color = decor_color
 		p.position = Vector2(randf_range(0, vp_x), randf_range(0, total_h))
 		container.add_child(p)
+
+# ─── Destilados (uso fuera de combate) ───────────────────────────────────────
+func _show_destilados_overlay() -> void:
+	var vp = get_viewport_rect().size
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.75)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 300
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_layer.add_child(overlay)
+
+	var panel = Panel.new()
+	panel.size = Vector2(400, 320)
+	panel.position = (vp - panel.size) / 2.0
+	var ps = StyleBoxFlat.new()
+	ps.bg_color = Color(0.06, 0.04, 0.1)
+	ps.set_border_width_all(2); ps.border_color = Color(0.45, 0.3, 0.7)
+	ps.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", ps)
+	overlay.add_child(panel)
+
+	var title = Label.new()
+	title.text = "◈  DESTILADOS  ◈"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	title.modulate = Color(0.7, 0.5, 0.9)
+	title.position = Vector2(0, 16); title.size = Vector2(400, 28)
+	panel.add_child(title)
+
+	var vbox = VBoxContainer.new()
+	vbox.position = Vector2(20, 54); vbox.size = Vector2(360, 210)
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	for dest_id in GameManager.destilados:
+		var data = GameManager.DESTILADO_DATA.get(dest_id, {})
+		var can_use_outside = data.get("out_of_combat", false)
+
+		var slot_panel = Panel.new()
+		slot_panel.custom_minimum_size = Vector2(360, 64)
+		var sp_style = StyleBoxFlat.new()
+		sp_style.bg_color = Color(0.08, 0.06, 0.13)
+		sp_style.set_border_width_all(1)
+		sp_style.border_color = Color(0.35, 0.25, 0.55)
+		sp_style.set_corner_radius_all(3)
+		slot_panel.add_theme_stylebox_override("panel", sp_style)
+		vbox.add_child(slot_panel)
+
+		var lbl_name = Label.new()
+		lbl_name.text = data.get("name", dest_id)
+		lbl_name.position = Vector2(8, 6); lbl_name.size = Vector2(260, 20)
+		lbl_name.add_theme_font_size_override("font_size", 12)
+		slot_panel.add_child(lbl_name)
+
+		var lbl_desc = Label.new()
+		lbl_desc.text = data.get("desc", "")
+		lbl_desc.position = Vector2(8, 26); lbl_desc.size = Vector2(260, 34)
+		lbl_desc.add_theme_font_size_override("font_size", 9)
+		lbl_desc.modulate = Color(0.75, 0.72, 0.8)
+		lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+		slot_panel.add_child(lbl_desc)
+
+		var use_btn = Button.new()
+		use_btn.size = Vector2(80, 28)
+		use_btn.position = Vector2(272, 18)
+		use_btn.add_theme_font_size_override("font_size", 11)
+		if can_use_outside:
+			use_btn.text = "USAR"
+			use_btn.disabled = false
+			var _id = dest_id
+			var _ov = overlay
+			use_btn.pressed.connect(func():
+				_ov.queue_free()
+				_use_destilado_out_of_combat(_id))
+		else:
+			use_btn.text = "COMBATE"
+			use_btn.disabled = true
+			use_btn.modulate = Color(0.5, 0.5, 0.5)
+		slot_panel.add_child(use_btn)
+
+	# Cerrar
+	var close_btn = Button.new()
+	close_btn.text = "CERRAR"
+	close_btn.position = Vector2(150, 278); close_btn.size = Vector2(100, 30)
+	close_btn.add_theme_font_size_override("font_size", 12)
+	close_btn.pressed.connect(overlay.queue_free)
+	panel.add_child(close_btn)
+
+func _use_destilado_out_of_combat(dest_id: String) -> void:
+	match dest_id:
+		"lucidez_prestada":
+			GameManager.sanity = min(GameManager.max_sanity, GameManager.sanity + 35)
+			var deuda = {"name": "Deuda de Cordura", "attack": 0, "defense": 0, "cost": 0,
+				"curse": true, "sanity_cost": 15, "innate": true, "exhaust": true}
+			GameManager.player_deck.append(deuda)
+			GameManager.remove_destilado(dest_id)
+			_show_map_flash("Lucidez Prestada: +35 Cordura. El vacío anota tu deuda.")
+
+		"ultimo_vial":
+			GameManager.player_hp = GameManager.player_max_hp
+			GameManager.sanity = GameManager.max_sanity
+			GameManager.destilados_blocked = true
+			GameManager.remove_destilado(dest_id)
+			_show_map_flash("El Último Vial: curación total. Los Destilados se han sellado.")
+
+		"olvido_puro":
+			_show_olvido_puro_selector(dest_id)
+			return  # El selector maneja la remoción del destilado
+
+	update_ui()
+
+func _show_olvido_puro_selector(dest_id: String) -> void:
+	var vp = get_viewport_rect().size
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.8)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 350
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_layer.add_child(overlay)
+
+	var panel = Panel.new()
+	panel.size = Vector2(500, 400)
+	panel.position = (vp - panel.size) / 2.0
+	var ps = StyleBoxFlat.new()
+	ps.bg_color = Color(0.05, 0.04, 0.08)
+	ps.set_border_width_all(2); ps.border_color = Color(0.55, 0.45, 0.2)
+	ps.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", ps)
+	overlay.add_child(panel)
+
+	var title = Label.new()
+	title.text = "Olvido Puro — Elige una carta para olvidar"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 14)
+	title.modulate = Color(0.8, 0.75, 0.5)
+	title.position = Vector2(0, 14); title.size = Vector2(500, 24)
+	panel.add_child(title)
+
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(10, 48); scroll.size = Vector2(480, 290)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
+
+	var vbox = VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 6)
+	scroll.add_child(vbox)
+
+	for card_data in GameManager.player_deck:
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		vbox.add_child(row)
+
+		var lbl = Label.new()
+		lbl.text = "%s  (ATK:%d DEF:%d)" % [card_data.get("name","?"), card_data.get("attack",0), card_data.get("defense",0)]
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.modulate = Color(0.85, 0.8, 0.75) if not card_data.get("curse", false) else Color(0.8, 0.3, 0.3)
+		row.add_child(lbl)
+
+		var del_btn = Button.new()
+		del_btn.text = "OLVIDAR +10◆"
+		del_btn.custom_minimum_size = Vector2(120, 24)
+		del_btn.add_theme_font_size_override("font_size", 10)
+		var _cd = card_data; var _ov = overlay; var _dest = dest_id
+		del_btn.pressed.connect(func():
+			GameManager.player_deck.erase(_cd)
+			GameManager.coins += 10
+			GameManager.remove_destilado(_dest)
+			_ov.queue_free()
+			_show_map_flash("Olvido Puro: '" + _cd.get("name","?") + "' olvidada. +10 oro.")
+			update_ui())
+		row.add_child(del_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "CANCELAR"
+	cancel_btn.position = Vector2(195, 350); cancel_btn.size = Vector2(110, 30)
+	cancel_btn.add_theme_font_size_override("font_size", 12)
+	cancel_btn.pressed.connect(overlay.queue_free)
+	panel.add_child(cancel_btn)
+
+func _show_map_flash(text: String) -> void:
+	var vp = get_viewport_rect().size
+	var lbl = Label.new()
+	lbl.text = text
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.modulate = Color(0.8, 0.7, 1.0)
+	lbl.position = Vector2(0, vp.y * 0.45); lbl.size = Vector2(vp.x, 30)
+	lbl.z_index = 200
+	ui_layer.add_child(lbl)
+	var tw = create_tween()
+	tw.tween_interval(2.5)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(lbl.queue_free)
 
 # ─── Helpers visuales de nodos ───────────────────────────────────────────────
 func _style_top_button(btn: Button, accent: Color) -> void:
