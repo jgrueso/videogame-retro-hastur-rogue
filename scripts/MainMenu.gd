@@ -301,7 +301,7 @@ func _make_menu_button(txt: String) -> Button:
 	return btn
 
 func _animate_hastur_glitch(t: Label, s: Label, vp: Vector2):
-	var tw = create_tween().set_loops(); tw.tween_interval(randf_range(5.0, 12.0))
+	var tw = create_tween(); tw.tween_interval(randf_range(5.0, 12.0))
 	tw.tween_callback(func():
 		var roll = randf()
 		if roll < 0.2:

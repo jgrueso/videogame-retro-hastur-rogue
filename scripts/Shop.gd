@@ -28,6 +28,9 @@ var offered_destilados: Array = []  # [{id, label, cost, action, desc, sold}]
 var destilados_grid: VBoxContainer  # Sección separada de destilados
 var _dest_tooltip: Panel = null     # Tooltip flotante compartido
 
+var hp_bought: bool = false
+var heal_bought: bool = false
+
 func _ready() -> void:
 	greeting = GREETINGS[randi() % GREETINGS.size()]
 	
@@ -414,8 +417,14 @@ func _update_info() -> void:
 		var can_afford = GameManager.coins >= data["cost"]
 		var is_full_hp = (data["action"] == "heal" and GameManager.player_hp >= GameManager.player_max_hp)
 		
-		btn.disabled = not can_afford or is_full_hp
-		if is_full_hp:
+		var already_bought = false
+		if data["action"] == "max_hp" and hp_bought: already_bought = true
+		if data["action"] == "heal" and heal_bought: already_bought = true
+
+		btn.disabled = not can_afford or is_full_hp or already_bought
+		if already_bought:
+			btn.tooltip_text = "Existencias agotadas."
+		elif is_full_hp:
 			btn.tooltip_text = "Vida al maximo."
 		else:
 			btn.tooltip_text = data["desc"]
@@ -436,13 +445,17 @@ func _on_buy_pressed(item: Dictionary) -> void:
 	if GameManager.coins >= item["cost"]:
 		match item["action"]:
 			"max_hp":
+				if hp_bought: return
 				GameManager.spend_coins(item["cost"])
 				GameManager.player_max_hp += 15
 				GameManager.player_hp += 15
+				hp_bought = true
 			"heal":
+				if heal_bought: return
 				if GameManager.player_hp < GameManager.player_max_hp:
 					GameManager.spend_coins(item["cost"])
 					GameManager.heal(20)
+					heal_bought = true
 				else:
 					return
 			"relic":

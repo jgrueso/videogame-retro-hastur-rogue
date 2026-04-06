@@ -536,12 +536,12 @@ func _draw_rey_amarillo(cx: float) -> void:
 	# Túnica masiva, bordes irregulares
 	_fc([Vector2(cx-44,122), Vector2(cx+44,122),
 		 Vector2(cx+26,36),  Vector2(cx-26,36)], gold)
-	# Harapos izquierda
-	_fc([Vector2(cx-44,122), Vector2(cx-50,106), Vector2(cx-42,112),
-		 Vector2(cx-36,100), Vector2(cx-30,114), Vector2(cx-26,36)], dgold)
+	# Harapos izquierda (Simplificados para evitar fallos de triangulación)
+	_fc([Vector2(cx-44,122), Vector2(cx-50,106), Vector2(cx-30,114)], dgold)
+	_fc([Vector2(cx-50,106), Vector2(cx-26,36), Vector2(cx-30,114)], dgold)
 	# Harapos derecha
-	_fc([Vector2(cx+44,122), Vector2(cx+50,106), Vector2(cx+42,112),
-		 Vector2(cx+36,100), Vector2(cx+30,114), Vector2(cx+26,36)], dgold)
+	_fc([Vector2(cx+44,122), Vector2(cx+50,106), Vector2(cx+30,114)], dgold)
+	_fc([Vector2(cx+50,106), Vector2(cx+26,36), Vector2(cx+30,114)], dgold)
 	# Pecho/manto superior
 	draw_rect(Rect2(cx-20, 22, 40, 16), dgold)
 	draw_rect(Rect2(cx-16, 24, 32, 12), gold)

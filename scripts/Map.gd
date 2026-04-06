@@ -522,8 +522,12 @@ func _generate_map() -> Array:
 	return graph
 
 func _pick_room_type(f_idx: int, total: int, prev_type: String) -> String:
-	# Primer piso: solo combate/evento (intro suave)
-	if f_idx == 0:
+	# Primeros 2 pisos: solo combate (obligatorio por diseño)
+	if f_idx < 2:
+		return ROOM_COMBAT
+
+	# Piso 3: Permitir eventos pero no élites ni descanso
+	if f_idx == 2:
 		return ROOM_COMBAT if randf() < 0.7 else ROOM_EVENT
 
 	# Progresión normalizada 0.0–1.0 sobre los pisos jugables
@@ -531,8 +535,14 @@ func _pick_room_type(f_idx: int, total: int, prev_type: String) -> String:
 	var roll = randf()
 	var t: String
 
-	if progress < 0.30:
-		# ── Zona temprana (30%) — aprender combate, poca elite ──
+	if f_idx < 4:
+		# ── Zona temprana (hasta piso 4) — restringido ──
+		# Solo combate, evento o tesoro
+		if roll < 0.65:        t = ROOM_COMBAT
+		elif roll < 0.85:      t = ROOM_EVENT
+		else:                  t = ROOM_TREASURE
+	elif progress < 0.30:
+		# ── Zona temprana post-restriccion (30%) ──
 		# Combat 50% | Event 22% | Elite 8% | Treasure 12% | Rest 8%
 		if roll < 0.50:        t = ROOM_COMBAT
 		elif roll < 0.72:      t = ROOM_EVENT
@@ -2222,10 +2232,9 @@ func _create_npc_node(npc_id: String, pos: Vector2, parent: Node) -> void:
 	btn.pressed.connect(func(): _open_npc_dialogue(npc_id))
 	parent.add_child(btn)
 	# Animación de pulso idle DESPUÉS de add_child
-	var tw = create_tween().set_loops()
-	tw.tween_property(btn, "scale", Vector2(1.06, 1.06), 0.9).set_trans(Tween.TRANS_SINE)
-	tw.chain().tween_property(btn, "scale", Vector2.ONE, 0.9).set_trans(Tween.TRANS_SINE)
-
+	var tw = create_tween()
+	tw.parallel().tween_property(btn, "scale", Vector2(1.06, 1.06), 0.9).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(btn, "scale", Vector2.ONE, 0.9).set_trans(Tween.TRANS_SINE)
 func _open_npc_dialogue(npc_id: String) -> void:
 	var data = NPC_DIALOGUES[npc_id]
 	var vp = get_viewport_rect().size
@@ -2314,10 +2323,14 @@ func _open_npc_dialogue(npc_id: String) -> void:
 
 		# Mostrar texto con efecto typewriter
 		var full_text: String = line["text"]
-		text_lbl.text = ""
-		var tw_type = create_tween()
-		tw_type.tween_method(func(n: int): text_lbl.text = full_text.substr(0, n),
-			0, full_text.length(), float(full_text.length()) * 0.04)
+		if is_instance_valid(text_lbl):
+			text_lbl.text = ""
+			var dur = max(0.1, float(full_text.length()) * 0.04)
+			var tw_type = create_tween()
+			tw_type.tween_method(func(n: int): 
+				if is_instance_valid(text_lbl):
+					text_lbl.text = full_text.substr(0, n),
+				0, full_text.length(), dur)
 
 		# Aplicar efectos si existen
 		if line.has("effect"):
