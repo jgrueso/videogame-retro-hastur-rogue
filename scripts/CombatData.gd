@@ -3,15 +3,17 @@ class_name CombatData
 
 # ── Datos de Personajes ────────────────────────────────────────────────────────
 const CHAR_DATA = {
-	"mahar": {"symbol": "♜", "color": Color(0.8, 0.3, 0.3)},
-	"estratega":    {"symbol": "♝", "color": Color(0.3, 0.5, 0.8)},
-	"guardian":     {"symbol": "♞", "color": Color(0.4, 0.75, 0.4)},
+	"mahar":     {"symbol": "♜", "color": Color(0.8, 0.3, 0.3)},
+	"estratega": {"symbol": "♝", "color": Color(0.3, 0.5, 0.8)},
+	"guardian":  {"symbol": "♞", "color": Color(0.4, 0.75, 0.4)},
+	"prince":    {"symbol": "♔", "color": Color(0.5, 0.2, 0.8)},
 }
 
 const PASSIVE_DESCRIPTIONS = {
-	"mahar": "FERVOR: Cordura >= 60: tu primer ataque de cada turno inflige +4 de dano (el golpe guiado). Cordura < 40: pierdes 2 HP por turno, todos los ataques infligen +2 de dano (fe rota).",
-	"estratega":    "LOGICA: Tus cartas de Inquisidor Ciego cuestan -1 de energia. Robas 1 carta extra al inicio de cada combate.",
-	"guardian":     "RESILIENCIA: Cada vez que generas 10 o más Escudo en un turno, ganas 1 Furia. A las 3 cargas, tu siguiente ataque hace daño doble."
+	"mahar":     "FERVOR: Cordura >= 60: tu primer ataque de cada turno inflige +4 de daño (el golpe guiado). Cordura < 40: pierdes 2 HP por turno, todos los ataques infligen +2 de daño (fe rota).",
+	"estratega": "LOGICA: Tus cartas de Inquisidor Ciego cuestan -1 de energía. Robas 1 carta extra al inicio de cada combate.",
+	"guardian":  "RESILIENCIA: Cada vez que generas 10 o más Escudo en un turno, ganas 1 Furia. A las 3 cargas, tu siguiente ataque hace daño doble.",
+	"prince":    "RESONANCIA: Cartas de Escala x1.5 (Cordura < 60) | x2 (Cordura < 35). Inicio de combate: -8 Cordura. Daño de Demencia recibido → Escudo parcial.",
 }
 
 # ── Pools de encuentros ────────────────────────────────────────────────────────
@@ -36,6 +38,14 @@ const ELITE_POOLS = [
 	[{"name": "Inquisidor Ciego", "hp": 70, "pattern": [{"type": "attack", "value": 8}, {"type": "attack", "value": 8}, {"type": "shield", "value": 15}]}],
 ]
 
+const MIMIC_POOL = [
+	{"name": "La Forma Sin Nombre", "hp": 65, "pattern": [
+		{"type": "attack",   "value": 11},
+		{"type": "shield",   "value": 10},
+		{"type": "insanity", "value": 13},
+	]}
+]
+
 const BOSS_POOLS_W1 = [
 	[{"name": "EL CARCELERO",    "hp": 120, "pattern": [{"type": "attack", "value": 12}, {"type": "shield", "value": 12}]}],
 	[{"name": "LA DAMA DE CENIZA", "hp": 100, "pattern": [{"type": "attack", "value": 10}, {"type": "attack", "value": 16}]}],
@@ -48,6 +58,7 @@ const BOSS_POOLS_W2 = [
 
 # ── Diálogos y barks ───────────────────────────────────────────────────────────
 const ENEMY_COMBAT_BANTER = {
+	"La Forma Sin Nombre": ["...reconóceme...", "...el tablero no recuerda mi forma...", "...era un cofre... era una pieza...", "...ya no sé qué soy..."],
 	"Siervo Rebelde":   ["...muere...", "no... escapes...", "el tablero... te reclama..."],
 	"Peon Maldito":     ["maldito seas...", "nadie sale...", "somos todos lo mismo..."],
 	"Idolo Corrupto":   ["la ceniza llama...", "mira el sol negro...", "tu voz se apaga..."],

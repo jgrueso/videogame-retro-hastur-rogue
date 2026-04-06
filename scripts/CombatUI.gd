@@ -44,16 +44,17 @@ var hp_bar_player: ProgressBar
 var sanity_bar_player: ProgressBar
 var lbl_energy: Label
 var lbl_furia: Label
+var lbl_fervor: Label
+var _fervor_last_san: int = -1
+var _fervor_last_spent: bool = false
+var _last_hp: int = -1
+var _last_hand_size: int = -1
 var hand_container: Control
 var lbl_draw_pile: Label
 var lbl_discard_pile: Label
 var end_turn_btn: Button
 var relics_container: HBoxContainer
 var destilados_container: VBoxContainer
-var log_panel: Panel
-var log_vbox: VBoxContainer
-var lbl_message: Label
-var panel_message: Panel
 var vignette: ColorRect
 var eye_node: Control
 var blink_overlay: ColorRect
@@ -86,6 +87,7 @@ var ghost_bar_player: ProgressBar = null
 var shield_bar_player: ProgressBar
 var _player_panel_style: StyleBoxFlat = null
 var _low_hp_pulse_tween: Tween = null
+var _char_color: Color = Color(0.45, 0.35, 0.65)
 
 func setup(p_main: Node2D) -> void:
 	main = p_main
@@ -100,10 +102,14 @@ func build_ui(vp: Vector2) -> void:
 	const ST_X   = 80   # X de inicio de stats (PORT_W + margen)
 	const BAR_W  = 208  # PP_W - ST_X - 7
 
+	var char_id = GameManager.selected_character
+	var char_info = CombatData.CHAR_DATA.get(char_id, {"symbol": "♟", "color": Color(0.8, 0.8, 0.8)})
+	_char_color = char_info["color"]
+
 	var _pp_style = StyleBoxFlat.new()
-	_pp_style.bg_color = Color(0.07, 0.05, 0.13)
+	_pp_style.bg_color = Color(_char_color.r * 0.15, _char_color.g * 0.12, _char_color.b * 0.25, 1.0)
 	_pp_style.set_border_width_all(2)
-	_pp_style.border_color = Color(0.45, 0.35, 0.65)
+	_pp_style.border_color = _char_color
 	_pp_style.set_corner_radius_all(4)
 	player_panel = Panel.new()
 	player_panel.position = Vector2(20, 280)
@@ -111,9 +117,6 @@ func build_ui(vp: Vector2) -> void:
 	player_panel.add_theme_stylebox_override("panel", _pp_style)
 	_player_panel_style = _pp_style
 	main.add_child(player_panel)
-
-	var char_id = GameManager.selected_character
-	var char_info = CombatData.CHAR_DATA.get(char_id, {"symbol": "♟", "color": Color(0.8, 0.8, 0.8)})
 
 	# Contenedor de retrato — sirve como sprite_label para bob e interacción
 	player_sprite_label = Label.new()
@@ -134,6 +137,7 @@ func build_ui(vp: Vector2) -> void:
 	var port_bg = ColorRect.new()
 	port_bg.color = Color(0.04, 0.03, 0.06)
 	port_bg.size = port_clip.size
+	port_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	port_clip.add_child(port_bg)
 
 	var portrait_path = "res://assets/characters/%s.png" % char_id
@@ -159,8 +163,18 @@ func build_ui(vp: Vector2) -> void:
 	port_border.add_theme_stylebox_override("panel", pb_style)
 	player_sprite_label.add_child(port_border)
 
-	player_sprite_label.mouse_entered.connect(main._show_player_passive_tooltip)
-	player_sprite_label.mouse_exited.connect(main._hide_player_passive_tooltip)
+	# Panel invisible sobre el retrato para detección de hover confiable
+	var portrait_hover = Panel.new()
+	portrait_hover.position = Vector2(3, 4)
+	portrait_hover.size = Vector2(PORT_W, PP_H - 8)
+	portrait_hover.mouse_filter = Control.MOUSE_FILTER_STOP
+	var ph_style = StyleBoxFlat.new()
+	ph_style.bg_color = Color(0, 0, 0, 0)
+	ph_style.set_border_width_all(0)
+	portrait_hover.add_theme_stylebox_override("panel", ph_style)
+	portrait_hover.mouse_entered.connect(main._show_player_passive_tooltip)
+	portrait_hover.mouse_exited.connect(main._hide_player_passive_tooltip)
+	player_panel.add_child(portrait_hover)
 
 	main._start_player_idle_bob()
 
@@ -194,7 +208,7 @@ func build_ui(vp: Vector2) -> void:
 	lbl_player_hp.position = Vector2(ST_X, 8)
 	lbl_player_hp.size = Vector2(BAR_W, 18)
 	lbl_player_hp.bbcode_enabled = true
-	lbl_player_hp.fit_content = true
+	lbl_player_hp.scroll_active = false
 	lbl_player_hp.add_theme_font_size_override("font_size", 11)
 	player_panel.add_child(lbl_player_hp)
 
@@ -217,12 +231,22 @@ func build_ui(vp: Vector2) -> void:
 	player_panel.add_child(lbl_energy)
 
 	if char_id == "guardian":
+		player_panel.size.y = 126
 		lbl_furia = Label.new()
-		lbl_furia.position = Vector2(ST_X, 90)
-		lbl_furia.add_theme_font_size_override("font_size", 11)
+		lbl_furia.position = Vector2(ST_X, 104)
+		lbl_furia.size = Vector2(BAR_W, 18)
+		lbl_furia.add_theme_font_size_override("font_size", 10)
 		lbl_furia.modulate = Color(0.4, 0.9, 0.4)
 		player_panel.add_child(lbl_furia)
 
+	if char_id == "mahar":
+		player_panel.size.y = 126
+		lbl_fervor = Label.new()
+		lbl_fervor.name = "LblFervor"
+		lbl_fervor.position = Vector2(ST_X, 104)
+		lbl_fervor.size = Vector2(BAR_W, 18)
+		lbl_fervor.add_theme_font_size_override("font_size", 10)
+		player_panel.add_child(lbl_fervor)
 
 	hand_container = Control.new()
 	hand_container.position = Vector2(20, 418); hand_container.size = Vector2(1112, 195)
@@ -235,20 +259,6 @@ func build_ui(vp: Vector2) -> void:
 	end_turn_btn = Button.new(); end_turn_btn.text = "TERMINAR TURNO"
 	end_turn_btn.position = Vector2(900, 480); end_turn_btn.size = Vector2(230, 50)
 	end_turn_btn.pressed.connect(main._on_end_turn_button_pressed); main.add_child(end_turn_btn)
-
-	# Panel de Mensajes Lore/Pensamientos
-	panel_message = _make_panel(Vector2(100, 180), Vector2(952, 200), Color(0, 0, 0, 0.9), Color(0.3, 0.25, 0.1))
-	panel_message.z_index = 10
-	panel_message.visible = false
-	main.add_child(panel_message)
-
-	lbl_message = Label.new()
-	lbl_message.position = Vector2(20, 20)
-	lbl_message.size = Vector2(912, 160)
-	lbl_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl_message.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	lbl_message.autowrap_mode = TextServer.AUTOWRAP_WORD
-	panel_message.add_child(lbl_message)
 
 	# Paneles enemigos
 	for i in range(main.enemies.size()):
@@ -322,6 +332,7 @@ func build_ui(vp: Vector2) -> void:
 		main.enemies[i].intent_badge_style = ib_style
 
 		var lin = Label.new(); lin.position = Vector2(10, 246); lin.size = Vector2(180, 22)
+		lin.clip_text = true
 		lin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lin.add_theme_font_size_override("font_size", 13)
 		ep.add_child(lin); main.enemies[i].lbl_intent_icon = lin
@@ -347,31 +358,6 @@ func build_ui(vp: Vector2) -> void:
 	destilados_container.position = Vector2(322, 280)
 	destilados_container.add_theme_constant_override("separation", 4)
 	main.add_child(destilados_container)
-
-	# --- HISTORIAL DE COMBATE (Log) ---
-	log_panel = Panel.new()
-	log_panel.position = Vector2(10, 55)
-	log_panel.size = Vector2(300, 120)
-	log_panel.modulate.a = 0.25 # Casi transparente por defecto
-	log_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	main.add_child(log_panel)
-
-	var ls = StyleBoxFlat.new()
-	ls.bg_color = Color(0, 0, 0, 0.7); ls.border_width_left = 2; ls.border_color = Color(0.3, 0.3, 0.3)
-	log_panel.add_theme_stylebox_override("panel", ls)
-
-	var scroll = ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_KEEP_SIZE, 5)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	log_panel.add_child(scroll)
-
-	log_vbox = VBoxContainer.new()
-	log_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(log_vbox)
-
-	# Hover logic para el Log
-	log_panel.mouse_entered.connect(func(): main.create_tween().tween_property(log_panel, "modulate:a", 1.0, 0.2))
-	log_panel.mouse_exited.connect(func(): main.create_tween().tween_property(log_panel, "modulate:a", 0.25, 0.3))
 
 	# Viñeta de Cordura
 	vignette = ColorRect.new()
@@ -497,7 +483,7 @@ func _build_dynamic_background(vp: Vector2) -> void:
 func update_ui() -> void:
 	var hp_text = "SALUD: %d / %d" % [max(0, main.player_hp), main.player_max_hp]
 	if main.player_shield > 0:
-		hp_text += " [color=#66ccff](+%d ESCUDO)[/color]" % main.player_shield
+		hp_text += " [color=#66ccff][font_size=9](+%d🛡)[/font_size][/color]" % main.player_shield
 
 	lbl_player_hp.text = hp_text
 
@@ -560,6 +546,31 @@ func update_ui() -> void:
 			lbl_furia.modulate = Color(0.7, 0.9, 0.3)
 		else:
 			lbl_furia.modulate = Color(0.4, 0.5, 0.4, 0.7)
+
+	if lbl_fervor:
+		var san = GameManager.sanity
+		var spent = main.mahar_guided_struck
+		if san >= 60:
+			lbl_fervor.text = "✦ FERVOR: Usado" if spent else "✦ FERVOR: Listo"
+			lbl_fervor.modulate = Color(0.45, 0.38, 0.18, 0.65) if spent else Color(1.0, 0.75, 0.15)
+		elif san < 40:
+			lbl_fervor.text = "✦ FE ROTA: +2 ATK"
+			lbl_fervor.modulate = Color(0.85, 0.35, 0.35)
+		else:
+			lbl_fervor.text = "✦ FERVOR: Inactivo"
+			lbl_fervor.modulate = Color(0.35, 0.32, 0.28, 0.5)
+
+		if san != _fervor_last_san or spent != _fervor_last_spent:
+			_fervor_last_san = san
+			_fervor_last_spent = spent
+			main.update_card_states()
+
+	var cur_hp = main.player_hp
+	var cur_hs = main.hand_container.get_child_count() if main.hand_container else 0
+	if cur_hp != _last_hp or cur_hs != _last_hand_size:
+		_last_hp = cur_hp
+		_last_hand_size = cur_hs
+		main.update_card_states()
 
 	lbl_draw_pile.text    = "MAZO: %d" % main.draw_pile.size()
 	lbl_discard_pile.text = "DESC: %d" % main.discard_pile.size()
@@ -678,17 +689,17 @@ func _start_low_hp_pulse() -> void:
 	_low_hp_pulse_tween = main.create_tween().set_loops()
 	_low_hp_pulse_tween.tween_method(
 		func(c: Color): _player_panel_style.border_color = c,
-		Color(0.45, 0.35, 0.65), Color(0.9, 0.1, 0.1), 0.5)
+		_char_color, Color(0.9, 0.1, 0.1), 0.5)
 	_low_hp_pulse_tween.tween_method(
 		func(c: Color): _player_panel_style.border_color = c,
-		Color(0.9, 0.1, 0.1), Color(0.45, 0.35, 0.65), 0.5)
+		Color(0.9, 0.1, 0.1), _char_color, 0.5)
 
 func _stop_low_hp_pulse() -> void:
 	if _low_hp_pulse_tween != null:
 		_low_hp_pulse_tween.kill()
 		_low_hp_pulse_tween = null
 	if _player_panel_style != null:
-		_player_panel_style.border_color = Color(0.45, 0.35, 0.65)
+		_player_panel_style.border_color = _char_color
 
 func update_intent_labels() -> void:
 	var has_manual = GameManager.has_relic("manual_anatomista")
@@ -717,7 +728,8 @@ func update_intent_labels() -> void:
 			if e.name == "El Penitente":
 				var thought = main._get_penitente_thought()
 				var display_text = main._get_deciphered_thought(thought)
-
+				if display_text.length() > 18:
+					display_text = display_text.substr(0, 18) + "…"
 				e.lbl_intent_icon.text = display_text + " (" + str(e.peaceful_turns) + ")"
 				e.lbl_intent_icon.modulate = Color(0.9, 0.8, 0.2) # Amarillo
 				if e.get("intent_badge_style"):
@@ -1055,25 +1067,12 @@ func show_dread_message() -> void:
 		return
 	if messages.is_empty():
 		return
-	var msg = messages[randi() % messages.size()]
-	show_message(msg, 3.5)
+	DialogueUI.cinematic(messages[randi() % messages.size()])
 
 func show_enemy_intro(enemy_name: String) -> void:
 	var intro = COMBAT_FLAVOR["enemy_intro"].get(enemy_name,
 		COMBAT_FLAVOR["enemy_intro"]["default"])
-	show_message(intro, 3.0)
-
-func show_message(text: String, duration: float = 3.0) -> void:
-	if not panel_message or not lbl_message:
-		return
-	lbl_message.text = text
-	panel_message.visible = true
-	panel_message.modulate.a = 0.0
-	var tw_in = main.create_tween()
-	tw_in.tween_property(panel_message, "modulate:a", 1.0, 0.3)
-	tw_in.tween_interval(duration)
-	tw_in.tween_property(panel_message, "modulate:a", 0.0, 0.4)
-	tw_in.tween_callback(func(): panel_message.visible = false)
+	DialogueUI.cinematic(intro)
 
 # ─── Destilados ───────────────────────────────────────────────────────────────
 func _show_destilado_tooltip(anchor: Control, dest_id: String) -> void:

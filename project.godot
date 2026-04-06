@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 GameManager="*uid://hdbwypomjclr"
 AudioManager="*res://scripts/AudioManager.gd"
 Events="*res://scripts/Events.gd"
+DialogueUI="*res://scenes/ui/DialogueUI.tscn"
 
 [display]
 

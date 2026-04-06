@@ -135,6 +135,22 @@ func _ready() -> void:
 	tooltip_panel.add_child(tooltip_label)
 	add_child(tooltip_panel)
 
+	var fervor_badge = Label.new()
+	fervor_badge.name = "FervorBadge"
+	fervor_badge.position = Vector2(8, 100)
+	fervor_badge.size = Vector2(114, 18)
+	fervor_badge.add_theme_font_size_override("font_size", 10)
+	fervor_badge.visible = false
+	add_child(fervor_badge)
+
+	var ctx_badge = Label.new()
+	ctx_badge.name = "ContextBadge"
+	ctx_badge.position = Vector2(8, 118)
+	ctx_badge.size = Vector2(114, 18)
+	ctx_badge.add_theme_font_size_override("font_size", 10)
+	ctx_badge.visible = false
+	add_child(ctx_badge)
+
 	mouse_entered.connect(_on_mouse_entered)
 	mouse_exited.connect(_on_mouse_exited)
 	gui_input.connect(_on_gui_input)
@@ -215,6 +231,8 @@ func update_display(force_upgrade_style: bool = false) -> void:
 		else:
 			if attack > 0:
 				label_attack.text = "⚔ ATK: " + str(attack)
+				if GameManager.selected_character == "mahar":
+					_update_fervor_badge()
 				label_attack.modulate = Color(0.3, 0.9, 0.3)
 			if defense > 0:
 				label_defense.text = "🛡 DEF: " + str(defense)
@@ -234,7 +252,12 @@ func update_display(force_upgrade_style: bool = false) -> void:
 			label_attack.text = "⚔ ATK: 4"
 			label_attack.modulate = Color(0.8, 0.3, 0.3)
 		else:
-			label_attack.text = "⚔ ATK: " + str(attack) if attack > 0 else ""
+			if attack > 0:
+				label_attack.text = "⚔ ATK: " + str(attack)
+				if GameManager.selected_character == "mahar":
+					_update_fervor_badge()
+			else:
+				label_attack.text = ""
 			label_attack.modulate = Color(0.8, 0.3, 0.3)
 			label_defense.text = "🛡 DEF: " + str(defense) if defense > 0 else ""
 			label_defense.modulate = Color(0.4, 0.6, 0.8)
@@ -254,8 +277,13 @@ func update_display(force_upgrade_style: bool = false) -> void:
 		tooltip_text += "[color=#ff66ff]Jugar cuesta " + str(curse_cost) + " Cordura.[/color]\n"
 		tooltip_text += "[color=#777777][font_size=10]Si Cordura insuficiente, el exceso daña tu Vida.[/font_size][/color]"
 
-	tooltip_panel.get_node("TooltipLabel").text = tooltip_text
-	tooltip_panel.get_node("TooltipLabel").modulate = Color.WHITE
+	var _tlabel = tooltip_panel.get_node("TooltipLabel")
+	_tlabel.text = tooltip_text
+	_tlabel.modulate = Color.WHITE
+	# Expandir el panel para cartas marcadas — el contenido extra no cabe en 140px
+	var _panel_h = 220 if is_marked else 140
+	tooltip_panel.size.y = _panel_h
+	_tlabel.size.y = _panel_h - 16
 	var icon_lbl = get_node("IconLabel")
 	if "LEGENDARIA" in description:
 		icon_lbl.text = "👑"; icon_lbl.modulate = Color(1, 0.9, 0.4, 0.4)
@@ -301,6 +329,79 @@ func set_disabled(value: bool) -> void:
 	else:
 		_apply_style(Color(0.12, 0.12, 0.15))
 
+func _update_fervor_badge() -> void:
+	var badge = get_node_or_null("FervorBadge")
+	if not badge: return
+	var san = GameManager.sanity
+	var combat = get_tree().get_root().get_node_or_null("Combat") if get_tree() else null
+	var spent = combat != null and "mahar_guided_struck" in combat and combat.mahar_guided_struck
+	if san >= 60:
+		if spent:
+			badge.text = "✦ FERVOR (usado)"; badge.modulate = Color(0.5, 0.4, 0.2, 0.6)
+		else:
+			badge.text = "✦ FERVOR +4"; badge.modulate = Color(1.0, 0.75, 0.15)
+		badge.visible = true
+	elif san < 40:
+		badge.text = "✦ FE ROTA +2"; badge.modulate = Color(0.85, 0.35, 0.35)
+		badge.visible = true
+	else:
+		badge.visible = false
+
+func _refresh_context(hand_size: int = -1) -> void:
+	var badge = get_node_or_null("ContextBadge")
+	if not badge: return
+	var san = GameManager.sanity
+
+	# scaling_sanity — actualizar label_attack y badge con efecto real
+	if card_data.get("scaling_sanity", false) and attack > 0:
+		var mult = 2.0 if san < 35 else (1.5 if san < 60 else 1.0)
+		label_attack.text = "⚔ ATK: %d" % int(attack * mult)
+		if mult >= 2.0:
+			badge.text = "✦ TRANCE ×2"
+			badge.modulate = Color(0.55, 0.25, 0.85)
+			badge.visible = true
+		elif mult > 1.0:
+			badge.text = "✦ ABISMO ×1.5"
+			badge.modulate = Color(0.35, 0.25, 0.75, 0.85)
+			badge.visible = true
+		else:
+			badge.visible = false
+		return
+
+	# coste de sanidad — advertencia de peligro
+	var sc = card_data.get("sanity_cost", 0)
+	if sc > 0:
+		if san <= sc:
+			badge.text = "⚠ CORD FATAL"
+			badge.modulate = Color(1.0, 0.15, 0.15)
+		else:
+			badge.text = "⚠ −%d CORD" % sc
+			badge.modulate = Color(0.85, 0.5, 0.15) if san < sc + 20 else Color(0.65, 0.45, 0.75)
+		badge.visible = true
+		return
+
+	# coste de HP
+	var hc = card_data.get("hp_cost", 0)
+	if hc > 0:
+		var php = GameManager.player_hp
+		if php <= hc + 1:
+			badge.text = "⚠ HP FATAL"
+			badge.modulate = Color(1.0, 0.15, 0.15)
+		else:
+			badge.text = "⚠ −%d HP" % hc
+			badge.modulate = Color(0.85, 0.35, 0.35)
+		badge.visible = true
+		return
+
+	# Susurro Debilitante — bonus de última carta
+	if "SUSURRO DEBILITANTE" in card_name and hand_size == 1:
+		badge.text = "✦ ÚLTIMA ×2"
+		badge.modulate = Color(0.5, 0.35, 0.85)
+		badge.visible = true
+		return
+
+	badge.visible = false
+
 func _apply_style(color: Color) -> void:
 	var style = StyleBoxFlat.new()
 	style.bg_color = color; style.set_corner_radius_all(4)
@@ -327,7 +428,19 @@ func _apply_style(color: Color) -> void:
 	# Ajustar opacidad del color base si es hover
 	if color.r > 0.3: # Si es el color de hover amarillento
 		style.border_color = style.border_color.lightened(0.2)
-		
+
+	# Borde FERVOR para cartas de ataque de Mahar
+	if GameManager.selected_character == "mahar" and attack > 0:
+		var san = GameManager.sanity
+		var combat = get_tree().get_root().get_node_or_null("Combat") if get_tree() else null
+		var spent = combat != null and "mahar_guided_struck" in combat and combat.mahar_guided_struck
+		if san >= 60 and not spent:
+			style.border_color = Color(1.0, 0.75, 0.15)
+		elif san >= 60 and spent:
+			style.border_color = Color(0.4, 0.35, 0.2)
+		elif san < 40:
+			style.border_color = Color(0.75, 0.25, 0.25)
+
 	add_theme_stylebox_override("panel", style)
 
 func _animate_hover(entering: bool) -> void:

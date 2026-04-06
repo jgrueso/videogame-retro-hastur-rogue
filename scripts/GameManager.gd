@@ -28,9 +28,11 @@ var is_boss_fight: bool = false
 var is_miniboss_fight: bool = false
 var is_final_boss: bool = false
 var is_elite_fight: bool = false
+var is_mimic_chest: bool = false
 var selected_character: String = "mahar"
 var lore_progress: int = 0       # avanza con cada combate ganado, persiste entre runs
 var total_runs: int = 0          # cuantas runs completas ha hecho el jugador
+var sombra_met: bool = false     # evento único de meta-progresión (La Sombra Archivada)
 var current_world: int = 0       # 0 = Mundo I, 1 = Mundo II
 var map_graph: Array = []        # [{type, connections:[col_idx,...]}] por piso
 var current_map_col: int = -1
@@ -48,6 +50,7 @@ var void_path_step: int = 0 # 0-3 (Combate, Combate, Jefe Secreto, Tesoro)
 var came_from_room: bool = false # True al salir de una sala hacia el mapa; Map._ready() guarda entonces
 var fragment_count_w3: int = 0   # Fragmentos de Carcosa recogidos (acumulativo entre runs)
 var resonancia_stacks: int = 0   # Solo Príncipe, reset por run
+var npc_met: Dictionary = {}      # {"caminante": true, ...} NPCs encontrados esta run
 
 # ─── Destilados ───────────────────────────────────────────────────────────────
 const MAX_DESTILADOS: int = 2
@@ -70,24 +73,54 @@ func _unhandled_input(event: InputEvent) -> void:
 		_close_active_overlay = Callable()
 		get_viewport().set_input_as_handled()
 
+func _get_transition_preset(path: String) -> Dictionary:
+	if "Combat.tscn" in path:
+		return {"color": Color(0.06, 0.02, 0.10), "in": 0.42, "hold": 0.06, "out": 0.52}
+	if "GameOver.tscn" in path:
+		return {"color": Color(0.10, 0.01, 0.01), "in": 0.55, "hold": 0.10, "out": 0.65}
+	if "Map.tscn" in path:
+		return {"color": Color(0.0,  0.0,  0.0),  "in": 0.22, "hold": 0.04, "out": 0.32}
+	if "Rest.tscn" in path:
+		return {"color": Color(0.07, 0.05, 0.01), "in": 0.38, "hold": 0.06, "out": 0.48}
+	if "Treasure.tscn" in path:
+		return {"color": Color(0.05, 0.04, 0.01), "in": 0.30, "hold": 0.05, "out": 0.38}
+	if "Shop.tscn" in path:
+		return {"color": Color(0.02, 0.04, 0.07), "in": 0.30, "hold": 0.05, "out": 0.38}
+	if "VoidMap.tscn" in path:
+		return {"color": Color(0.04, 0.01, 0.10), "in": 0.45, "hold": 0.08, "out": 0.55}
+	if "CharacterSelect.tscn" in path:
+		return {"color": Color(0.0,  0.0,  0.0),  "in": 0.45, "hold": 0.08, "out": 0.55}
+	if "MainMenu.tscn" in path:
+		return {"color": Color(0.0,  0.0,  0.0),  "in": 0.50, "hold": 0.10, "out": 0.60}
+	return             {"color": Color(0.0,  0.0,  0.0),  "in": 0.30, "hold": 0.05, "out": 0.40}
+
 func go_to_scene(path: String) -> void:
 	if _transitioning: return
 	_transitioning = true
+
+	var p   = _get_transition_preset(path)
+	var col = p["color"]
+
 	var layer = CanvasLayer.new()
 	layer.layer = 500
 	add_child(layer)
+
 	var overlay = ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0)
+	overlay.color = Color(col.r, col.g, col.b, 0.0)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	layer.add_child(overlay)
+
 	var tree = get_tree()
 	var tw = create_tween()
-	tw.tween_property(overlay, "color:a", 1.0, 0.05)
+	tw.tween_property(overlay, "color:a", 1.0, p["in"]) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_interval(p["hold"])
 	tw.tween_callback(func():
 		tree.change_scene_to_file(path)
 		var tw2 = create_tween()
-		tw2.tween_property(overlay, "color:a", 0.0, 0.1)
+		tw2.tween_property(overlay, "color:a", 0.0, p["out"]) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		tw2.tween_callback(func():
 			layer.queue_free()
 			_transitioning = false
@@ -106,6 +139,7 @@ func save_meta() -> void:
 		"prince_unlocked": prince_unlocked,
 		"unlocked_lore": unlocked_lore,
 		"total_runs": total_runs,
+		"sombra_met": sombra_met,
 		"lore_progress_total": lore_progress # Opcional: lore acumulado
 	}
 	var file = FileAccess.open(META_SAVE_PATH, FileAccess.WRITE)
@@ -124,6 +158,7 @@ func load_meta() -> void:
 			prince_unlocked = data.get("prince_unlocked", false)
 			unlocked_lore = data.get("unlocked_lore", [])
 			total_runs = data.get("total_runs", 0)
+			sombra_met = data.get("sombra_met", false)
 		file.close()
 
 # --- GUARDADO DE LA PARTIDA ACTUAL (Run) ---
@@ -149,7 +184,8 @@ func save_run() -> void:
 		"secret_items": secret_items,
 		"lore_progress": lore_progress,
 		"run_seed": run_seed,
-		"fragment_count_w3": fragment_count_w3
+		"fragment_count_w3": fragment_count_w3,
+		"npc_met": npc_met
 	}
 	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.WRITE)
 	if file:
@@ -196,6 +232,7 @@ func load_run() -> bool:
 			lore_progress = data.get("lore_progress", lore_progress)
 			run_seed = data.get("run_seed", 0)
 			fragment_count_w3 = data.get("fragment_count_w3", 0)
+			npc_met = data.get("npc_met", {})
 			file.close()
 			return true
 	return false
@@ -349,6 +386,7 @@ var has_eternal_fragment: bool = false # Objeto misterioso de esta run
 # DEBUG
 var dev_force_avatar: bool = false
 var dev_force_penitente: bool = false
+var dev_force_dice_event: bool = false
 
 # --- PROGRESO PERMANENTE ---
 # Ya no guardamos cartas, solo el progreso del lore y estadísticas
@@ -857,6 +895,7 @@ func reset_run() -> void:
 	is_miniboss_fight = false
 	is_final_boss = false
 	is_elite_fight = false
+	is_mimic_chest = false
 	selected_character = "mahar"
 	total_runs += 1
 	relics = []
@@ -874,5 +913,6 @@ func reset_run() -> void:
 	destilados = []
 	destilados_blocked = false
 	relic_fragments = 0
+	npc_met = {}
 	# rift_wanderer_offered persiste entre runs (no se resetea aquí)
 	# fragment_count_w3 persiste entre runs (no se resetea aquí)

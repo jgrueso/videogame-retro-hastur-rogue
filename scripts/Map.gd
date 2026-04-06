@@ -10,11 +10,109 @@ const ROOM_FINAL_W2 = "final_w2"
 const ROOM_SECRET   = "secret"
 const ROOM_REST     = "rest"
 const ROOM_TREASURE = "treasure"
+const ROOM_MIMIC    = "mimic"
 const ROOM_VOID_COMBAT = "void_combat"
 const ROOM_VOID_BOSS   = "void_boss"
 const ROOM_FRAGMENT  = "fragment"
 const ROOM_FINAL_W3  = "final_w3"
 const ROOM_VAULT_W3  = "vault_w3"
+
+# ── Diálogos de NPCs del mapa ─────────────────────────────────────────────────
+const NPC_DIALOGUES: Dictionary = {
+	"caminante": {
+		"portrait": "👁",
+		"name": "El Caminante del Umbral",
+		"lines": [
+			{
+				"id": "start",
+				"text": "Llevas ciclos buscando algo que ya no existe.",
+				"choices": [
+					{"label": "¿Qué sabes de Hastur?", "next": "hastur_info"},
+					{"label": "No me interesan tus palabras.", "next": "end"},
+				]
+			},
+			{
+				"id": "hastur_info",
+				"text": "Hastur no es un dios. Es una deuda pendiente del tablero. El Rey Amarillo no reina — espera. Y tú te acercas.",
+				"effect": {"lore_progress": 10},
+				"choices": [
+					{"label": "Dame algo útil.", "next": "offer"},
+					{"label": "Suficiente.", "next": "end"},
+				]
+			},
+			{
+				"id": "offer",
+				"text": "Puedo mostrarte el camino hacia Carcosa. Pero el tablero siempre cobra su precio.",
+				"choices": [
+					{"label": "Sacrifica una reliquia (-1 reliquia, +15 lore)", "next": "end", "effect": {"sacrifice_relic": true, "lore_progress": 15}},
+					{"label": "Rechazar.", "next": "end"},
+				]
+			},
+		]
+	},
+	"mensajero": {
+		"portrait": "♔",
+		"name": "El Mensajero Amarillo",
+		"lines": [
+			{
+				"id": "start",
+				"text": "El Príncipe de Carcosa ya conoce tu nombre. Ha esperado cada una de tus muertes.",
+				"choices": [
+					{"label": "¿Quién te envía?", "next": "origen"},
+					{"label": "No me importa.", "next": "end"},
+				]
+			},
+			{
+				"id": "origen",
+				"text": "El umbral entre lo que fue y lo que será. Llevo su mensaje desde antes de que comenzaras a recordar.",
+				"effect": {"sanity": -15},
+				"choices": [
+					{"label": "¿Qué mensaje?", "next": "mensaje"},
+					{"label": "Retrocede.", "next": "end"},
+				]
+			},
+			{
+				"id": "mensaje",
+				"text": "«Ha llegado la hora de Carcosa. El jugador que eres ahora será el último que recuerdes haber sido.»",
+				"effect": {"lore_progress": 20, "sanity": -10},
+				"choices": [
+					{"label": "Aceptar el mensaje.", "next": "end"},
+				]
+			},
+		]
+	},
+	"sombra": {
+		"portrait": "◉",
+		"name": "La Sombra Archivada",
+		"lines": [
+			{
+				"id": "start",
+				"text": "Recuerdo cada vez que moriste aquí. La primera vez fue la más ruidosa.",
+				"choices": [
+					{"label": "¿Qué eres?", "next": "identidad"},
+					{"label": "No quiero saber.", "next": "end"},
+				]
+			},
+			{
+				"id": "identidad",
+				"text": "Soy lo que el tablero archiva de cada partida perdida. Vuestros patrones, vuestros errores, vuestros últimos pensamientos.",
+				"choices": [
+					{"label": "¿Puedes ayudarme?", "next": "ayuda"},
+					{"label": "Déjame en paz.", "next": "end"},
+				]
+			},
+			{
+				"id": "ayuda",
+				"text": "He guardado algo de una run anterior. Una carta que encontraste una vez y perdiste antes del final.",
+				"effect": {"secret_card": true, "lore_progress": 5},
+				"choices": [
+					{"label": "Tomar la carta.", "next": "end"},
+					{"label": "Rechazar.", "next": "end"},
+				]
+			},
+		]
+	},
+}
 
 const ROOM_COLORS = {
 	ROOM_COMBAT:   Color(0.3, 0.3, 0.7),
@@ -27,6 +125,7 @@ const ROOM_COLORS = {
 	ROOM_SECRET:   Color(0.45, 0.38, 0.04),
 	ROOM_REST:     Color(0.4, 0.7, 0.8),
 	ROOM_TREASURE: Color(0.8, 0.6, 0.1),
+	ROOM_MIMIC:    Color(0.8, 0.6, 0.1),
 	ROOM_VOID_COMBAT: Color(0.1, 0.4, 0.6),
 	ROOM_VOID_BOSS: Color(0.2, 0.8, 1.0),
 	ROOM_FRAGMENT:  Color(0.5, 0.1, 0.8),
@@ -42,6 +141,7 @@ const ROOM_DESCRIPTIONS: Dictionary = {
 	"boss":        ["★ JEFE DE MUNDO",         "El guardián del piso. Derrótalo para avanzar.",         ["Fue creado para detenerte. Lleva haciéndolo desde antes de que nacieras.", "No guarda el camino por lealtad. Lo hace por necesidad.", "Matar al guardián no abre la puerta. Solo la desbloquea."]],
 	"rest":        ["🕯 HOGUERA DE CENIZA",    "Descansa, forja o sacrifica. Un momento de tregua.",   ["La hoguera no calienta. Solo postpone el frío.", "Incluso aquí, algo observa desde las sombras.", "El descanso en Valdris es mentira. Pero es la única mentira útil."]],
 	"treasure":    ["📦 COFRE OLVIDADO",       "Algo brilla entre la ceniza. ¿Carta o reliquia?",       ["Quien lo dejó aquí ya no puede reclamarlo.", "El brillo no es señal de valor. A veces es señal de trampa.", "Lleva aquí esperando más tiempo del que imaginas."]],
+	"mimic":       ["📦 COFRE OLVIDADO",       "Algo brilla entre la ceniza. ¿Carta o reliquia?",       ["Quien lo dejó aquí ya no puede reclamarlo.", "El brillo no es señal de valor. A veces es señal de trampa.", "Lleva aquí esperando más tiempo del que imaginas."]],
 	"void_combat": ["🌀 GRIETA DEL VACÍO",     "Camino secreto. Combate en el umbral del olvido.",      ["El vacío no te invita. Te tolera.", "Pocas piezas regresan de aquí con la misma forma.", "El umbral tiene memoria. Y te ha visto antes."]],
 	"void_boss":   ["✦ CENTINELA DEL ABISMO", "El guardián del paso secreto. Alta recompensa.",         ["Existe para cerrar puertas. La tuya incluida.", "Lo que custodia no puede nombrarse. Aún.", "Venció a los anteriores. ¿Qué te hace diferente?"]],
 	"final":       ["♔ EL REY SIN CORONA",    "El final del primer tablero te aguarda.",                ["El trono siempre estuvo vacío. Eso no lo hace menos peligroso.", "No busca ganar. Busca que tú pierdas.", "Su nombre fue borrado. Solo queda el hambre."]],
@@ -65,7 +165,7 @@ const ROOM_LABELS = {
 	ROOM_COMBAT:   "⚔ Eco de Batalla",
 	ROOM_ELITE:    "☠ Presencia Voraz",
 	ROOM_EVENT:    "♄ Augurio",
-	ROOM_SHOP:     "☤ El Buhonero",
+	ROOM_SHOP:     "☤ El Telonero",
 	ROOM_BOSS:     "★ JEFE DE MUNDO",
 	ROOM_FINAL:    "♔ EL REY SIN CORONA",
 	ROOM_FINAL_W2: "♔ EL REY AMARILLO",
@@ -96,6 +196,7 @@ const ROOM_BIG_ICONS : Dictionary = {
 	"final_w3":    "◉",
 	"rest":        "🕯",
 	"treasure":    "◆",
+	"mimic":       "◆",
 	"void_combat": "🌀",
 	"void_boss":   "✦",
 	"secret":      "✦",
@@ -157,6 +258,7 @@ func _ready() -> void:
 	modulate.a = 0.0
 	build_ui()
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.4)
+	_spawn_map_npcs()
 # ─── Generacion procedural del mapa ──────────────────────────────────────────
 func _generate_map() -> Array:
 	var graph: Array = []
@@ -324,6 +426,11 @@ func _pick_room_type(f_idx: int, total: int, prev_type: String) -> String:
 	# Nunca dos elites adyacentes en el mismo piso
 	if t == ROOM_ELITE and prev_type == ROOM_ELITE:
 		t = ROOM_COMBAT
+
+	# 20% de los cofres son mímicos — indistinguibles en el mapa
+	if t == ROOM_TREASURE and randf() < 0.20:
+		t = ROOM_MIMIC
+
 	return t
 
 func _connect_floors(graph: Array, f: int) -> void:
@@ -918,41 +1025,57 @@ func update_ui() -> void:
 func _build_dev_panel(vp: Vector2) -> Panel:
 	var p = Panel.new()
 	p.position = Vector2(20, 50)
-	p.size = Vector2(200, 430)
+	p.size = Vector2(210, vp.y - 60)
 	p.z_index = 100
 	var st = StyleBoxFlat.new()
-	st.bg_color = Color(0.1, 0.1, 0.1, 0.9)
+	st.bg_color = Color(0.1, 0.1, 0.1, 0.92)
 	st.set_border_width_all(2)
 	st.border_color = Color(0.5, 0.5, 0.5)
 	p.add_theme_stylebox_override("panel", st)
-	
+
+	# ScrollContainer ocupa todo el panel con margen interno
+	var scroll = ScrollContainer.new()
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.add_theme_constant_override("margin_left",  6)
+	scroll.add_theme_constant_override("margin_right", 6)
+	scroll.add_theme_constant_override("margin_top",   6)
+	scroll.add_theme_constant_override("margin_bottom",6)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	p.add_child(scroll)
+
 	var vbox = VBoxContainer.new()
-	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 10)
-	p.add_child(vbox)
-	
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 3)
+	scroll.add_child(vbox)
+
 	var btns = [
-		["+100 Oro", func(): GameManager.add_coins(100); update_ui()],
-		["-20 Cordura", func(): GameManager.sanity = max(0, GameManager.sanity - 20); update_ui()],
-		["+20 Cordura", func(): GameManager.sanity = min(100, GameManager.sanity + 20); update_ui()],
-		["Curar Todo", func(): GameManager.player_hp = GameManager.player_max_hp; update_ui()],
-		["Ir a Tesoro", func(): GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")],
-		["Ir a Tienda", func(): GameManager.go_to_scene("res://scenes/ui/Shop.tscn")],
-		["GRIETA MUNDO I", func(): 
+		["+100 Oro",       func(): GameManager.add_coins(100); update_ui()],
+		["-20 Cordura",    func(): GameManager.sanity = max(0, GameManager.sanity - 20); update_ui()],
+		["+20 Cordura",    func(): GameManager.sanity = min(100, GameManager.sanity + 20); update_ui()],
+		["Curar Todo",     func(): GameManager.player_hp = GameManager.player_max_hp; update_ui()],
+		["Ir a Tesoro",    func(): GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")],
+		["Ir a Mímico",    func():
+			GameManager.is_mimic_chest = true
+			GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")],
+		["Ir a Tienda",    func(): GameManager.go_to_scene("res://scenes/ui/Shop.tscn")],
+		["GRIETA MUNDO I", func():
 			GameManager.current_world = 0
 			GameManager.enter_void_path()],
-		["GRIETA MUNDO II", func(): 
+		["GRIETA MUNDO II", func():
 			GameManager.current_world = 1
 			GameManager.enter_void_path()],
 		["TEST: EVENTO GRIETA", func():
 			GameManager.add_relic("ficha_marfil")
 			GameManager.lore_progress = 25
 			GameManager.rift_notified = false
-			# Forzar que el piso actual + 2 tenga una grieta
 			var target_f = clamp(GameManager.current_map_floor + 2, 0, GameManager.map_graph.size() - 1)
 			var target_floor_nodes = GameManager.map_graph[target_f]
 			target_floor_nodes[target_floor_nodes.size()-1]["has_rift"] = true
 			get_tree().reload_current_scene()],
-		["Reset Mapa", func(): GameManager.map_graph = []; get_tree().reload_current_scene()],
+		["⚄ Evento Dado",  func():
+			GameManager.dev_force_dice_event = true
+			GameManager.go_to_scene("res://scenes/ui/Event.tscn")],
+		["Reset Mapa",     func(): GameManager.map_graph = []; get_tree().reload_current_scene()],
 		["⟁ Frag: Símbolo", func():
 			if not GameManager.has_secret_item("simbolo_amarillo"):
 				GameManager.add_secret_item("simbolo_amarillo")],
@@ -962,11 +1085,11 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		["✉ Frag: Carcosa", func():
 			if not GameManager.has_secret_item("carta_carcosa"):
 				GameManager.add_secret_item("carta_carcosa")],
-		["♟ REY AMARILLO", func():
+		["♟ REY AMARILLO",  func():
 			GameManager.is_final_boss = true
 			GameManager.current_world = 1
 			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")],
-		["◉ W3: TESTIGO", func():
+		["◉ W3: TESTIGO",   func():
 			GameManager.is_final_boss = true
 			GameManager.current_world = 2
 			GameManager.map_graph = []
@@ -982,13 +1105,16 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 			GameManager.current_map_col = -1
 			GameManager.go_to_scene("res://scenes/ui/Map.tscn")],
 	]
-	
+
 	for b_data in btns:
 		var b = Button.new()
 		b.text = b_data[0]
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 10)
+		b.custom_minimum_size = Vector2(0, 24)
 		b.pressed.connect(b_data[1])
 		vbox.add_child(b)
-		
+
 	return p
 
 func _add_glow_effect(target: Control, col: Color) -> void:
@@ -1532,6 +1658,9 @@ func _on_room_selected(floor_idx: int, col_idx: int) -> void:
 			GameManager.go_to_scene("res://scenes/ui/Rest.tscn")
 		ROOM_TREASURE:
 			GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")
+		ROOM_MIMIC:
+			GameManager.is_mimic_chest = true
+			GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")
 		ROOM_BOSS:
 			GameManager.is_boss_fight = true
 			GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
@@ -1915,3 +2044,211 @@ func _hide_tooltip() -> void:
 		if _tooltip_panel:
 			_tooltip_panel.visible = false
 	)
+
+# ── NPCs del Mapa ─────────────────────────────────────────────────────────────
+func _spawn_map_npcs() -> void:
+	var vp = get_viewport_rect().size
+	var npc_layer = CanvasLayer.new()
+	npc_layer.layer = 10
+	add_child(npc_layer)
+	# El Caminante del Umbral
+	if GameManager.lore_progress >= 15 and not GameManager.npc_met.get("caminante", false):
+		_create_npc_node("caminante", Vector2(vp.x - 120, vp.y * 0.45), npc_layer)
+	# El Mensajero Amarillo (post-boss, lore alto)
+	if GameManager.lore_progress >= 30 and not GameManager.npc_met.get("mensajero", false):
+		_create_npc_node("mensajero", Vector2(10, vp.y * 0.55), npc_layer)
+	# La Sombra Archivada — evento automático al cargar el mapa
+	if GameManager.total_runs >= 3 and not GameManager.sombra_met:
+		get_tree().create_timer(0.5).timeout.connect(func(): _open_npc_dialogue("sombra"), CONNECT_ONE_SHOT)
+
+func _create_npc_node(npc_id: String, pos: Vector2, parent: Node) -> void:
+	var data = NPC_DIALOGUES[npc_id]
+	var btn = Button.new()
+	btn.name = "NPC_" + npc_id
+	btn.text = data["portrait"] + "\n" + data["name"]
+	btn.position = pos
+	btn.size = Vector2(100, 70)
+	btn.z_index = 20
+	var sbox = StyleBoxFlat.new()
+	sbox.bg_color = Color(0.05, 0.04, 0.08, 0.88)
+	sbox.set_border_width_all(1)
+	sbox.border_color = Color(0.55, 0.45, 0.12)
+	sbox.set_corner_radius_all(6)
+	btn.add_theme_stylebox_override("normal", sbox)
+	btn.add_theme_stylebox_override("hover", sbox)
+	btn.add_theme_stylebox_override("pressed", sbox)
+	btn.add_theme_font_size_override("font_size", 11)
+	btn.pressed.connect(func(): _open_npc_dialogue(npc_id))
+	parent.add_child(btn)
+	# Animación de pulso idle DESPUÉS de add_child
+	var tw = create_tween().set_loops()
+	tw.tween_property(btn, "scale", Vector2(1.06, 1.06), 0.9).set_trans(Tween.TRANS_SINE)
+	tw.chain().tween_property(btn, "scale", Vector2.ONE, 0.9).set_trans(Tween.TRANS_SINE)
+
+func _open_npc_dialogue(npc_id: String) -> void:
+	var data = NPC_DIALOGUES[npc_id]
+	var vp = get_viewport_rect().size
+
+	var layer = CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+
+	# Fondo semitransparente
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.0)
+	overlay.size = vp
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(overlay)
+	create_tween().tween_property(overlay, "color:a", 0.82, 0.3)
+
+	# Panel principal
+	var panel = Panel.new()
+	panel.size = Vector2(min(vp.x * 0.68, 580), min(vp.y * 0.65, 480))
+	panel.position = (vp - panel.size) / 2
+	panel.modulate.a = 0.0
+	var s = StyleBoxFlat.new()
+	s.bg_color = Color(0.06, 0.05, 0.03)
+	s.set_border_width_all(2)
+	s.border_color = Color(0.55, 0.45, 0.12)
+	s.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", s)
+	overlay.add_child(panel)
+	create_tween().tween_property(panel, "modulate:a", 1.0, 0.35)
+
+	# Retrato y nombre
+	var portrait_lbl = Label.new()
+	portrait_lbl.text = data["portrait"]
+	portrait_lbl.add_theme_font_size_override("font_size", 42)
+	portrait_lbl.position = Vector2(20, 14)
+	portrait_lbl.size = Vector2(60, 56)
+	portrait_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	panel.add_child(portrait_lbl)
+
+	var name_lbl = Label.new()
+	name_lbl.text = data["name"]
+	name_lbl.add_theme_font_size_override("font_size", 18)
+	name_lbl.modulate = Color(0.9, 0.78, 0.2)
+	name_lbl.position = Vector2(86, 24)
+	name_lbl.size = Vector2(panel.size.x - 100, 36)
+	panel.add_child(name_lbl)
+
+	var sep = ColorRect.new()
+	sep.color = Color(0.5, 0.4, 0.1, 0.5)
+	sep.size = Vector2(panel.size.x - 40, 1)
+	sep.position = Vector2(20, 76)
+	panel.add_child(sep)
+
+	# Texto de diálogo
+	var text_lbl = Label.new()
+	text_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	text_lbl.size = Vector2(panel.size.x - 40, 120)
+	text_lbl.position = Vector2(20, 88)
+	text_lbl.add_theme_font_size_override("font_size", 15)
+	text_lbl.modulate = Color(0.88, 0.84, 0.76)
+	panel.add_child(text_lbl)
+
+	# Contenedor de opciones
+	var choices_vbox = VBoxContainer.new()
+	choices_vbox.position = Vector2(20, 220)
+	choices_vbox.size = Vector2(panel.size.x - 40, panel.size.y - 240)
+	choices_vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(choices_vbox)
+
+	# Función para navegar líneas del diálogo
+	var lines: Array = data["lines"]
+	var _show_line_ref: Array = [Callable()]
+	_show_line_ref[0] = func(line_id: String) -> void:
+		# Encontrar la línea por id
+		var line: Dictionary = {}
+		for l in lines:
+			if l.get("id", "start") == line_id:
+				line = l
+				break
+		if line.is_empty():
+			return
+
+		# Limpiar opciones previas
+		for ch in choices_vbox.get_children():
+			ch.queue_free()
+
+		# Mostrar texto con efecto typewriter
+		var full_text: String = line["text"]
+		text_lbl.text = ""
+		var tw_type = create_tween()
+		tw_type.tween_method(func(n: int): text_lbl.text = full_text.substr(0, n),
+			0, full_text.length(), float(full_text.length()) * 0.04)
+
+		# Aplicar efectos si existen
+		if line.has("effect"):
+			var eff: Dictionary = line["effect"]
+			if eff.has("lore_progress"):
+				GameManager.lore_progress += int(eff["lore_progress"])
+			if eff.has("sanity"):
+				GameManager.sanity = clamp(GameManager.sanity + int(eff["sanity"]), 0, GameManager.max_sanity)
+			if eff.get("sacrifice_relic", false):
+				if not GameManager.relics.is_empty():
+					GameManager.relics.pop_back()
+			if eff.get("secret_card", false):
+				# Añadir carta especial de la Sombra
+				GameManager.player_deck.append({"name": "Eco Archivado", "attack": 3, "defense": 3, "cost": 2})
+
+		# Generar botones de elección
+		var choices: Array = line.get("choices", [])
+		if choices.is_empty() or (choices.size() == 1 and choices[0].get("next", "end") == "end"):
+			# Sin elección real — botón de cierre
+			var close_btn = Button.new()
+			close_btn.text = "Partir."
+			close_btn.custom_minimum_size = Vector2(200, 38)
+			choices_vbox.add_child(close_btn)
+			close_btn.pressed.connect(func():
+				GameManager.npc_met[npc_id] = true
+				if npc_id == "sombra":
+					GameManager.sombra_met = true
+					GameManager.save_meta()
+				GameManager.save_run()
+				# Eliminar el nodo NPC del mapa
+				var npc_btn = find_child("NPC_" + npc_id, true, false)
+				if npc_btn:
+					npc_btn.queue_free()
+				var tw_out = create_tween()
+				tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
+				tw_out.finished.connect(layer.queue_free)
+			)
+		else:
+			for choice in choices:
+				var cbtn = Button.new()
+				cbtn.text = choice["label"]
+				cbtn.custom_minimum_size = Vector2(panel.size.x - 40, 38)
+				cbtn.autowrap_mode = TextServer.AUTOWRAP_WORD
+				choices_vbox.add_child(cbtn)
+				var next_id: String = choice.get("next", "end")
+				# Aplicar efecto de la elección si tiene
+				var choice_effect: Dictionary = choice.get("effect", {})
+				cbtn.pressed.connect(func():
+					if not choice_effect.is_empty():
+						if choice_effect.has("lore_progress"):
+							GameManager.lore_progress += int(choice_effect["lore_progress"])
+						if choice_effect.has("sanity"):
+							GameManager.sanity = clamp(GameManager.sanity + int(choice_effect["sanity"]), 0, GameManager.max_sanity)
+						if choice_effect.get("sacrifice_relic", false):
+							if not GameManager.relics.is_empty():
+								GameManager.relics.pop_back()
+						if choice_effect.get("secret_card", false):
+							GameManager.player_deck.append({"name": "Eco Archivado", "attack": 3, "defense": 3, "cost": 2})
+					if next_id == "end":
+						GameManager.npc_met[npc_id] = true
+						if npc_id == "sombra":
+							GameManager.sombra_met = true
+							GameManager.save_meta()
+						GameManager.save_run()
+						for ch in get_children():
+							if ch is Button and ch.text.begins_with(data["portrait"]):
+								ch.queue_free()
+						var tw_out = create_tween()
+						tw_out.tween_property(overlay, "modulate:a", 0.0, 0.2)
+						tw_out.finished.connect(layer.queue_free)
+					else:
+						_show_line_ref[0].call(next_id)
+				)
+
+	_show_line_ref[0].call("start")

@@ -1,7 +1,8 @@
 extends Node2D
 
-const DICE_REROLL_COST: int = 5
 const DICE_FACES: Array = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
+const MAX_DICE_ROLLS: int = 3
+const DICE_REROLL_COSTS: Array = [5, 10]  # costo del 1er y 2do relanzamiento
 
 const EVENT_CHARACTER_REACTIONS: Dictionary = {
 	"mahar": "«La Cofradia no me preparo para esto. Pero la fe no pide permiso para ser puesta a prueba.»",
@@ -33,100 +34,100 @@ const UMBRAL_EVENT: Dictionary = {
 var events: Array = [
 	{
 		"title": "El Altar Roto",
-		"text": "Encuentras un altar con una pieza de ajedrez grabada.\nEmana un poder extrano.",
+		"text": "La pieza de ajedrez sobre el altar no es decoración. Es alguien.\n\nLas piezas aprenden, tarde, que los altares no detienen el reciclaje — solo lo posponen. Quien construyó este sabía que sería inútil. Lo construyó de todas formas. Las marcas de quemaduras en la piedra son de las manos que intentaron retenerla.\n\nLa pieza te mira. No con ojos. Con el peso de alguien que lleva demasiado tiempo esperando ser recordado.",
 		"options": [
-			{"label": "Tocarla (-5 HP)", "hp": -5, "coins": 0, "heal": 0, "relic": true},
-			{"label": "Destruirla (+8 monedas)", "hp": 0, "coins": 8, "heal": 0},
-			{"label": "Ignorar (nada)", "hp": 0, "coins": 0, "heal": 0},
+			{"label": "Tomarla. Alguien tiene que recordarla (-5 HP, Reliquia)", "hp": -5, "coins": 0, "heal": 0, "relic": true},
+			{"label": "Destruirla. El tablero tendrá lo que siempre quiso (+8 monedas)", "hp": 0, "coins": 8, "heal": 0},
+			{"label": "Dejarla donde está. No eres tú quien decide esto (nada)", "hp": 0, "coins": 0, "heal": 0},
 		]
 	},
 	{
-		"title": "El Mercader Encadenado",
-		"text": "Un hombre con grilletes te mira con odio.\nTiene objetos valiosos.",
+		"title": "El Comerciante de Ciclos",
+		"text": "Vendió información al tablero durante ciclos. Nombres de piezas, patrones de movimiento, rutas hacia la Grieta. El precio que pidió era la libertad. El tablero aceptó — y le puso cadenas para que no se fuera antes de terminar de ser útil.\n\nTiene mercancía genuina. Todo viene de otros que pagaron por ella antes con algo que ya no tienen.\n\nTe mira con la ecuanimidad de quien lleva suficiente tiempo aquí para saber exactamente cuánto vales para el ciclo.",
 		"options": [
-			{"label": "Comprar normalmente (ir a tienda)", "hp": 0, "coins": 0, "heal": 0, "goto_shop": true},
-			{"label": "Liberarlo", "hp": 0, "coins": 0, "heal": 0, "relic": true},
-			{"label": "Robarle (+10 monedas, -10 HP)", "hp": -10, "coins": 10, "heal": 0},
+			{"label": "Ignorar las cadenas. Solo comprar (+tienda)", "hp": 0, "coins": 0, "heal": 0, "goto_shop": true},
+			{"label": "Romper las cadenas. El tablero lo reclama en el acto (Reliquia)", "hp": 0, "coins": 0, "heal": 0, "relic": true},
+			{"label": "Tomar lo que necesitas. Ya pagó suficiente (-10 HP, +10 monedas)", "hp": -10, "coins": 10, "heal": 0},
 		]
 	},
 	{
 		"title": "El Pueblo Fantasma",
-		"text": "Un pueblo vacio. En las paredes:\n'Los heroes vinieron. Luego el silencio.'",
+		"text": "No es un pueblo abandonado. Es un pueblo borrado.\n\nCarcosa existió aquí — en estas calles, con esta gente, con fogones que aún están tibios porque el tablero no dejó tiempo para que se enfriaran. Los superpuso cuando necesitó casillas. La escritura en las paredes no la dejaron los habitantes: es la marca que deja el ciclo en lo que aplasta.\n\n'Los héroes vinieron. Nosotros les abrimos las puertas.' La frase termina a mitad. El tablero no necesitó el resto.",
 		"options": [
-			{"label": "Investigar (+8 monedas)", "hp": 0, "coins": 8, "heal": 0},
-			{"label": "Arrodillarte (-10 HP max)", "hp": 0, "coins": 0, "heal": 0, "relic": true, "max_hp": -10},
-			{"label": "Salir rapido (nada)", "hp": 0, "coins": 0, "heal": 0},
+			{"label": "Buscar qué quedó de ellos (+8 monedas)", "hp": 0, "coins": 8, "heal": 0},
+			{"label": "Arrodillarte ante lo que fue Carcosa (-10 HP max, Reliquia)", "hp": 0, "coins": 0, "heal": 0, "relic": true, "max_hp": -10},
+			{"label": "Marcharte. El tablero no quiere que recuerdes esto (nada)", "hp": 0, "coins": 0, "heal": 0},
 		]
 	},
 	{
 		"title": "La Fuente Oscura",
-		"text": "Una fuente con agua negra.\nHuele a magia antigua.",
+		"text": "La fuente no refleja el techo. Refleja el cielo de Carcosa — el que existía antes de que Hastur se convirtiera en el tablero.\n\nEra un pozo de ofrenda. Los vecinos dejaban objetos en el fondo para que fueran devueltos transformados. El tablero cumplió esa promesa: los devolvió como otra cosa, en otro ciclo, sin que nadie los reconociera.\n\nEn el fondo, uno de los procesos del tablero toma forma. No tiene cuerpo todavía. Le estás dando tiempo.",
 		"options": [
-			{"label": "Beber (+20 HP)", "hp": 0, "coins": 0, "heal": 20},
-			{"label": "Sumergir la mano (-15 HP)", "hp": -15, "coins": 0, "heal": 0, "relic": true},
-			{"label": "Ignorar (nada)", "hp": 0, "coins": 0, "heal": 0},
+			{"label": "Beber. Que el ciclo procese lo que decides (+20 HP)", "hp": 0, "coins": 0, "heal": 20},
+			{"label": "Meter la mano hasta encontrar qué hay abajo (-15 HP, Reliquia)", "hp": -15, "coins": 0, "heal": 0, "relic": true},
+			{"label": "Rodearla. Hay procesos que es mejor no acelerar (nada)", "hp": 0, "coins": 0, "heal": 0},
 		]
 	},
 	{
 		"title": "El Caballero Sin Nombre",
-		"text": "Un caballero de armadura negra bloquea el camino.\nNo ataca. Solo observa.\n\n'Si me vences, soy tuyo.'",
+		"text": "Fue uno de los Caballeros de Carcosa — élite de la guardia del Príncipe. Se ve en cómo se para, en la distancia calculada, en cómo su mano no toca la empuñadura pero sabe exactamente cuánto tardaría.\n\nEl tablero borró el nombre primero. La causa, después. Lo que quedó fue la función: desafiar. Lleva ciclos cumpliendo ese reflejo frente a piezas que ya no recuerda, en nombre de un señor que ya no puede nombrar.\n\n'Si me vences, soy tuyo.' Lleva siglos esperando que alguien lo libere de estar esperando.",
 		"options": [
-			{"label": "Desafiarlo (miniboss)", "hp": 0, "coins": 0, "heal": 0, "miniboss": true},
-			{"label": "Ofrecerle monedas (-8 monedas)", "hp": 0, "coins": -8, "heal": 0},
-			{"label": "Dar media vuelta (nada)", "hp": 0, "coins": 0, "heal": 0},
+			{"label": "Aceptar el duelo (combate)", "hp": 0, "coins": 0, "heal": 0, "miniboss": true},
+			{"label": "Pagar el peaje. No todo vale la pena (-8 monedas)", "hp": 0, "coins": -8, "heal": 0},
+			{"label": "Retroceder. Hay otro camino (nada)", "hp": 0, "coins": 0, "heal": 0},
 		]
 	},
 	{
 		"title": "La Mesa del Destino",
-		"text": "Una mesa de obsidiana en el centro de la sala.\nSobre ella, un dado con runas antiguas.\nUna voz sin boca susurra:\n'Un lanzamiento gratuito. Los demas... cuestan vida.'",
+		"text": "El dado es de hueso. No el hueso de un animal.\n\nHastur no necesita ganar. Necesita que el juego continúe. Por eso la primera tirada es siempre gratuita — la gratitud es la mecánica más eficiente para que una pieza vuelva a la mesa. Para cuando decides si tirar de nuevo, ya no estás decidiendo si juegas. Estás decidiendo cuánto.\n\nLa silla frente a ti lleva el peso de todo lo que se sentó aquí. Una voz sin boca: 'El tablero recuerda cada resultado. Tú, no.'",
 		"options": [
-			{"label": "Tirar el dado (gratis)", "dice_game": true},
-			{"label": "Ignorar (nada)", "hp": 0, "coins": 0, "heal": 0},
+			{"label": "Lanzar el dado (primer lanzamiento gratis)", "dice_game": true},
+			{"label": "Levantarte sin tocar nada (nada)", "hp": 0, "coins": 0, "heal": 0},
 		]
 	},
 	{
 		"title": "La Biblioteca de los Susurros",
-		"text": "Una sala circular con miles de libros flotando, encuadernados en piel humana.\nVoces de todas las epocas hablan a la vez. No puedes taparte los oidos.\n'Todo es un juego. Todo es un ciclo. No eres real.'",
+		"text": "Los libros están encuadernados en piel de pieza — hay una diferencia de textura con la piel animal, y quien lleva tiempo en el tablero puede notarla.\n\nEl Capítulo Prohibido no es un texto ocultista. Es el manual del ciclo, escrito por el Príncipe antes de entrar al tablero, para quien llegara después. Hastur lo copió aquí como trampa: que las piezas que lean demasiado se quiebren antes de poder actuar.\n\n'No eres el primero.' Todas las voces dicen lo mismo. Todas excepto una.",
 		"options": [
-			{"label": "Leer el Capitulo Prohibido (+15 Lore, -30 Cordura)", "hp": 0, "coins": 0, "heal": 0, "lore_hint_big": true, "sanity_loss": 30},
-			{"label": "Quemar la biblioteca (+10 HP, +15 Cordura)", "hp": 0, "coins": 0, "heal": 10, "sanity_gain": 15},
-			{"label": "Escuchar los susurros (Reliquia, +2 Maldiciones)", "hp": 0, "coins": 0, "heal": 0, "relic": true, "double_curse": true},
+			{"label": "Leer el Capítulo Prohibido (+15 Lore, -30 Cordura)", "hp": 0, "coins": 0, "heal": 0, "lore_hint_big": true, "sanity_loss": 30},
+			{"label": "Quemarla. Que Hastur no tenga más trampas aquí (+10 HP, +15 Cordura)", "hp": 0, "coins": 0, "heal": 10, "sanity_gain": 15},
+			{"label": "Escuchar sin leer. Dejar que entre sin procesarlo (Reliquia, +2 Maldiciones)", "hp": 0, "coins": 0, "heal": 0, "relic": true, "double_curse": true},
 		]
 	},
 	{
 		"title": "El Susurro en la Galería",
-		"text": "La galería huele a cera quemada y a algo más antiguo.\n\nEn el centro, colgado con una cadena demasiado gruesa para un simple lienzo, un cuadro cubierto por una tela de lino.\n\nLa tela se mueve. No hay corriente de aire.",
+		"text": "La cadena que sostiene el lienzo es demasiado gruesa para un cuadro. No es una cadena de exhibición — es una cadena de contención.\n\nNadie encargó esta pintura. Apareció un ciclo, cubierta, en el lugar exacto donde debía estar para que alguien la encontrara. El tablero tampoco sabe qué hay debajo. Por eso dejó la cadena.\n\nLa tela se mueve. Lo que hay debajo lleva tiempo intentando salir por sus propios medios.",
 		"options": [
-			{"label": "Levantar la tela (-20 Cordura, Reliquia)", "sanity_loss": 20, "specific_relic": "ojo_grito"},
-			{"label": "Quemarla (-8 HP, carta Ceniza Preventiva)", "hp": -8, "add_specific_card": "Ceniza Preventiva"},
-			{"label": "Marcharse sin mirar (+10 Cordura)", "sanity_gain": 10},
+			{"label": "Levantar la tela. Ver lo que el tablero no quiso ver (-20 Cordura, Reliquia)", "sanity_loss": 20, "specific_relic": "ojo_grito"},
+			{"label": "Quemarla antes de ver. No todo conocimiento es deuda (-8 HP, carta Ceniza Preventiva)", "hp": -8, "add_specific_card": "Ceniza Preventiva"},
+			{"label": "Marcharse sin mirar. Algunas cadenas existen por razón (+10 Cordura)", "sanity_gain": 10},
 		]
 	},
 	{
 		"title": "La Lección del Anatomista",
-		"text": "Una figura con máscara de plumas doradas sostiene un bisturí.\n\nSu voz suena como si viniera de más lejos que la distancia que os separa.\n\n'Llevas tanto tiempo atravesando cuerpos. ¿Nunca has querido entender lo que hay dentro?'",
+		"text": "La máscara de plumas doradas era símbolo de los Anatomistas de Carcosa — los que estudiaban el ajedrez como si fuera medicina del alma. Diseccionaban la forma en que las piezas se movían para entender qué las hacía humanas todavía.\n\nEso era antes. Ahora disecciona piezas del tablero para entender qué las hace funcionar. Sus notas son el relic más buscado por quienes saben leerlas.\n\n'Llevas tanto tiempo atravesando cuerpos. ¿Nunca quisiste saber lo que el tablero pone dentro, específicamente?'",
 		"options": [
-			{"label": "Extender el brazo (-15 HP max, Reliquia + carta)", "max_hp": -15, "specific_relic": "manual_anatomista", "add_specific_card": "Incision Precisa"},
-			{"label": "Ofrecer una carta como sujeto (+1 ATK en mazo)", "remove_card_event": true, "boost_attack_cards": true},
-			{"label": "Tomar el bisturí antes (miniboss)", "miniboss": true},
+			{"label": "Extender el brazo. Que lo vea (-15 HP max, Reliquia + carta)", "max_hp": -15, "specific_relic": "manual_anatomista", "add_specific_card": "Incision Precisa"},
+			{"label": "Ceder una carta como sujeto de estudio (+1 ATK en mazo)", "remove_card_event": true, "boost_attack_cards": true},
+			{"label": "Tomar el bisturí antes de que él decida (combate)", "miniboss": true},
 		]
 	},
 	{
 		"title": "El Jardín de los Ojos",
-		"text": "Un patio imposible. Hileras ordenadas de pólipos de carne que terminan en ojos.\n\nOjos reales. Con iris. Con ese brillo húmedo de algo vivo.\n\nTodos te miran. En el centro, una fuente de agua que parece clara.",
+		"text": "Era un jardín de esculturas en Carcosa — cada figura tenía ojos de vidrio para que los visitantes no se sintieran solos. El tablero lo recicló con sus habitantes dentro.\n\nEl vidrio encontró carne. La carne encontró función. Ahora el jardín cumple el propósito que el tablero siempre tuvo para él: observar y transmitir todo lo que ve.\n\nTodos los ojos apuntan al mismo lugar. Ese lugar eres tú. En el centro, la fuente que los alimenta parece agua clara.",
 		"options": [
-			{"label": "Beber de la fuente (-25 Cordura, carta Mirada que Devora)", "sanity_loss": 25, "add_specific_card": "Mirada que Devora"},
-			{"label": "Arrancar uno de los pólipos (-10 HP, Reliquia)", "hp": -10, "specific_relic": "ojo_arrancado"},
-			{"label": "Cruzar sin tocar nada (depende de Cordura)", "sanity_conditional": true},
+			{"label": "Beber de la fuente. Ver lo que ellos ven (-25 Cordura, carta Mirada que Devora)", "sanity_loss": 25, "add_specific_card": "Mirada que Devora"},
+			{"label": "Arrancar uno. Que algo deje de mirar (-10 HP, Reliquia)", "hp": -10, "specific_relic": "ojo_arrancado"},
+			{"label": "Cruzar sin tocar nada. Que no sepan que estuviste aquí (depende de Cordura)", "sanity_conditional": true},
 		]
 	},
 	{
 		"title": "El Espejo de las Vidas Pasadas",
-		"text": "Un espejo de plata empanada. Al mirarte, no ves tu rostro, sino una de tus piezas de ajedrez desvaneciéndose.\nUna voz susurra: 'Olvida una parte de ti, y tu mente será más ligera... o tal vez más vacía.'",
+		"text": "El espejo fue instalado por Hastur, no encontrado. Su función: mostrar a la pieza lo que fue, para que decida si quiere seguir siéndolo.\n\nNo ves tu rostro. Ves una iteración anterior — no una alucinación, sino un archivo. El tablero guarda registro de cada versión de ti que pasó por aquí. Este espejo es el acceso de consulta. Las sombras grabadas en el marco son las que vinieron antes y decidieron ceder.\n\nUna voz sin urgencia: 'Cede un registro. Tu mente tendrá menos peso. O menos tú. El tablero no distingue la diferencia.'",
 		"options": [
-			{"label": "Sacrificar un recuerdo (Eliminar carta, -20 Cordura)", "remove_card_event": true, "sanity_loss": 20},
-			{"label": "Romper el espejo (-10 HP, +10 Monedas)", "hp": -10, "coins": 10},
-			{"label": "Alejarse (nada)", "hp": 0},
+			{"label": "Ceder un registro al archivo (Eliminar carta, -20 Cordura)", "remove_card_event": true, "sanity_loss": 20},
+			{"label": "Romperlo. Que el tablero pierda este registro (-10 HP, +10 monedas)", "hp": -10, "coins": 10},
+			{"label": "Darle la espalda. No eres lo que el tablero archivó (nada)", "hp": 0},
 		]
 	},
 ]
@@ -165,6 +166,14 @@ func _ready() -> void:
 	_font_ui        = load("res://assets/fonts/rajdhani.medium.ttf")
 	_font_corrupt   = load("res://assets/fonts/RubikGlitch-Regular.ttf")
 
+	# DEV: forzar evento del dado
+	if GameManager.dev_force_dice_event:
+		GameManager.dev_force_dice_event = false
+		current_event = events.filter(func(e): return e.get("title") == "La Mesa del Destino")[0]
+		_assign_relics()
+		build_ui()
+		return
+
 	# Aparición de El Umbral
 	var can_show_rift = (
 		not GameManager.rift_visited
@@ -183,11 +192,11 @@ func _ready() -> void:
 	if GameManager.lore_progress >= 4 and not GameManager.has_relic("lengua_tablero"):
 		pool.append({
 			"title": "El Susurro Amarillo",
-			"text": "Los caidos te hablan en un idioma extrano.\nPero entre los simbolos, reconoces algo:\nuna figura dorada. Un tablero infinito.\nUn nombre que no deberias saber.",
+			"text": "Los caídos no están muertos. Están entre ciclos — el tablero aún no terminó de procesarlos.\n\nTe hablan en el idioma de Carcosa, que también es el idioma del tablero antes de que Hastur lo convirtiera en otra cosa. Entre los símbolos, una frase se repite: el nombre que el tablero usa para referirse a ti. No es el tuyo. Nunca fue el tuyo.\n\nAlguien al otro lado de esta frecuencia te busca. Lleva suficientes ciclos haciéndolo como para saber exactamente dónde mirar.",
 			"options": [
-				{"label": "Buscar quien traduce (Lengua del Tablero, maldicion incluida)", "hp": 0, "coins": 0, "heal": 0, "specific_relic": "lengua_tablero"},
-				{"label": "Ignorarlo. Los heroes no necesitan preguntas.", "hp": 0, "coins": 0, "heal": 0},
-				{"label": "Escuchar hasta sangrar (-8 HP, +1 lore)", "hp": -8, "coins": 0, "heal": 0, "lore_hint": true},
+				{"label": "Buscar quién puede traducir esto (Reliquia: Lengua del Tablero + maldición)", "hp": 0, "coins": 0, "heal": 0, "specific_relic": "lengua_tablero"},
+				{"label": "Ignorarlo. Los héroes no necesitan preguntas.", "hp": 0, "coins": 0, "heal": 0},
+				{"label": "Escuchar hasta que el ciclo duela (-8 HP, +1 Lore)", "hp": -8, "coins": 0, "heal": 0, "lore_hint": true},
 			]
 		})
 	current_event = pool[randi() % pool.size()]
@@ -258,7 +267,14 @@ func build_ui() -> void:
 	reaction_lbl.text = EVENT_CHARACTER_REACTIONS.get(GameManager.selected_character, "")
 	reaction_lbl.add_theme_font_size_override("font_size", 15)
 	if _font_narrative: reaction_lbl.add_theme_font_override("font", _font_narrative)
-	reaction_lbl.modulate = Color(0.55, 0.5, 0.4, 0.0)
+	const CHAR_REACTION_COLORS = {
+		"prince":    Color(0.65, 0.3, 0.95),
+		"estratega": Color(0.4, 0.75, 0.95),
+		"guardian":  Color(0.4, 0.85, 0.55),
+		"mahar":     Color(0.95, 0.65, 0.25),
+	}
+	var _rc = CHAR_REACTION_COLORS.get(GameManager.selected_character, Color(0.55, 0.5, 0.4))
+	reaction_lbl.modulate = Color(_rc.r, _rc.g, _rc.b, 0.0)
 	reaction_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	reaction_lbl.position = Vector2(100, 108)
 	reaction_lbl.size = Vector2(952, 26)
@@ -276,7 +292,7 @@ func build_ui() -> void:
 
 	var text_panel = Panel.new()
 	text_panel.modulate.a = 0.0
-	text_panel.position = Vector2(146, 150); text_panel.size = Vector2(860, 170)
+	text_panel.position = Vector2(146, 150); text_panel.size = Vector2(860, 230)
 	var ts = StyleBoxFlat.new()
 	ts.bg_color = Color(0.05, 0.05, 0.08, 0.85); ts.set_corner_radius_all(8)
 	ts.border_width_left = 2; ts.border_width_top = 1; ts.border_color = Color(0.5, 0.4, 0.15, 0.6)
@@ -301,6 +317,12 @@ func build_ui() -> void:
 				words[wi] = CORRUPTION_WORDS[randi() % CORRUPTION_WORDS.size()]
 		raw_text = " ".join(words)
 
+	var text_scroll = ScrollContainer.new()
+	text_scroll.position = Vector2(16, 14)
+	text_scroll.size = Vector2(828, 202)
+	text_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	text_panel.add_child(text_scroll)
+
 	var text = Label.new()
 	text.text = raw_text
 	text.add_theme_font_size_override("font_size", 18)
@@ -308,9 +330,9 @@ func build_ui() -> void:
 	if chosen_font: text.add_theme_font_override("font", chosen_font)
 	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text.position = Vector2(28, 20)
-	text_panel.add_child(text)
-	text.size = Vector2(804, 130)
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.custom_minimum_size = Vector2(800, 0)
+	text_scroll.add_child(text)
 
 	# Typewriter
 	_typewriter_done = false
@@ -322,16 +344,18 @@ func build_ui() -> void:
 	tw_type.tween_method(func(n: int): text.visible_characters = n, 0, total_chars, tw_dur).set_delay(0.2)
 	tw_type.tween_callback(func():
 		_typewriter_done = true
-		for b in _option_buttons: b.disabled = false
+		for b in _option_buttons: b.disabled = b.get_meta("unaffordable", false)
 	)
-	# Skip typewriter on click
-	text_panel.gui_input.connect(func(ev):
+	# Skip typewriter on click (both panel and scroll container catch clicks)
+	var _skip_typewriter = func(ev):
 		if ev is InputEventMouseButton and ev.pressed:
 			text.visible_characters = -1
 			_typewriter_done = true
-			for b in _option_buttons: b.disabled = false
-	)
-	text_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+			for b in _option_buttons: b.disabled = b.get_meta("unaffordable", false)
+	text_panel.gui_input.connect(_skip_typewriter)
+	text_scroll.gui_input.connect(_skip_typewriter)
+	text_panel.mouse_filter = Control.MOUSE_FILTER_PASS
+	text_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var options = current_event["options"]
 	for i in range(options.size()):
@@ -374,7 +398,7 @@ func _start_event_rain(vp: Vector2) -> void:
 func _create_option_button(i: int, opt: Dictionary) -> void:
 	var row = Node2D.new()
 	row.name = "OptionRow" + str(i)
-	row.position = Vector2(236, 335 + i * 75)
+	row.position = Vector2(236, 400 + i * 65)
 	row.z_index = 10
 	add_child(row)
 
@@ -388,20 +412,28 @@ func _create_option_button(i: int, opt: Dictionary) -> void:
 	if opt.get("remove_card_event", false):
 		label_text = "✂ " + label_text
 
+	var hp_cost = opt.get("hp", 0)
+	var unaffordable = hp_cost < 0 and GameManager.player_hp + hp_cost <= 0
+
 	var btn = Button.new()
 	btn.text = label_text
 	btn.size = Vector2(680, 60)
 	btn.add_theme_font_size_override("font_size", 15)
 	if _font_ui: btn.add_theme_font_override("font", _font_ui)
-	btn.disabled = not _typewriter_done
+	btn.disabled = not _typewriter_done or unaffordable
 	btn.pivot_offset = Vector2(340, 30)
+	if unaffordable:
+		btn.set_meta("unaffordable", true)
+		btn.modulate = Color(0.5, 0.5, 0.5, 0.6)
 
 	# Tooltip Dinamico
 	var tt = ""
 	var has_relic_info = false
 	var r_data_final = {}
 
-	if opt.get("hp", 0) < 0: tt += "Pierdes " + str(abs(opt["hp"])) + " HP.\n"
+	if opt.get("hp", 0) < 0:
+		tt += "Pierdes " + str(abs(opt["hp"])) + " HP.\n"
+		if unaffordable: tt += "[ No tienes suficiente vida ]\n"
 	if opt.get("max_hp", 0) < 0: tt += "Pierdes " + str(abs(opt["max_hp"])) + " de Vida Maxima.\n"
 	if opt.get("sanity_loss", 0) > 0: tt += "Pierdes " + str(opt["sanity_loss"]) + " de Cordura.\n"
 
@@ -846,7 +878,7 @@ func _show_dice_game() -> void:
 
 	_dice_reroll_btn = Button.new()
 	_dice_reroll_btn.name = "RerollBtn"
-	_dice_reroll_btn.text = "Lanzar de nuevo  (-%d HP)" % DICE_REROLL_COST
+	_dice_reroll_btn.text = "Lanzar de nuevo  (-%d HP)" % DICE_REROLL_COSTS[0]
 	_dice_reroll_btn.position = Vector2(60, 340)
 	_dice_reroll_btn.size = Vector2(320, 50)
 	_dice_reroll_btn.add_theme_font_size_override("font_size", 14)
@@ -883,9 +915,10 @@ func _do_dice_roll(initial_btn: Button) -> void:
 	_start_roll_animation()
 
 func _do_dice_reroll() -> void:
-	if _dice_rolling:
+	if _dice_rolling or _dice_roll_count >= MAX_DICE_ROLLS:
 		return
-	GameManager.player_hp = max(1, GameManager.player_hp - DICE_REROLL_COST)
+	var cost: int = DICE_REROLL_COSTS[min(_dice_roll_count - 1, DICE_REROLL_COSTS.size() - 1)]
+	GameManager.player_hp = max(1, GameManager.player_hp - cost)
 	_update_dice_status()
 	_start_roll_animation()
 
@@ -898,19 +931,36 @@ func _start_roll_animation() -> void:
 	_dice_result_lbl.text = ""
 	_dice_detail_lbl.text = ""
 
-	var final_roll = randi_range(1, 6)
+	var final_roll: int = randi_range(1, 6)
+	_dice_face_lbl.pivot_offset = _dice_face_lbl.size / 2
 
-	var steps_fast = 8
-	var steps_slow = 4
-	var total_steps = steps_fast + steps_slow
-	var tween = create_tween()
+	var steps_fast: int = 10
+	var steps_slow: int = 5
+	var total_steps: int = steps_fast + steps_slow
+	var tween := create_tween()
 
 	for step in range(total_steps):
-		var delay = 0.06 if step < steps_fast else 0.14
-		var face_idx = randi() % 6
-		if step == total_steps - 1:
+		var delay: float = 0.055 if step < steps_fast else 0.13
+		var face_idx: int = randi() % 6
+		var is_last: bool = (step == total_steps - 1)
+		if is_last:
 			face_idx = final_roll - 1
-		tween.tween_callback(func(): _dice_face_lbl.text = DICE_FACES[face_idx])
+		var captured_face := face_idx
+		var captured_step := step
+		tween.tween_callback(func():
+			_dice_face_lbl.text = DICE_FACES[captured_face]
+			if is_last:
+				# Aterrizaje: escala bounce desde grande
+				_dice_face_lbl.scale = Vector2(1.6, 1.6)
+				create_tween().tween_property(_dice_face_lbl, "scale", Vector2.ONE, 0.45)\
+					.set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+			else:
+				# Tumble: squash/stretch alternado
+				var sq := Vector2(1.25, 0.75) if captured_step % 2 == 0 else Vector2(0.75, 1.25)
+				_dice_face_lbl.scale = sq
+				create_tween().tween_property(_dice_face_lbl, "scale", Vector2.ONE, delay * 0.9)\
+					.set_trans(Tween.TRANS_SINE)
+		)
 		tween.tween_interval(delay)
 
 	tween.tween_callback(func(): _on_roll_settled(final_roll))
@@ -961,49 +1011,53 @@ func _on_roll_settled(roll: int) -> void:
 	if cont_btn:
 		cont_btn.visible = true
 
-	_dice_reroll_btn.visible = true
-	_dice_reroll_btn.disabled = GameManager.player_hp <= DICE_REROLL_COST
+	var can_reroll: bool = _dice_roll_count < MAX_DICE_ROLLS
+	_dice_reroll_btn.visible = can_reroll
+	if can_reroll:
+		var next_cost: int = DICE_REROLL_COSTS[min(_dice_roll_count - 1, DICE_REROLL_COSTS.size() - 1)]
+		_dice_reroll_btn.text = "Lanzar de nuevo  (-%d HP)" % next_cost
+		_dice_reroll_btn.disabled = GameManager.player_hp <= next_cost
 
 func _dice_outcome(roll: int) -> Dictionary:
 	match roll:
 		1: return {
 			"type": "curse",
-			"text": "Maldicion — El tablero te castiga.",
+			"text": "El telon cae sobre ti.",
 			"detail": "Pierdes 10 HP.",
 			"color": Color(0.9, 0.2, 0.2),
 			"hp": -10
 		}
 		2: return {
 			"type": "curse",
-			"text": "Maldicion — Una pieza cae al vacio.",
+			"text": "Un rol se pierde para siempre.",
 			"detail": "La carta mas debil de tu mazo desaparece.",
 			"color": Color(0.85, 0.3, 0.15),
 			"remove_weak_card": true
 		}
 		3: return {
 			"type": "neutral",
-			"text": "El dado rueda sin gracia.",
+			"text": "La funcion sigue sin ti.",
 			"detail": "Pierdes 4 HP.",
 			"color": Color(0.6, 0.6, 0.65),
 			"hp": -4
 		}
 		4: return {
 			"type": "bonus",
-			"text": "Ventaja — El alfil te senala.",
+			"text": "El destino te favorece.",
 			"detail": "Ganas 12 monedas.",
 			"color": Color(0.35, 0.85, 0.45),
 			"coins": 12
 		}
 		5: return {
 			"type": "bonus",
-			"text": "Ventaja — La torre resiste.",
+			"text": "La obra te bendice.",
 			"detail": "Recuperas 15 HP.",
 			"color": Color(0.3, 0.8, 0.5),
 			"heal": 15
 		}
 		6: return {
 			"type": "bonus",
-			"text": "Ventaja — La reina elige.",
+			"text": "El telon se abre para ti.",
 			"detail": "Obtienes una reliquia aleatoria.",
 			"color": Color(0.95, 0.82, 0.2),
 			"relic": true
@@ -1048,11 +1102,14 @@ func _apply_dice_outcome(outcome: Dictionary) -> void:
 func _update_dice_status() -> void:
 	if _dice_status_lbl == null:
 		return
-	var base = "HP: %d/%d   |   Monedas: %d" % [
+	var base: String = "HP: %d/%d   |   Monedas: %d" % [
 		GameManager.player_hp, GameManager.player_max_hp, GameManager.coins
 	]
-	if _dice_roll_count > 0:
-		base += "   |   Lanzamientos: %d" % _dice_roll_count
+	var remaining: int = MAX_DICE_ROLLS - _dice_roll_count
+	if _dice_roll_count == 0:
+		base += "   |   Intentos: %d" % MAX_DICE_ROLLS
+	else:
+		base += "   |   Intentos restantes: %d" % remaining
 	_dice_status_lbl.text = base
 	var info = get_node_or_null("InfoLabel")
 	if info:
@@ -1073,22 +1130,7 @@ func flash_small_event(msg: String) -> void:
 		if sanity_lbl: sanity_lbl.text = "⬤ %d/%d" % [GameManager.sanity, GameManager.max_sanity]
 	# Show message as a temporary popup if non-empty
 	if msg.is_empty(): return
-	var existing = get_node_or_null("FlashPopup")
-	if existing: existing.queue_free()
-	var flash = Label.new()
-	flash.name = "FlashPopup"
-	flash.text = msg
-	flash.add_theme_font_size_override("font_size", 14)
-	flash.modulate = Color(1.0, 0.85, 0.3)
-	flash.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	flash.position = Vector2(200, 44)
-	flash.size = Vector2(752, 24)
-	flash.z_index = 20
-	add_child(flash)
-	var tw = create_tween()
-	tw.tween_interval(2.0)
-	tw.tween_property(flash, "modulate:a", 0.0, 0.4)
-	tw.tween_callback(flash.queue_free)
+	DialogueUI.toast(msg, Color(1.0, 0.85, 0.3))
 
 func _resolve_sanity_conditional(_opt: Dictionary) -> void:
 	var s = GameManager.sanity

@@ -48,6 +48,8 @@ var lbl_energy: Label:
 	get: return ui.lbl_energy
 var lbl_furia: Label:
 	get: return ui.lbl_furia
+var lbl_fervor: Label:
+	get: return ui.lbl_fervor
 var hand_container: Control:
 	get: return ui.hand_container
 var lbl_draw_pile: Label:
@@ -58,14 +60,6 @@ var end_turn_btn: Button:
 	get: return ui.end_turn_btn
 var relics_container: HBoxContainer:
 	get: return ui.relics_container
-var log_panel: Panel:
-	get: return ui.log_panel
-var log_vbox: VBoxContainer:
-	get: return ui.log_vbox
-var lbl_message: Label:
-	get: return ui.lbl_message
-var panel_message: Panel:
-	get: return ui.panel_message
 var vignette: ColorRect:
 	get: return ui.vignette
 var eye_node: Control:
@@ -147,10 +141,10 @@ func _ready() -> void:
 
 	if GameManager.selected_character == "prince" and GameManager.current_world == 2:
 		GameManager.sanity = 20  # Comienza en RESONANCIA en W3
-		flash_small("HAS VUELTO A CASA. LA GRIETA TE RECONOCE.", Color(0.7, 0.2, 1.0))
+		DialogueUI.toast("HAS VUELTO A CASA. LA GRIETA TE RECONOCE.", Color(0.7, 0.2, 1.0))
 	elif GameManager.selected_character == "prince":
 		GameManager.sanity = max(0, GameManager.sanity - 8)
-		flash_small("El Abismo susurra... -8 Cordura")
+		DialogueUI.toast("El Abismo susurra... -8 Cordura", Color(0.65, 0.3, 0.95))
 
 	# Sinergia Reliquia: Escudo Astillado
 	if GameManager.has_relic("escudo_astillado"):
@@ -159,7 +153,7 @@ func _ready() -> void:
 	# Sinergia Reliquia: Fragmento de la Mascara Palida — +2 energía
 	if GameManager.has_relic("fragmento_mascara_palida"):
 		player_energy += 2
-		flash_small("Fragmento de la Mascara: +2 Energia")
+		DialogueUI.toast("Fragmento de la Mascara: +2 Energia")
 
 	# Sinergia Reliquia: Ceniza de la Guardia — +2 energía máxima solo en W3
 	if GameManager.has_relic("ceniza_guardia") and GameManager.current_world == 2:
@@ -179,22 +173,25 @@ func _ready() -> void:
 	# Sinergia Reliquia: Ojo del Grito
 	if GameManager.has_relic("ojo_grito") and GameManager.sanity < 40:
 		ojo_grito_first_turn = true
-		flash_small("Ojo del Grito: el miedo inmoviliza a los enemigos 1 turno.", Color(0.8, 0.2, 0.3))
+		DialogueUI.toast("Ojo del Grito: el miedo inmoviliza a los enemigos 1 turno.", Color(0.8, 0.2, 0.3))
 		_flash_relic("ojo_grito")
 
 	# Sinergia Reliquia: Manual del Anatomista — intenciones visibles desde el primer turno
 	if GameManager.has_relic("manual_anatomista"):
 		for e_m in enemies:
 			e_m["intent_visible"] = true
-		flash_small("Manual del Anatomista: intenciones enemigas reveladas.", Color(0.55, 0.75, 0.55))
+		DialogueUI.toast("Manual del Anatomista: intenciones enemigas reveladas.", Color(0.55, 0.75, 0.55))
 
 	# Sinergia Reliquia: Ojo del Testigo — revela patrones completos en W3
 	if GameManager.has_relic("ojo_testigo") and GameManager.current_world == 2:
 		for e_t in enemies:
 			e_t["intent_visible"] = true
-		flash_small("Ojo del Testigo: los patrones del umbral son visibles.", Color(0.65, 0.2, 1.0))
+		DialogueUI.toast("Ojo del Testigo: los patrones del umbral son visibles.", Color(0.65, 0.2, 1.0))
 
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.45)
+
+	# Refrescar HUD de reliquias si se obtiene una reliquia mid-combat
+	Events.relic_was_chosen.connect(func(_rid): _populate_relics())
 
 	# Despertar del Ojo (si es la primera vez con baja cordura)
 	if GameManager.sanity < 55 and not GameManager.sanity_notified:
@@ -202,9 +199,8 @@ func _ready() -> void:
 		await get_tree().create_timer(0.5).timeout
 		_trigger_screen_blink()
 		if get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-		show_message("EL TABLERO TE OBSERVA", Color(0.8, 0.4, 1.0))
+		DialogueUI.cinematic("EL TABLERO TE OBSERVA", Color(0.8, 0.4, 1.0))
 		await get_tree().create_timer(1.5).timeout
-		panel_message.visible = false
 
 	if not enemies.is_empty():
 		var is_avatar = "AVATAR" in enemies[0].name.to_upper()
@@ -227,7 +223,7 @@ func _ready() -> void:
 			await get_tree().create_timer(0.9).timeout
 			# Mostrar pensamiento flotante sobre el personaje (Alineado a la izquierda)
 			var thought_with_name = "[" + char_id.to_upper() + "]: " + thought
-			_show_floating_dialogue(thought_with_name, char_info["color"], Vector2(50, 180))
+			_show_floating_dialogue(thought_with_name, char_info["color"], Vector2(167, 280))
 
 
 	is_player_turn = true
@@ -238,7 +234,7 @@ func _ready() -> void:
 	if not enemies.is_empty() and "AVATAR" in enemies[0].name.to_upper():
 		await _show_avatar_intro()
 		GameManager.sanity = max(0, GameManager.sanity - 30)
-		flash_small("¡PRESENCIA ATERRADORA! -30 Cordura")
+		DialogueUI.toast("¡PRESENCIA ATERRADORA! -30 Cordura")
 		if get_node_or_null("/root/AudioManager"):
 			AudioManager.play_loop("Glith_distorsion_noised_sound")
 			_sync_dynamic_audio()
@@ -248,7 +244,7 @@ func _ready() -> void:
 	if GameManager.is_hastur_fight:
 		# Hastur ES el caos. Drenaje inicial masivo
 		GameManager.sanity = max(0, GameManager.sanity - 50)
-		flash_small("¡HASTUR HA LLEGADO! -50 Cordura")
+		DialogueUI.toast("¡HASTUR HA LLEGADO! -50 Cordura")
 		
 		if get_node_or_null("/root/AudioManager"):
 			AudioManager.play_loop("Glith_distorsion_noised_sound")
@@ -342,6 +338,8 @@ func _setup_encounter() -> void:
 				[{"name": "Caballero de Carcosa", "hp": 70, "pattern": [{"type": "shield", "value": 12}, {"type": "attack", "value": 16}]}]
 			]
 			pool = void_enemies[randi() % void_enemies.size()]
+	elif GameManager.is_mimic_chest:
+		pool = CombatData.MIMIC_POOL
 	elif GameManager.current_world == 2:
 		pool = CombatData.NORMAL_POOLS_W3[randi() % CombatData.NORMAL_POOLS_W3.size()]
 	else:
@@ -396,7 +394,7 @@ func draw_hand(count: int = -1) -> void:
 			for h in hand: discard_pile.append(h)
 			hand.clear()
 		else:
-			flash_small("RELOJ CIRCULAR: Mantienes tu mano.")
+			DialogueUI.toast("RELOJ CIRCULAR: Mantienes tu mano.")
 			_flash_relic("reloj_circular")
 
 		# Pasiva Mahar: FERVOR — resetear flag de primer golpe guiado
@@ -412,11 +410,11 @@ func draw_hand(count: int = -1) -> void:
 			if not draw_pile.is_empty():
 				draw_pile.shuffle()
 				var lost = draw_pile.pop_front()
-				log_message("CÁLIZ", "El olvido consume: " + lost["name"], Color(0.5, 0.2, 0.8))
+				DialogueUI.add_log("CÁLIZ", "El olvido consume: " + lost["name"], Color(0.5, 0.2, 0.8))
 				player_energy += 1
 				count += 2
 				_flash_relic("caliz_olvido")
-				flash_small("Cáliz del Olvido: +1 Energía, +2 Robo.")
+				DialogueUI.toast("Cáliz del Olvido: +1 Energía, +2 Robo.")
 
 	var deck_pos = lbl_draw_pile.global_position
 	# Límite de mano: 10 cartas
@@ -429,7 +427,7 @@ func draw_hand(count: int = -1) -> void:
 		if draw_pile.is_empty(): 
 			# Si el jugador se quedó sin cartas literalmente en toda la run
 			if hand.is_empty() and i == 0:
-				flash_small("EL VACÍO TE RECLAMA. No quedan piezas.")
+				DialogueUI.toast("EL VACÍO TE RECLAMA. No quedan piezas.")
 				var desperate_card = {"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 0, "curse": true}
 				hand.append(desperate_card)
 				_spawn_card_node(desperate_card, deck_pos, 0)
@@ -444,6 +442,7 @@ func draw_hand(count: int = -1) -> void:
 
 	if is_turn_start:
 		ui._assign_cursed_card()
+		update_ui()   # sincroniza _fervor_last_spent tras reset del flag
 
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("card_draw")
 
@@ -707,7 +706,7 @@ var _is_resolving_extra_mirror_card: bool = false
 func _flash_relic(relic_id: String) -> void:
 	if not relics_container: return
 	var r_name = GameManager.RELIC_DATA.get(relic_id, {"name": relic_id})["name"]
-	log_message("RELIQUIA", "Se activa: " + r_name, Color(0.9, 0.8, 0.2))
+	DialogueUI.add_log("RELIQUIA", "Se activa: " + r_name, Color(0.9, 0.8, 0.2))
 	
 	for icon in relics_container.get_children():
 		if icon.get("relic_id") == relic_id:
@@ -794,11 +793,7 @@ func _kill_enemy(e: Dictionary) -> void:
 	if e.sprite_label: e.sprite_label.play_death()
 	_spawn_death_particles(e.panel.global_position + Vector2(100, 110))
 	_dissolve_enemy(e.panel)
-	
-	_is_showing_death_dialogue = true
-	await _show_death_dialogue(e.name)  # esperar a que el jugador haga clic
-	_is_showing_death_dialogue = false
-	
+	_show_death_dialogue(e.name)
 	check_combat_end()
 
 func _spawn_damage_number(pos: Vector2, amount: int, col: Color) -> void:
@@ -950,6 +945,16 @@ func update_card_states() -> void:
 				card.modulate = Color(0.6, 1.2, 0.6) # Verde: condición activa
 			else:
 				card.modulate = Color(1.2, 0.6, 0.6) # Rojo: condición inactiva
+
+	if GameManager.selected_character == "mahar":
+		for card in hand_container.get_children():
+			if card.has_method("_update_fervor_badge") and card.get("attack") > 0:
+				card._update_fervor_badge()
+
+	var hs = hand_container.get_child_count()
+	for card in hand_container.get_children():
+		if card.has_method("_refresh_context"):
+			card._refresh_context(hs)
 
 func refresh_hand_visuals() -> void:
 	for card in hand_container.get_children():
@@ -1130,13 +1135,10 @@ func _sync_dynamic_audio() -> void:
 		if _heartbeat_loop_active:
 			_heartbeat_loop_active = false
 			AudioManager.stop_loop(HEARTBEAT_SOUND)
-var _is_showing_death_dialogue: bool = false
 
 # ── Fin de combate ─────────────────────────────────────────────────────────────
 func check_combat_end() -> void:
-	# No terminar el combate si hay un dialogo de muerte activo o si ya se esta procesando el final
-	if combat_ended or _is_ending or _is_showing_death_dialogue: 
-		print("DEBUG: check_combat_end skipped. Dialogue: ", _is_showing_death_dialogue)
+	if combat_ended or _is_ending:
 		return
 		
 	var all_dead = true
@@ -1168,12 +1170,12 @@ func check_combat_end() -> void:
 	
 	if (GameManager.is_elite_fight or GameManager.is_boss_fight) and GameManager.has_relic("caliz_olvido"):
 		GameManager.player_max_energy += 1
-		flash_small("Cáliz de Olvido: +1 Energía Máxima.")
+		DialogueUI.toast("Cáliz de Olvido: +1 Energía Máxima.")
 		_flash_relic("caliz_olvido")
 
 	GameManager.combat_count += 1
 	GameManager.lore_progress += 1
-	flash_small("📖 CONOCIMIENTO ADQUIRIDO (+1 Lore)", Color(0.4, 0.9, 1.0))
+	DialogueUI.toast("📖 CONOCIMIENTO ADQUIRIDO (+1 Lore)", Color(0.4, 0.9, 1.0))
 	
 	if get_node_or_null("/root/AudioManager"): AudioManager.play("victory")
 	
@@ -1182,15 +1184,8 @@ func check_combat_end() -> void:
 		victory_phrases = CombatData.VICTORY_PHRASES_W3
 	else:
 		victory_phrases = CombatData.VICTORY_PHRASES
-	show_message(victory_phrases[randi() % victory_phrases.size()], Color(0.85, 0.7, 0.2))
-	await get_tree().create_timer(1.2).timeout
-	
-	# Desvanecer el panel de mensaje antes de pasar a la siguiente pantalla para evitar solapamientos
-	var fade = create_tween()
-	fade.tween_property(panel_message, "modulate:a", 0.0, 0.4)
-	await fade.finished
-	panel_message.visible = false
-	panel_message.modulate.a = 1.0 # Reset para el próximo uso
+	DialogueUI.cinematic(victory_phrases[randi() % victory_phrases.size()], Color(0.85, 0.7, 0.2))
+	await DialogueUI.cinematic_finished
 
 	if GameManager.is_hastur_fight:
 		# Final secreto — Hastur derrotado: victoria real
@@ -1201,15 +1196,14 @@ func check_combat_end() -> void:
 		if GameManager.current_world == 2:
 			# TESTIGO PRIMORDIAL caído → Victoria W3
 			var victory_msg = "EL TESTIGO HA CERRADO SUS OJOS. CARCOSA TE LLAMA." if GameManager.selected_character == "prince" else "EL TESTIGO HA CERRADO SUS OJOS"
-			show_message(victory_msg, Color(0.8, 0.3, 1.0))
+			DialogueUI.cinematic(victory_msg, Color(0.8, 0.3, 1.0))
 			await get_tree().create_timer(2.0).timeout
 
 			if GameManager.has_all_secret_items():
 				# Los 3 fragmentos responden — La Puerta se abre
-				panel_message.visible = false
-				show_message("LA PUERTA SE ABRE.", Color(0.95, 0.85, 0.1))
+				DialogueUI.cinematic("LA PUERTA SE ABRE.", Color(0.95, 0.85, 0.1))
 				await get_tree().create_timer(1.5).timeout
-				show_message("EL REY TE ESPERA.", Color(0.95, 0.85, 0.1))
+				DialogueUI.cinematic("EL REY TE ESPERA.", Color(0.95, 0.85, 0.1))
 				await get_tree().create_timer(1.5).timeout
 				await _show_carcosa_transition()
 				GameManager.is_hastur_fight = true
@@ -1232,7 +1226,7 @@ func check_combat_end() -> void:
 			return
 		else:
 			# REY AMARILLO caído → siempre va a W3
-			show_message("LA GRIETA SE EXPANDE. EL UMBRAL TE LLAMA.", Color(0.6, 0.1, 0.9))
+			DialogueUI.cinematic("LA GRIETA SE EXPANDE. EL UMBRAL TE LLAMA.", Color(0.6, 0.1, 0.9))
 			await get_tree().create_timer(2.0).timeout
 			GameManager.current_world = 2
 			GameManager.is_final_boss = false
@@ -1245,6 +1239,10 @@ func check_combat_end() -> void:
 			if GameManager.selected_character == "prince":
 				GameManager.sanity = 20
 			GameManager.go_to_scene("res://scenes/ui/Map.tscn")
+	elif GameManager.is_mimic_chest:
+		# Mímico vencido → 2 reliquias como recompensa
+		GameManager.is_mimic_chest = false
+		_show_relic_reward("__mimic_segunda__")
 	elif GameManager.is_boss_fight:
 		# EL CARCELERO → reliquia → mapa
 		_show_relic_reward("res://scenes/ui/Map.tscn")
@@ -1333,10 +1331,10 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 			GameManager.add_secret_item("simbolo_amarillo")
 			GameManager.add_secret_item("cancion_amarilla")
 			GameManager.add_secret_item("carta_carcosa")
-			show_message("Fragmentos: 3/3 — Hastur activado", Color(0.7, 0.3, 0.9))],
+			DialogueUI.cinematic("Fragmentos: 3/3 — Hastur activado", Color(0.7, 0.3, 0.9))],
 		["+ Reliquia: Traductor", func():
 			GameManager.add_relic("lengua_tablero")
-			flash_small("Reliquia obtenida: Lengua del Tablero")
+			DialogueUI.toast("Reliquia obtenida: Lengua del Tablero")
 			_populate_relics()],
 		["Final: REY SIN CORONA", func():
 			GameManager.is_hastur_fight = false
@@ -1380,6 +1378,9 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 		["SAN: 0 (Muerte)", func(): GameManager.sanity = 0; check_combat_end()],
 		["HOGUERA (Rest)", func(): GameManager.go_to_scene("res://scenes/ui/Rest.tscn")],
 		["TESORO (Cofre)", func(): GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")],
+		["MÍMICO (Cofre)", func():
+			GameManager.is_mimic_chest = true
+			GameManager.go_to_scene("res://scenes/ui/Treasure.tscn")],
 	]
 
 	for i in range(btns.size()):
@@ -1413,70 +1414,56 @@ func _get_banter_color(enemy_name: String, text: String) -> Color:
 func _show_enemy_banter(enemy_panel: Panel, text: String, col: Color = Color(0.9, 0.8, 0.5)) -> void:
 	enemy_turn.show_enemy_banter(enemy_panel, text, col)
 
-func _typewrite(lbl: Label, text: String, base_delay: float = 0.02) -> void:
-	await cinematics.typewrite(lbl, text, base_delay)
-
 func _show_death_dialogue(enemy_name: String) -> void:
 	cinematics.show_death_dialogue(enemy_name)
 
-func _show_floating_dialogue(text: String, col: Color, pos: Vector2, is_cipher: bool = false) -> void:
-	await cinematics.show_floating_dialogue(text, col, pos, is_cipher)
+func _show_floating_dialogue(text: String, col: Color, pos: Vector2, _is_cipher: bool = false) -> void:
+	DialogueUI.bark(text, pos, col, false, 260.0, "player")
 
 # ── Reliquias ──────────────────────────────────────────────────────────────────
-func log_message(subject: String, text: String, color: Color) -> void:
-	if not log_vbox: return
-	
-	var lbl = Label.new()
-	lbl.text = "[%s]: %s" % [subject.to_upper(), text]
-	lbl.add_theme_font_size_override("font_size", 11)
-	lbl.modulate = color
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	lbl.custom_minimum_size.x = 280
-	log_vbox.add_child(lbl)
-	lbl.modulate.a = 0.0
-	var tw_fade = create_tween()
-	tw_fade.tween_property(lbl, "modulate:a", 1.0, 0.3)
-
-	# Mantener solo los últimos 20 mensajes
-	if log_vbox.get_child_count() > 20:
-		log_vbox.get_child(0).queue_free()
-	
-	# Auto-scroll al final (esperar un frame para que el layout se actualice)
-	await get_tree().process_frame
-	var scroll = log_panel.get_child(0) as ScrollContainer
-	if scroll:
-		scroll.set_v_scroll(log_vbox.size.y)
 
 func _show_player_passive_tooltip() -> void:
+	if get_node_or_null("PassiveTooltipPanel"): return  # ya visible
 	var char_id = GameManager.selected_character
 	var char_name = char_id.to_upper()
 	var passive_txt = CombatData.PASSIVE_DESCRIPTIONS.get(char_id, "Sin descripción.")
-	
-	var txt = "[ HABILIDAD PASIVA ]\n"
-	txt += char_name + "\n\n" + passive_txt
-	
-	var tip = Label.new()
-	tip.name = "PassiveTooltipLabel"
-	tip.text = txt
-	tip.add_theme_font_size_override("font_size", 12)
-	tip.modulate = Color(0.4, 0.8, 1.0) # Azul claro/Estrategia
-	tip.autowrap_mode = TextServer.AUTOWRAP_WORD
-	
-	# Cálculo más generoso de altura y ancho
+
+	const CHAR_PASSIVE_COLORS = {
+		"prince":    Color(0.65, 0.3, 0.95),
+		"estratega": Color(0.4, 0.8, 1.0),
+		"guardian":  Color(0.4, 0.85, 0.55),
+		"mahar":     Color(0.95, 0.65, 0.25),
+	}
+	var tip_color = CHAR_PASSIVE_COLORS.get(char_id, Color(0.8, 0.8, 0.8))
+
+	var txt = "[ HABILIDAD PASIVA ]\n" + char_name + "\n\n" + passive_txt
+
 	var panel_w = 280
-	var line_count = txt.count("\n") + (txt.length() / 35) + 2 # Estimación de wrap
+	var line_count = txt.count("\n") + (txt.length() / 35) + 2
 	var panel_h = line_count * 18 + 30
 
-	var p = ui._make_panel(Vector2(85, -20), Vector2(panel_w, panel_h), Color(0,0,0,0.95), Color(0.2, 0.5, 0.8))
+	# Posición: justo a la derecha del player_panel en coordenadas de escena
+	var pp_global = ui.player_panel.global_position
+	var panel_pos = Vector2(pp_global.x + ui.player_panel.size.x + 8, pp_global.y)
+
+	var p = ui._make_panel(panel_pos, Vector2(panel_w, panel_h), Color(0, 0, 0, 0.95), tip_color)
 	p.name = "PassiveTooltipPanel"
-	p.z_index = 100
-	p.add_child(tip); tip.position = Vector2(12, 12); tip.size = Vector2(panel_w - 24, panel_h - 24)
-	player_sprite_label.add_child(p)
+	p.z_index = 200
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE  # No bloquear eventos del padre
+
+	var tip = Label.new()
+	tip.text = txt
+	tip.add_theme_font_size_override("font_size", 12)
+	tip.modulate = tip_color
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD
+	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tip.position = Vector2(12, 12); tip.size = Vector2(panel_w - 24, panel_h - 24)
+	p.add_child(tip)
+	add_child(p)  # Al nodo raíz Combat, no a player_sprite_label
 
 func _hide_player_passive_tooltip() -> void:
-	if is_instance_valid(player_sprite_label):
-		var p = player_sprite_label.get_node_or_null("PassiveTooltipPanel")
-		if p: p.queue_free()
+	var p = get_node_or_null("PassiveTooltipPanel")
+	if p: p.queue_free()
 
 func _show_enemy_intent_tooltip(idx: int) -> void:
 	if idx >= enemies.size() or enemies[idx].hp <= 0: return
@@ -1632,12 +1619,12 @@ func _clear_destilado_card_highlight() -> void:
 func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card = null) -> void:
 	GameManager.remove_destilado(dest_id)
 	var d_name = GameManager.DESTILADO_DATA.get(dest_id, {}).get("name", dest_id)
-	log_message("DESTILADO", d_name, Color(0.7, 0.5, 0.9))
+	DialogueUI.add_log("DESTILADO", d_name, Color(0.7, 0.5, 0.9))
 
 	match dest_id:
 		"sangre_ejecutor":
 			destilado_next_atk_mult = 1.5
-			flash_small("Sangre del Ejecutor: +50% al próximo ataque.", Color(0.9, 0.3, 0.3))
+			DialogueUI.toast("Sangre del Ejecutor: +50% al próximo ataque.", Color(0.9, 0.3, 0.3))
 
 		"recuerdo_robado":
 			await draw_hand(3)
@@ -1649,14 +1636,14 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 				var nodes = hand_container.get_children()
 				if idx < nodes.size(): nodes[idx].queue_free()
 				reorganize_hand()
-				flash_small("Recuerdo Robado: +3 cartas. Descartada: " + lost.get("name", "?"), Color(0.5, 0.6, 0.9))
+				DialogueUI.toast("Recuerdo Robado: +3 cartas. Descartada: " + lost.get("name", "?"), Color(0.5, 0.6, 0.9))
 
 		"polvo_dama_ceniza":
 			for e in enemies:
 				if e.hp > 0:
 					e["bleed"] = e.get("bleed", 0) + 3
 			GameManager.sanity = max(0, GameManager.sanity - 5)
-			flash_small("Polvo de la Dama: Sangrado ×3 a todos. -5 Cordura.", Color(0.8, 0.2, 0.3))
+			DialogueUI.toast("Polvo de la Dama: Sangrado ×3 a todos. -5 Cordura.", Color(0.8, 0.2, 0.3))
 			update_ui()
 
 		"bruma_rey_caido":
@@ -1671,13 +1658,13 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 						_animate_enemy_hit(e)
 						if e.hp <= 0: await _kill_enemy(e)
 			GameManager.sanity = max(0, GameManager.sanity - 10)
-			flash_small("Bruma del Rey Caído: 15 daño a todos. -10 Cordura.", Color(0.4, 0.7, 0.9))
+			DialogueUI.toast("Bruma del Rey Caído: 15 daño a todos. -10 Cordura.", Color(0.4, 0.7, 0.9))
 			update_ui()
 
 		"chispa_efimera":
 			player_energy = min(player_max_energy, player_energy + 2)
 			destilado_chispa_debt = 1
-			flash_small("Chispa Efímera: +2 Energía. El tablero cobrará el próximo turno.", Color(0.9, 0.8, 0.3))
+			DialogueUI.toast("Chispa Efímera: +2 Energía. El tablero cobrará el próximo turno.", Color(0.9, 0.8, 0.3))
 			update_ui()
 
 		"susurro_abismo":
@@ -1687,7 +1674,7 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 				e["atk_reduction"] = e.get("atk_reduction", 0) + debuff
 				e["locura_turns"] = 2
 				GameManager.sanity = max(0, GameManager.sanity - 10)
-				flash_small("Susurro del Abismo: Locura en " + e.name + ". -10 Cordura.", Color(0.6, 0.2, 0.9))
+				DialogueUI.toast("Susurro del Abismo: Locura en " + e.name + ". -10 Cordura.", Color(0.6, 0.2, 0.9))
 				update_ui()
 
 		"olvido_puro":
@@ -1702,7 +1689,7 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 				target_card.queue_free()
 				reorganize_hand()
 				GameManager.coins += 10
-				flash_small("Olvido Puro: '" + c_name + "' olvidada. +10 oro.", Color(0.7, 0.7, 0.5))
+				DialogueUI.toast("Olvido Puro: '" + c_name + "' olvidada. +10 oro.", Color(0.7, 0.7, 0.5))
 				update_ui()
 
 		"lucidez_prestada":
@@ -1710,7 +1697,7 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 			var deuda = {"name": "Deuda de Cordura", "attack": 0, "defense": 0, "cost": 0,
 				"curse": true, "sanity_cost": 15, "innate": true, "exhaust": true}
 			GameManager.player_deck.append(deuda)
-			flash_small("Lucidez Prestada: +35 Cordura. El vacío anota tu deuda.", Color(0.5, 0.3, 0.8))
+			DialogueUI.toast("Lucidez Prestada: +35 Cordura. El vacío anota tu deuda.", Color(0.5, 0.3, 0.8))
 			update_ui()
 
 		"tinta_sacrificio":
@@ -1732,7 +1719,7 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 							_spawn_damage_number(e.panel.global_position + Vector2(100, 60), dmg, Color(0.9, 0.4, 0.2))
 							_animate_enemy_hit(e)
 							if e.hp <= 0: await _kill_enemy(e)
-				flash_small("Tinta del Sacrificio: " + str(atk_val) + " daño a todos. '" + c_name + "' consumida.", Color(0.9, 0.4, 0.2))
+				DialogueUI.toast("Tinta del Sacrificio: " + str(atk_val) + " daño a todos. '" + c_name + "' consumida.", Color(0.9, 0.4, 0.2))
 				update_ui()
 
 		"resonancia_cero":
@@ -1740,14 +1727,14 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 			for card in hand_container.get_children():
 				if not card.is_queued_for_deletion():
 					card.set_cost_modifier(-card.get_effective_cost())
-			flash_small("Resonancia de Coste Cero: todas las cartas cuestan 0 este turno.", Color(0.3, 0.9, 0.7))
+			DialogueUI.toast("Resonancia de Coste Cero: todas las cartas cuestan 0 este turno.", Color(0.3, 0.9, 0.7))
 			update_card_states()
 
 		"fragmento_principe":
 			GameManager.sanity = max(0, GameManager.sanity - 25)
 			destilado_dmg_mult = 1.3
 			destilado_dmg_turns = 3
-			flash_small("Fragmento del Príncipe: -25 Cordura. +30% daño por 3 turnos.", Color(0.7, 0.2, 0.9))
+			DialogueUI.toast("Fragmento del Príncipe: -25 Cordura. +30% daño por 3 turnos.", Color(0.7, 0.2, 0.9))
 			update_ui()
 
 		"conocimiento_prohibido":
@@ -1763,9 +1750,9 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 					var r_id = available[randi() % available.size()]
 					GameManager.add_relic(r_id)
 					_populate_relics()
-					flash_small("¡3 Fragmentos! Reliquia: " + GameManager.RELIC_DATA[r_id]["name"], Color(0.9, 0.8, 0.2))
+					DialogueUI.toast("¡3 Fragmentos! Reliquia: " + GameManager.RELIC_DATA[r_id]["name"], Color(0.9, 0.8, 0.2))
 			else:
-				flash_small("Conocimiento Prohibido: patrones revelados. Fragmento %d/3." % GameManager.relic_fragments, Color(0.5, 0.3, 0.8))
+				DialogueUI.toast("Conocimiento Prohibido: patrones revelados. Fragmento %d/3." % GameManager.relic_fragments, Color(0.5, 0.3, 0.8))
 			GameManager.sanity = max(0, GameManager.sanity - 20)
 			GameManager.max_sanity = max(20, GameManager.max_sanity - 5)
 			GameManager.sanity = min(GameManager.sanity, GameManager.max_sanity)
@@ -1779,7 +1766,7 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 			player_hp = min(player_hp, player_max_hp)
 			GameManager.player_hp = player_hp
 			GameManager.sanity = max(0, GameManager.sanity - 15)
-			flash_small("¡SANGRE DEL REY AMARILLO! Daño ×2. -20 HP máx, -15 Cordura.", Color(1.0, 0.85, 0.1))
+			DialogueUI.toast("¡SANGRE DEL REY AMARILLO! Daño ×2. -20 HP máx, -15 Cordura.", Color(1.0, 0.85, 0.1))
 			_trigger_screen_blink()
 			update_ui()
 
@@ -1788,7 +1775,7 @@ func _apply_destilado(dest_id: String, target_enemy_idx: int = -1, target_card =
 			GameManager.player_hp = player_hp
 			GameManager.sanity = GameManager.max_sanity
 			GameManager.destilados_blocked = true
-			flash_small("El Último Vial: curación total. Los Destilados se han sellado para siempre.", Color(0.6, 0.9, 0.6))
+			DialogueUI.toast("El Último Vial: curación total. Los Destilados se han sellado para siempre.", Color(0.6, 0.9, 0.6))
 			update_ui()
 
 		"eco_grieta":
@@ -1802,23 +1789,23 @@ func _apply_eco_grieta() -> void:
 		func():
 			player_hp = min(player_max_hp, player_hp + 30)
 			update_ui()
-			flash_small("Eco de la Grieta: +30 HP.", Color(0.4, 1.0, 0.5)),
+			DialogueUI.toast("Eco de la Grieta: +30 HP.", Color(0.4, 1.0, 0.5)),
 		func():
 			await draw_hand(2)
-			flash_small("Eco de la Grieta: +2 cartas.", Color(0.5, 0.7, 0.9)),
+			DialogueUI.toast("Eco de la Grieta: +2 cartas.", Color(0.5, 0.7, 0.9)),
 		func():
 			GameManager.coins += 30
 			update_ui()
-			flash_small("Eco de la Grieta: +30 oro.", Color(0.9, 0.8, 0.2)),
+			DialogueUI.toast("Eco de la Grieta: +30 oro.", Color(0.9, 0.8, 0.2)),
 		func():
 			player_hp = max(1, player_hp - 15)
 			update_ui()
-			flash_small("Eco de la Grieta: -15 HP.", Color(1.0, 0.3, 0.3))
+			DialogueUI.toast("Eco de la Grieta: -15 HP.", Color(1.0, 0.3, 0.3))
 			_trigger_screen_blink(),
 		func():
 			GameManager.sanity = max(0, GameManager.sanity - 20)
 			update_ui()
-			flash_small("Eco de la Grieta: -20 Cordura.", Color(0.6, 0.2, 0.9)),
+			DialogueUI.toast("Eco de la Grieta: -20 Cordura.", Color(0.6, 0.2, 0.9)),
 		func():
 			if not hand.is_empty():
 				var best_idx = 0
@@ -1831,7 +1818,7 @@ func _apply_eco_grieta() -> void:
 				var nodes = hand_container.get_children()
 				if best_idx < nodes.size(): nodes[best_idx].queue_free()
 				reorganize_hand()
-				flash_small("Eco de la Grieta: '" + lost.get("name", "carta") + "' consumida para siempre.", Color(0.5, 0.1, 0.6)),
+				DialogueUI.toast("Eco de la Grieta: '" + lost.get("name", "carta") + "' consumida para siempre.", Color(0.5, 0.1, 0.6)),
 	]
 	await outcomes[randi() % outcomes.size()].call()
 
@@ -1854,53 +1841,6 @@ func _populate_relics() -> void:
 			relics_container.add_child(lbl)
 
 # ── Helpers UI (DELEGADOS A CombatUI.gd) ─────────────────────────────────────────
-
-func show_message(txt, col: Color) -> void:
-	lbl_message.text = txt; lbl_message.modulate = col
-	panel_message.visible = true
-	
-	if GameManager.sanity < 30:
-		# Efecto de sacudida de texto
-		var orig_pos = panel_message.position
-		var tw = create_tween().set_loops(10)
-		tw.tween_property(panel_message, "position", orig_pos + Vector2(randf_range(-5,5), randf_range(-3,3)), 0.05)
-		tw.tween_property(panel_message, "position", orig_pos, 0.05)
-	
-	panel_message.modulate.a = 0.0
-	create_tween().tween_property(panel_message, "modulate:a", 1.0, 0.5)
-
-var active_flashes: Array = []
-
-func flash_small(text: String, col: Color = Color(1.0, 0.85, 0.2)) -> void:
-	# Registrar en el log de combate
-	log_message("SISTEMA", text, col)
-
-	var f = Label.new()
-	f.text = text
-	f.add_theme_font_size_override("font_size", 17)
-	f.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	f.modulate = col
-
-	f.add_theme_constant_override("outline_size", 4)
-	f.add_theme_color_override("font_outline_color", Color(0,0,0,0.8))
-	
-	# Posición base con desplazamiento según cuántos hay activos
-	var offset = active_flashes.size() * 25
-	f.position = Vector2(300, 250 + offset)
-	f.size = Vector2(552, 30) # Centrado relativo al panel
-	f.z_index = 100
-	add_child(f)
-	
-	active_flashes.append(f)
-	
-	var t = create_tween()
-	# Subir mientras desaparece
-	t.tween_property(f, "position:y", f.position.y - 60, 2.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	t.parallel().tween_property(f, "modulate:a", 0.0, 2.0)
-	t.chain().tween_callback(func(): 
-		active_flashes.erase(f)
-		f.queue_free()
-	)
 
 # ── Hastur ─────────────────────────────────────────────────────────────────────
 func _start_hastur_madness_loop() -> void:

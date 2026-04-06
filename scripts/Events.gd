@@ -11,3 +11,5 @@ signal combat_ended
 signal scene_change_requested(scene_path: String)
 signal player_hp_changed(new_hp: int)
 signal player_sanity_changed(new_sanity: int)
+signal dialogue_line_shown(mode: int, text: String)
+signal dialogue_finished(mode: int)

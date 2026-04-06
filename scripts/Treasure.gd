@@ -60,6 +60,8 @@ func build_ui() -> void:
 
 	var sub = Label.new()
 	sub.text = "Algo brilla entre la ceniza. Una pieza que no debería estar aquí."
+	if GameManager.is_mimic_chest:
+		sub.text = "El arcón no tiene cerradura. Algo pulsa detrás de la madera."
 	sub.add_theme_font_size_override("font_size", 17)
 	if _font_narrative: sub.add_theme_font_override("font", _font_narrative)
 	sub.modulate = Color(0.55, 0.55, 0.55, 0.0)
@@ -260,7 +262,29 @@ func _on_chest_clicked() -> void:
 	_spawn_chest_burst(chest_panel.get_parent().global_position)
 
 	await get_tree().create_timer(0.15).timeout
+
+	if GameManager.is_mimic_chest:
+		_trigger_mimic()
+		return
+
 	_reveal_reward()
+
+func _trigger_mimic() -> void:
+	# Flash rojo — el cofre revela su naturaleza
+	var vp = get_viewport_rect().size
+	var flash = ColorRect.new()
+	flash.size = vp
+	flash.color = Color(0.55, 0.03, 0.03, 0.0)
+	flash.z_index = 20
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(flash)
+	var tw = create_tween()
+	tw.tween_property(flash, "color:a", 0.7, 0.08)
+	tw.tween_property(flash, "color:a", 0.0, 0.55).set_trans(Tween.TRANS_QUAD)
+	if get_node_or_null("/root/AudioManager"):
+		AudioManager.play("menu_glitch")
+	await get_tree().create_timer(0.5).timeout
+	GameManager.go_to_scene("res://scenes/combat/Combat.tscn")
 
 func _spawn_open_flash() -> void:
 	var vp = get_viewport_rect().size

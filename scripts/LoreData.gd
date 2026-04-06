@@ -73,11 +73,13 @@ static func _get_high_sanity_thought(char_id: String, enemy_name: String) -> Str
 
 static func _get_mid_sanity_thought(char_id: String, enemy_name: String) -> String:
 	var has_trans = GameManager.has_relic("lengua_tablero")
-	
+	var is_w2 = GameManager.current_world == 1
+
 	match char_id:
 		"mahar":
 			if enemy_name == "El Penitente" and has_trans: return "El Penitente afirma que todos los que buscaron algo sagrado llegaron aqui antes que yo."
-			return ["Los rituales que aprendi describian exactamente este lugar. Como lo sabian?", "La Cofradia me envio aqui. Me dijeron que el objeto sagrado estaba aqui. Como lo sabian?", "He matado en nombre de una fe que nadie me supo explicar del todo. Solo obedecer y buscar.", "Hay algo en la obra que cargamos como texto sagrado. Siempre me dijeron que no la leyera completa."].pick_random()
+			if is_w2: return "Este lugar es demasiado perfecto. Como un escenario construido para que yo llegara exactamente aqui."
+			return ["Los rituales que aprendi describian exactamente este lugar. Como lo sabian?", "La Cofradia me envio aqui. Me dijeron que el objeto sagrado estaba aqui. Como lo sabian?", "He matado en nombre de una fe que nadie me supo explicar del todo. Solo obedecer y buscar.", "Hay algo en la obra que cargamos como texto sagrado. Siempre me dijeron que no la leyera completa.", "La Cofradia nunca me dijo que la Mascara era para cubrir algo, no para revelar nada.", "Cuantos cruzados antes que yo? Cuantos llegaron hasta aqui y no volvieron a contar nada?", "El texto sagrado dice que el objeto tiene rostros. En plural."].pick_random()
 		"estratega":
 			if enemy_name == "El Penitente" and has_trans: return "El Penitente afirma que los datos se resetean, pero el trauma permanece en el código."
 			return ["Hay un error en la suma total de este universo. Los números no mienten.", "Las variables están cambiando de forma no lineal. El tablero parece respirar.", "¿Quién mueve mi lógica? Mi mente procesa pensamientos ajenos."].pick_random()
@@ -94,7 +96,7 @@ static func _get_low_sanity_thought(char_id: String, enemy_name: String) -> Stri
 
 	var common = ["¡NO SON MIS MANOS! ¡SON MADERA!", "El Rey... me mira desde mis propios ojos.", "¿Cuántas veces he muerto ya?", "TODO ES UNA BROMA TALLADA EN HUESO."]
 	match char_id:
-		"mahar": return ["¡MI CORONA ESTA HECHA DE DIENTES! ¡LOS DIENTES DE TODOS LOS QUE CREYERON ANTES QUE YO!", "¡El objeto sagrado es su ROSTRO! ¡SIEMPRE FUE SU ROSTRO!", "¡Decadas. Decadas buscando. Y era ESTO."].pick_random()
+		"mahar": return ["¡MI CORONA ESTA HECHA DE DIENTES! ¡LOS DIENTES DE TODOS LOS QUE CREYERON ANTES QUE YO!", "¡El objeto sagrado es su ROSTRO! ¡SIEMPRE FUE SU ROSTRO!", "¡Decadas. Decadas buscando. Y era ESTO.", "¡LA COFRADIA SABIA! ¡SIEMPRE SUPO LO QUE HAY AQUI DENTRO!", "¡Soy el actor. Soy la obra. SOY LA MASCARA."].pick_random()
 		"estratega": return ["¡LA ECUACIÓN ES CERO! ¡TODO ES CERO!", "¡ERROR DE SISTEMA! ¡HUMANO NO ENCONTRADO!"].pick_random()
 		"guardian": return ["¡EL ESCUDO ES UNA LÁPIDA!", "¡PROTEJO UNA TUMBA VACÍA!"].pick_random()
 	
@@ -166,10 +168,21 @@ const LORE_BOOK = {
 		"text": "Hubo un reino, antes. El mapa no lo nombra.\n\nSus torres eran negras como el basalto y sus mares reflejaban una luz que ya no existe. Sus habitantes jugaban al ajedrez no como ritual, sino como arte. No como guerra, sino como conversación.\n\nTenía un rey. El rey tenía un hijo. El hijo nunca perdía, no porque fuera invencible, sino porque entendía algo que los demás no: perder una pieza no es perder. Es abrir un espacio.\n\nUn día llegó algo desde afuera del tablero. El rey tomó una decisión.\n\nEl príncipe nunca se lo perdonó.",
 		"min_lore": 35
 	},
-	"buhonero_rey": {
-		"title": "EL BUHONERO Y EL REY",
-		"text": "Hay una historia que los mercaderes se cuentan entre ellos, aunque ninguno puede verificarla:\n\nUn día, muy al principio, cuando el tablero era nuevo, el Buhonero se encontró con un Rey que no estaba en ningún mapa. Le preguntó qué vendería si pudiera vender cualquier cosa.\n\nEl Rey respondió: \"El final del juego.\"\n\nEl Buhonero reflexionó. \"¿Y a qué precio?\"\n\nEl Rey sonrió con una boca que tenía demasiados dientes: \"A cualquier precio que el comprador no pueda pagar.\"\n\nEl Buhonero todavía está pensando en esa respuesta.",
+	"telonero_rey": {
+		"title": "EL TELONERO Y EL REY",
+		"text": "Hay una historia que nadie recuerda haber escuchado por primera vez:\n\nAntes de la primera función, cuando el escenario todavía olía a madera nueva, el Telonero se encontró con un Rey que no figuraba en ningún programa.\n\nEl Rey le preguntó qué vendería si pudiera vender cualquier cosa.\n\nEl Telonero reflexionó. Tocó los objetos de su puesto uno por uno, como buscando la respuesta entre ellos.\n\n\"No lo sé\", dijo al final. \"Nunca recuerdo qué tenía antes.\"\n\nEl Rey sonrió con una boca que tenía demasiados dientes: \"Eso es exactamente lo que necesitaba escuchar.\"\n\nEl Telonero todavía está pensando en esa respuesta.\nAunque no recuerda la pregunta.",
 		"min_lore": 12
+	},
+	"telonero_asiento": {
+		"title": "EL ASIENTO VACÍO",
+		"text": "Hay una pregunta que ningún actor hace porque ninguno la nota:\n\n¿Para quién actúan?\n\nHastur construyó el escenario. Puso los actores, la música, las trampas. Diseñó cada mecanismo con la precisión de alguien que lleva siglos perfeccionando lo mismo.\n\nPero un teatro sin público no es un teatro. Es un ensayo.\n\nAlgo llegó antes que los actores. Antes que el escenario. Antes de que Hastur supiera que iba a construir algo.\n\nNo compró entrada. No necesitaba.\n\nSe sentó. Y el Telonero, sin saber por qué, a veces mira hacia ese lugar.\n\nSolo un momento. Sin recordar que lo hace.",
+		"min_lore": 22
+	},
+	"telonero_idioma": {
+		"title": "LO QUE EL IDIOMA NO NOMBRA",
+		"text": "En el idioma del tablero hay una palabra para Hastur.\nHay una palabra para el Príncipe.\nHay una palabra para cada actor, cada función, cada final.\n\nNo hay palabra para lo que habita al Telonero.\n\nEl idioma fue construido por Hastur.\nHastur no nombró lo que no puede controlar.\n\nLo más cerca que existe es el silencio entre dos palabras.\n\nEso también es un nombre, si sabes escucharlo.",
+		"min_lore": 38,
+		"requires": "lengua_tablero"
 	},
 	"capitulo_prohibido": {
 		"title": "EL CAPÍTULO PROHIBIDO",

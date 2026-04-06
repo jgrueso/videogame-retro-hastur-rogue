@@ -19,7 +19,7 @@ func resolve(card, enemy_idx: int) -> void:
 			main.hand.remove_at(i); break
 
 	if main.get_node_or_null("/root/AudioManager"): AudioManager.play("card_play")
-	main.log_message("TU", "Juegas " + card.card_name, Color(0.4, 0.8, 1.0))
+	DialogueUI.add_log("TU", "Juegas " + card.card_name, Color(0.4, 0.8, 1.0))
 
 	var shield_before: int = main.player_shield
 	var card_handled = false
@@ -41,7 +41,7 @@ func resolve(card, enemy_idx: int) -> void:
 		GameManager.sanity = max(0, GameManager.sanity - 40)
 		GameManager.mark_level += 1
 		main.player_energy = min(main.player_max_energy, main.player_energy + 2)
-		main.flash_small("¡El Signo consume tu mente! Marca Nv." + str(GameManager.mark_level))
+		DialogueUI.toast("¡El Signo consume tu mente! Marca Nv." + str(GameManager.mark_level))
 
 	elif "TRONO DE CARCOSA" in c_upper:
 		card_handled = true
@@ -57,7 +57,7 @@ func resolve(card, enemy_idx: int) -> void:
 		main.player_shield += 10
 		main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 10, Color(0.4, 0.7, 1))
 		main.trono_carcosa_active = true
-		main.flash_small("¡El Trono reclama su dominio!")
+		DialogueUI.toast("¡El Trono reclama su dominio!")
 		main.update_ui()
 
 	elif "INCISION PRECISA" in c_upper:
@@ -65,12 +65,12 @@ func resolve(card, enemy_idx: int) -> void:
 		if target_e:
 			var dmg = int(target_e.max_hp * 0.25)
 			target_e.hp -= dmg
-			main.flash_small("Incisión: " + str(dmg))
+			DialogueUI.toast("Incisión: " + str(dmg))
 			main._spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(0.5, 1, 0.5))
 			main._animate_enemy_hit(target_e)
 			if target_e.hp <= 0: await main._kill_enemy(target_e)
 		else:
-			main.flash_small("Selecciona un objetivo")
+			DialogueUI.toast("Selecciona un objetivo")
 			# Devolver energia si falla el objetivo
 			main.player_energy += effective_cost
 			card.set_disabled(false)
@@ -95,7 +95,7 @@ func resolve(card, enemy_idx: int) -> void:
 			main.update_intent_labels() # ACTUALIZACIÓN EN TIEMPO REAL
 		else:
 
-			main.flash_small("Selecciona un objetivo")
+			DialogueUI.toast("Selecciona un objetivo")
 			main.player_energy += effective_cost
 			card.set_disabled(false)
 			return
@@ -113,9 +113,9 @@ func resolve(card, enemy_idx: int) -> void:
 			main.player_shield += shield_gain
 			# Feedback visual: Número azul flotante
 			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), shield_gain, Color(0.4, 0.7, 1.0))
-			main.flash_small("Ceniza Preventiva: +" + str(shield_gain) + " Escudo")
+			DialogueUI.toast("Ceniza Preventiva: +" + str(shield_gain) + " Escudo")
 		else:
-			main.flash_small("Mano vacía: No hay piezas que quemar.")
+			DialogueUI.toast("Mano vacía: No hay piezas que quemar.")
 		main.update_ui()
 
 	elif "ANALISIS" in c_upper:
@@ -131,7 +131,7 @@ func resolve(card, enemy_idx: int) -> void:
 				await main._kill_enemy(e_kill)
 				killed_any = true
 		if killed_any:
-			main.flash_small("¡NOMBRE SIN PRONUNCIAR!", Color(0.9, 0.0, 0.2))
+			DialogueUI.toast("¡NOMBRE SIN PRONUNCIAR!", Color(0.9, 0.0, 0.2))
 			main._trigger_screen_blink()
 		main.update_ui()
 
@@ -141,7 +141,7 @@ func resolve(card, enemy_idx: int) -> void:
 
 	elif "ECO DEL VAC" in c_upper:
 		card_handled = true
-		main.flash_small("¡ECO DEL VACÍO!")
+		DialogueUI.toast("¡ECO DEL VACÍO!")
 		for e_aoe in main.enemies:
 			if e_aoe.hp > 0:
 				e_aoe.hp -= 4
@@ -168,7 +168,7 @@ func resolve(card, enemy_idx: int) -> void:
 					main._animate_enemy_hit(atk_target)
 					if atk_target.hp <= 0: await main._kill_enemy(atk_target)
 			else:
-				main.flash_small("No hay enemigos.")
+				DialogueUI.toast("No hay enemigos.")
 		else:
 			main.player_shield += 4
 			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 4, Color(0.4, 0.7, 1))
@@ -187,12 +187,12 @@ func resolve(card, enemy_idx: int) -> void:
 					main._animate_enemy_hit(target_e)
 					if target_e.hp <= 0: await main._kill_enemy(target_e)
 			else:
-				main.flash_small("Selecciona un objetivo")
+				DialogueUI.toast("Selecciona un objetivo")
 				main.player_energy += effective_cost
 				card.set_disabled(false)
 				return
 		else:
-			main.flash_small("Contraofensiva: el enemigo no atacó el turno anterior.")
+			DialogueUI.toast("Contraofensiva: el enemigo no atacó el turno anterior.")
 		main.update_ui()
 
 	elif "SUSURRO DEBILITANTE" in c_upper:
@@ -208,10 +208,10 @@ func resolve(card, enemy_idx: int) -> void:
 				tw.tween_property(e_deb.panel, "modulate", Color(0.4, 1.2, 0.4), 0.1)
 				tw.tween_property(e_deb.panel, "modulate", Color(1, 1, 1), 0.3)
 		if is_last:
-			main.flash_small("¡SUSURRO FINAL! Todos debilitados: -" + str(reduction))
+			DialogueUI.toast("¡SUSURRO FINAL! Todos debilitados: -" + str(reduction))
 			main._trigger_screen_blink()
 		else:
-			main.flash_small("Susurro: Todos -" + str(reduction) + " ATK")
+			DialogueUI.toast("Susurro: Todos -" + str(reduction) + " ATK")
 			var candidates = []
 			for c_node in main.hand_container.get_children():
 				if not c_node.is_queued_for_deletion() and c_node != card:
@@ -229,7 +229,7 @@ func resolve(card, enemy_idx: int) -> void:
 		var shield_amount = int(main.player_max_hp * 0.15)
 		main.player_shield += shield_amount
 		main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), shield_amount, Color(0.4, 0.7, 1))
-		main.flash_small("Fortaleza Interior: +" + str(shield_amount) + " Escudo")
+		DialogueUI.toast("Fortaleza Interior: +" + str(shield_amount) + " Escudo")
 		main.update_ui()
 
 	# ── LÓGICA DE ATAQUE Y DEFENSA GENÉRICA ──
@@ -251,12 +251,12 @@ func resolve(card, enemy_idx: int) -> void:
 				if san < 35:
 					dmg *= 2
 					shield_amount *= 2
-					main.flash_small("¡RESONANCIA ABISAL!")
+					DialogueUI.toast("¡RESONANCIA ABISAL!")
 					main._trigger_screen_blink()
 				elif san < 60:
 					dmg = int(dmg * 1.5)
 					shield_amount = int(shield_amount * 1.5)
-					main.flash_small("Eco del Abismo...")
+					DialogueUI.toast("Eco del Abismo...")
 			if "AVATAR" in target_e.name.to_upper(): dmg = int(dmg * (1.0 + (100 - GameManager.sanity) * 0.015))
 			if "JAQUE ETERNO" in c_upper: dmg = clamp(15 + int((main.player_max_hp - main.player_hp) * 0.4), 15, 40)
 			if GameManager.velo_broken: dmg += 2
@@ -264,13 +264,13 @@ func resolve(card, enemy_idx: int) -> void:
 			if GameManager.selected_character == "prince" and GameManager.resonancia_stacks > 0:
 				dmg += GameManager.resonancia_stacks
 			if GameManager.selected_character == "guardian" and main.furia_points >= 3:
-				dmg *= 2; main.furia_points = 0; main.flash_small("¡RESILIENCIA!"); main._trigger_screen_blink()
+				dmg *= 2; main.furia_points = 0; DialogueUI.toast("¡RESILIENCIA!"); main._trigger_screen_blink()
 			# Pasiva Mahar: FERVOR
 			if GameManager.selected_character == "mahar" and dmg > 0:
 				if GameManager.sanity >= 60 and not main.mahar_guided_struck:
 					dmg += 4
 					main.mahar_guided_struck = true
-					main.flash_small("FERVOR: +4 al golpe guiado", Color(0.9, 0.6, 0.2))
+					DialogueUI.toast("FERVOR: +4 al golpe guiado", Color(0.9, 0.6, 0.2))
 				elif GameManager.sanity < 40:
 					dmg += 2
 
@@ -302,10 +302,10 @@ func resolve(card, enemy_idx: int) -> void:
 		var cd = card.card_data
 		if cd.get("gain_energy", 0) > 0:
 			main.player_energy = min(main.player_max_energy, main.player_energy + cd["gain_energy"])
-			main.flash_small("+" + str(cd["gain_energy"]) + " Energía")
+			DialogueUI.toast("+" + str(cd["gain_energy"]) + " Energía")
 		if cd.get("sanity_gain", 0) > 0:
 			GameManager.sanity = min(GameManager.max_sanity, GameManager.sanity + cd["sanity_gain"])
-			main.flash_small("+" + str(cd["sanity_gain"]) + " Sanidad")
+			DialogueUI.toast("+" + str(cd["sanity_gain"]) + " Sanidad")
 		if cd.get("draw", 0) > 0:
 			await main.draw_hand(cd["draw"])
 		if cd.get("enemy_atk_debuff", 0) > 0:
@@ -313,7 +313,7 @@ func resolve(card, enemy_idx: int) -> void:
 			for e_deb in main.enemies:
 				if e_deb.hp > 0:
 					e_deb["atk_reduction"] = e_deb.get("atk_reduction", 0) + reduction
-			main.flash_small("¡" + card.card_name + "! Todos -" + str(reduction) + " ATK")
+			DialogueUI.toast("¡" + card.card_name + "! Todos -" + str(reduction) + " ATK")
 			main.update_intent_labels()
 
 	# ── COSTES Y LIMPIEZA ──
@@ -324,10 +324,10 @@ func resolve(card, enemy_idx: int) -> void:
 		main.player_hp = max(0, main.player_hp - 6)
 	elif cd_costs.get("hp_cost", 0) > 0:
 		main.player_hp = max(0, main.player_hp - cd_costs["hp_cost"])
-		main.flash_small("-" + str(cd_costs["hp_cost"]) + " HP")
+		DialogueUI.toast("-" + str(cd_costs["hp_cost"]) + " HP")
 	if cd_costs.get("sanity_cost", 0) > 0:
 		GameManager.sanity = max(0, GameManager.sanity - cd_costs["sanity_cost"])
-		main.flash_small("-" + str(cd_costs["sanity_cost"]) + " Sanidad")
+		DialogueUI.toast("-" + str(cd_costs["sanity_cost"]) + " Sanidad")
 
 	# ── MARCA DEL VACÍO ──
 	if main.ui.get_cursed_card_node() == card:
@@ -346,7 +346,7 @@ func resolve(card, enemy_idx: int) -> void:
 		if overflow > 0:
 			main.player_hp = max(0, main.player_hp - overflow)
 			msg += " / -%d HP" % overflow
-		main.flash_small(msg, Color(0.6, 0.0, 0.9))
+		DialogueUI.toast(msg, Color(0.6, 0.0, 0.9))
 		main.ui.clear_cursed_card()
 
 	if main.player_hp <= 0: main._check_player_death(); return
@@ -358,7 +358,7 @@ func resolve(card, enemy_idx: int) -> void:
 	if not card.exhaust:
 		main.discard_pile.append(card.card_data.duplicate())
 	else:
-		main.flash_small(card.card_name + " se agota.")
+		DialogueUI.toast(card.card_name + " se agota.")
 
 	main.first_card_this_turn = false
 	card.queue_free()
@@ -375,7 +375,7 @@ func resolve(card, enemy_idx: int) -> void:
 			while main.shield_gained_this_turn >= 10 and main.furia_points < 3:
 				main.shield_gained_this_turn -= 10
 				main.furia_points += 1
-				main.flash_small("¡RESILIENCIA! Furia acumulada: " + str(main.furia_points) + "/3")
+				DialogueUI.toast("¡RESILIENCIA! Furia acumulada: " + str(main.furia_points) + "/3")
 
 	main.update_ui(); main.update_intent_labels(); main.check_combat_end()
 
@@ -442,7 +442,7 @@ func get_deciphered_thought(original: String) -> String:
 	if sanity <= 0: return original # Claridad total
 
 	var result = ""
-	var symbols = ["@", "#", "$", "%", "&", "*", "§", "Δ", "Ω", "▓", "░", "▒", "†", "‡"]
+	var symbols = ["ᛈ", "ᛇ", "ᚦ", "ᛟ", "ᛗ", "ᚾ", "ᛁ", "ᛖ", "ᚷ", "ᛃ", "ᚹ", "ᚫ", "ᛤ", "ᛞ", "ᚣ", "ᛝ", "ᚪ", "ᛠ", "ᚩ", "ᛡ", "ᚢ", "ᛣ", "ᚠ", "ᛒ"]
 
 	for i in range(original.length()):
 		var c = original[i]

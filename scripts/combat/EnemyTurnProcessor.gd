@@ -46,7 +46,7 @@ func process_enemy_turn() -> void:
 			e["bleed"] = max(0, e["bleed"] - 1)
 			main._spawn_damage_number(e.panel.global_position + Vector2(100, 60), bleed_dmg, Color(0.8, 0.1, 0.3))
 			if e.get("sprite_label"): e.sprite_label.play_hit()
-			main.log_message(e.name, "Sangra por %d de daño" % bleed_dmg, Color(0.8, 0.1, 0.3))
+			DialogueUI.add_log(e.name, "Sangra por %d de daño" % bleed_dmg, Color(0.8, 0.1, 0.3))
 			main.update_ui()
 			if e.hp <= 0:
 				await main._kill_enemy(e)
@@ -88,7 +88,7 @@ func process_enemy_turn() -> void:
 		# MECÁNICA: Aturdimiento
 		if e.get("is_stunned", false):
 			e["is_stunned"] = false
-			main.flash_small(e.name + ": ¡ATURDIDO!")
+			DialogueUI.toast(e.name + ": ¡ATURDIDO!")
 			show_enemy_banter(e.panel, "...", Color(0.5, 0.5, 0.5))
 			await main.get_tree().create_timer(0.5).timeout
 			continue
@@ -101,7 +101,7 @@ func process_enemy_turn() -> void:
 			main.enemy_attacked_last_turn = true
 			var banter = get_enemy_banter(e.name)
 			if not banter.is_empty():
-				show_enemy_banter(e.panel, banter, get_banter_color(e.name, banter))
+				show_enemy_banter(e.panel, banter, get_banter_color(e, banter))
 
 			# Ejecutar animacion de ataque segun el enemigo
 			await animate_enemy_attack_unique(e)
@@ -111,7 +111,7 @@ func process_enemy_turn() -> void:
 			if GameManager.mark_level > 0 and base_dmg > 0:
 				mark_bonus = int(base_dmg * (0.25 * GameManager.mark_level))
 				if mark_bonus < 1: mark_bonus = 1
-				main.log_message("SIGNO AMARILLO", "La marca intensifica el dolor (+%d)" % mark_bonus, Color(1.0, 0.9, 0.2))
+				DialogueUI.add_log("SIGNO AMARILLO", "La marca intensifica el dolor (+%d)" % mark_bonus, Color(1.0, 0.9, 0.2))
 
 			var dmg = max(0, (base_dmg + mark_bonus) - e.get("atk_reduction", 0))
 			var absorbed = min(main.player_shield, dmg)
@@ -126,7 +126,7 @@ func process_enemy_turn() -> void:
 			if dmg > 0:
 				main.player_hp = max(0, main.player_hp - dmg)
 				main.update_ui() # Actualizar HP en tiempo real
-				main.log_message(e.name, "Te inflige %d de daño" % dmg, Color(1.0, 0.3, 0.3))
+				DialogueUI.add_log(e.name, "Te inflige %d de daño" % dmg, Color(1.0, 0.3, 0.3))
 				main._animate_player_hit()
 				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), dmg, Color(1, 0.3, 0.3))
 				if main.get_node_or_null("/root/AudioManager"): AudioManager.play("player_hit")
@@ -146,9 +146,9 @@ func process_enemy_turn() -> void:
 					if thorns_dmg > 0:
 						if GameManager.sanity < 50:
 							thorns_dmg = int(thorns_dmg * 1.5) # +50% en locura (antes era x2)
-							main.flash_small("¡ESPINAS DE CARCOSA! (+50%)")
+							DialogueUI.toast("¡ESPINAS DE CARCOSA! (+50%)")
 						else:
-							main.flash_small("Espinas: Contraataque.")
+							DialogueUI.toast("Espinas: Contraataque.")
 
 						thorns_dmg = clamp(thorns_dmg, 1, 12) # Tope máximo de 12 por golpe
 						main._flash_relic("corona_espinas")
@@ -180,16 +180,16 @@ func process_enemy_turn() -> void:
 				var heal_amount = int(action.value * 0.5)
 				GameManager.sanity = min(GameManager.max_sanity, GameManager.sanity + heal_amount)
 				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), heal_amount, Color(0.7, 0.2, 1.0))
-				main.flash_small("RESONANCIA: la insanidad te fortalece. +" + str(heal_amount) + " Cordura", Color(0.7, 0.2, 1.0))
+				DialogueUI.toast("RESONANCIA: la insanidad te fortalece. +" + str(heal_amount) + " Cordura", Color(0.7, 0.2, 1.0))
 			else:
 				GameManager.sanity = max(0, GameManager.sanity - action.value)
 				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), action.value, Color(0.7, 0.3, 1.0))
-				main.flash_small(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
+				DialogueUI.toast(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
 				if GameManager.selected_character == "prince":
 					var shield_gain = int(action.value * 0.4)
 					if shield_gain > 0:
 						main.player_shield += shield_gain
-						main.flash_small("Absorcion Abisal: +" + str(shield_gain) + " Escudo")
+						DialogueUI.toast("Absorcion Abisal: +" + str(shield_gain) + " Escudo")
 			main.update_ui()
 
 		# --- NUEVAS MECÁNICAS DE HASTUR ---
@@ -197,8 +197,8 @@ func process_enemy_turn() -> void:
 			var cards = main.hand_container.get_children()
 			if not cards.is_empty():
 				var target_card = cards[randi() % cards.size()]
-				main.flash_small("¡HASTUR TOMA EL CONTROL!")
-				main.flash_small("Usas " + target_card.card_name + " contra ti mismo.")
+				DialogueUI.toast("¡HASTUR TOMA EL CONTROL!")
+				DialogueUI.toast("Usas " + target_card.card_name + " contra ti mismo.")
 
 				# Aplicar daño al jugador basado en el ataque de la carta
 				var self_dmg = target_card.attack
@@ -213,24 +213,24 @@ func process_enemy_turn() -> void:
 				target_card.queue_free()
 				main.reorganize_hand()
 
-				main.flash_small("Tu turno ha sido arrebatado.")
+				DialogueUI.toast("Tu turno ha sido arrebatado.")
 				# Forzar fin de turno (pero como ya estamos en turno enemigo, esto solo salta las acciones restantes si las hubiera)
 				break
 
 		elif action.type == "ultimate_charge":
-			main.flash_small("¡EL CIELO SE RASGA! Hastur prepara su juicio...")
+			DialogueUI.toast("¡EL CIELO SE RASGA! Hastur prepara su juicio...")
 			main._trigger_screen_blink()
 			if main.get_node_or_null("/root/AudioManager"): AudioManager.play("agony_shriek")
 
 		elif action.type == "ultimate_attack":
-			main.flash_small("¡EL JUICIO DE CARCOSA!")
+			DialogueUI.toast("¡EL JUICIO DE CARCOSA!")
 			main.player_hp -= action.value
 			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), action.value, Color(1, 0, 0))
 			main._trigger_screen_blink()
 			main._animate_player_hit()
 
 		elif action.type == "anular_energia":
-			main.flash_small("¡SILENCIO ETERNO! No podrás actuar el próximo turno.")
+			DialogueUI.toast("¡SILENCIO ETERNO! No podrás actuar el próximo turno.")
 			main.player_energy = 0 # El jugador empezará con 0
 			main._trigger_screen_blink()
 			if main.get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
@@ -238,7 +238,7 @@ func process_enemy_turn() -> void:
 		elif action.type == "curse_hand":
 			var cards = main.hand_container.get_children()
 			if not cards.is_empty():
-				main.flash_small("¡CORRUPCIÓN! Tus piezas cambian de forma.")
+				DialogueUI.toast("¡CORRUPCIÓN! Tus piezas cambian de forma.")
 				var target_card = cards[randi() % cards.size()]
 				target_card.setup({"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 1, "curse": true})
 				target_card.modulate = Color(0.4, 0.1, 0.5)
@@ -253,19 +253,19 @@ func process_enemy_turn() -> void:
 		if "HASTUR" in e0.name.to_upper():
 			GameManager.sanity = max(0, GameManager.sanity - 10) # Hastur drena más
 			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 10, Color(0.7, 0.3, 1.0))
-			main.flash_small("LA CANCIÓN DE CARCOSA TE PERSIGUE (-10)")
+			DialogueUI.toast("LA CANCIÓN DE CARCOSA TE PERSIGUE (-10)")
 			main.update_ui()
 		elif "AVATAR" in e0.name.to_upper():
 			GameManager.sanity = max(0, GameManager.sanity - 5)
 			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 5, Color(0.7, 0.3, 1.0))
-			main.flash_small("LA PRESENCIA DEL AVATAR TE CORROMPE (-5)")
+			DialogueUI.toast("LA PRESENCIA DEL AVATAR TE CORROMPE (-5)")
 
 			# --- REFLEJO DE LA LOCURA ---
 			if GameManager.sanity < 20:
 				var cards_in_hand = main.hand_container.get_children()
 				if not cards_in_hand.is_empty():
 					var target_card = cards_in_hand[randi() % cards_in_hand.size()]
-					main.flash_small("¡REFLEJO DE LA LOCURA! Una pieza ha sido corrompida.")
+					DialogueUI.toast("¡REFLEJO DE LA LOCURA! Una pieza ha sido corrompida.")
 					target_card.setup({"name": "Maldición de Ceniza", "attack": 0, "defense": 0, "cost": 1, "curse": true})
 					target_card.modulate = Color(0.4, 0.1, 0.5) # Color corrupto
 					if main.get_node_or_null("/root/AudioManager"):
@@ -283,7 +283,7 @@ func process_enemy_turn() -> void:
 	if main.destilado_chispa_debt > 0:
 		main.player_energy = max(0, main.player_energy - main.destilado_chispa_debt)
 		main.destilado_chispa_debt = 0
-		main.flash_small("Chispa Efímera: el tablero cobra su deuda. -1 Energía.", Color(0.9, 0.8, 0.3))
+		DialogueUI.toast("Chispa Efímera: el tablero cobra su deuda. -1 Energía.", Color(0.9, 0.8, 0.3))
 	# Tick de bonus de daño por destilado (Fragmento del Príncipe)
 	if main.destilado_dmg_turns > 0:
 		main.destilado_dmg_turns -= 1
@@ -293,12 +293,12 @@ func process_enemy_turn() -> void:
 	# Pasiva Mahar: FERVOR (fe rota) — drena 2 HP por turno cuando cordura < 40
 	if GameManager.selected_character == "mahar" and GameManager.sanity < 40:
 		main.player_hp = max(1, main.player_hp - 2)
-		main.flash_small("FERVOR (fe rota): -2 HP", Color(0.8, 0.3, 0.1))
+		DialogueUI.toast("FERVOR (fe rota): -2 HP", Color(0.8, 0.3, 0.1))
 
 	# Sinergia Reliquia: Ficha de Marfil — drena 1 HP por turno
 	if GameManager.has_relic("ficha_marfil"):
 		main.player_hp -= 1
-		main.flash_small("Ficha de Marfil: -1 HP", Color(0.9, 0.5, 0.2))
+		DialogueUI.toast("Ficha de Marfil: -1 HP", Color(0.9, 0.5, 0.2))
 		main._flash_relic("ficha_marfil")
 
 	main.player_shield = 0
@@ -308,8 +308,8 @@ func process_enemy_turn() -> void:
 	if main.player_hp <= 0 and GameManager.has_relic("velo_dama") and not GameManager.velo_broken:
 		main.player_hp = int(main.player_max_hp * 0.25) # Recupera 25% HP
 		GameManager.velo_broken = true
-		main.flash_small("¡EL VELO SE RASGA! La muerte ha sido negada.")
-		main.log_message("VELO", "Venganza de la Dama activa: +2 ATK permanente.", Color(1, 0.2, 0.2))
+		DialogueUI.toast("¡EL VELO SE RASGA! La muerte ha sido negada.")
+		DialogueUI.add_log("VELO", "Venganza de la Dama activa: +2 ATK permanente.", Color(1, 0.2, 0.2))
 		main._flash_relic("velo_dama")
 		if main.relics_container:
 			for icon in main.relics_container.get_children():
@@ -336,7 +336,7 @@ func process_enemy_turn() -> void:
 		var bonus = main.hand.size()
 		if bonus > 0:
 			main.player_shield += bonus
-			main.flash_small("Trono de Carcosa: +" + str(bonus) + " Escudo")
+			DialogueUI.toast("Trono de Carcosa: +" + str(bonus) + " Escudo")
 
 	main.is_player_turn = true; main.end_turn_btn.disabled = false
 	main.update_card_states()
@@ -375,7 +375,7 @@ func trigger_boss_phase_2(e: Dictionary) -> void:
 		action["value"] = int(action["value"] * 1.4) + 2
 
 	if main.get_node_or_null("/root/AudioManager"): AudioManager.play("menu_glitch")
-	main.show_message(e.name + ": SEGUNDA FASE", Color(1.0, 0.2, 0.2))
+	DialogueUI.cinematic(e.name + ": SEGUNDA FASE", Color(1.0, 0.2, 0.2))
 
 	# Flash visual
 	var flash = ColorRect.new()
@@ -386,7 +386,6 @@ func trigger_boss_phase_2(e: Dictionary) -> void:
 	tw.tween_callback(flash.queue_free)
 
 	await main.get_tree().create_timer(1.5).timeout
-	main.panel_message.visible = false
 	main.update_ui(); main.update_intent_labels()
 
 
@@ -413,12 +412,12 @@ func get_enemy_banter(enemy_name: String) -> String:
 	return pool[randi() % pool.size()]
 
 
-func get_banter_color(enemy_name: String, text: String) -> Color:
+func get_banter_color(enemy: Dictionary, text: String) -> Color:
 	if LoreData.is_garbled(text):
 		return Color(0.3, 0.9, 0.9)  # cian para texto garbled
-	if enemy_name == "El Penitente":
-		return Color(0.5, 1.0, 0.5)
-	if enemy_name in ["EL CARCELERO", "EL REY AMARILLO", "EL REY SIN CORONA"]:
+	if enemy.get("peaceful", true) == false and enemy.name == "El Penitente":
+		return Color(1.0, 0.3, 0.3)  # rojo cuando está enraged
+	if enemy.name in ["EL CARCELERO", "EL REY AMARILLO", "EL REY SIN CORONA"]:
 		return Color(0.95, 0.7, 0.1)
 	if GameManager.current_world == 2:
 		return Color(0.75, 0.4, 1.0)  # Violeta para enemigos W3
@@ -427,21 +426,8 @@ func get_banter_color(enemy_name: String, text: String) -> Color:
 
 func show_enemy_banter(enemy_panel: Panel, text: String, col: Color = Color(0.9, 0.8, 0.5)) -> void:
 	if text.is_empty(): return
-	var lbl = Label.new()
-	lbl.text = "\"%s\"" % text
-	lbl.modulate = col; lbl.modulate.a = 0.0
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
-	var est_lines = text.length() / 30 + text.count("\n") + 1
-	var ban_h = max(65, est_lines * 16)
-	lbl.size = Vector2(220, ban_h)
-	lbl.position = enemy_panel.global_position + Vector2(-10, -ban_h - 10)
-	lbl.z_index = 12; main.add_child(lbl)
-	var t = create_tween()
-	t.tween_property(lbl, "modulate:a", 1.0, 0.3)
-	t.tween_interval(2.8)
-	t.tween_property(lbl, "modulate:a", 0.0, 0.5)
-	t.tween_callback(lbl.queue_free)
+	var pos = enemy_panel.global_position + Vector2(enemy_panel.size.x / 2.0, 0.0)
+	DialogueUI.bark(text, pos, col, true, enemy_panel.size.x, enemy_panel.name)
 
 
 func animate_enemy_attack_unique(e: Dictionary) -> void:

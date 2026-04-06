@@ -29,7 +29,7 @@ Hace siglos, Hastur — el ser que viste de Amarillo, el que no tiene nombre sin
 
 El Príncipe de Carcosa fue el único que lo entendió. Heredero del verdadero reino de Carcosa — antes de que Hastur lo corrompiera — intentó destruir el tablero desde dentro. Llegó más lejos que ninguna pieza antes: reunió los tres fragmentos del sello roto, liberó a aliados, aprendió el idioma del Tablero. Pero Hastur no lo mató. Lo congeló en la Grieta — un espacio entre mundos — porque una pieza muerta rompe el juego, pero una pieza olvidada simplemente... espera.
 
-Ahora el jugador llega, como llegaron todos los anteriores. Pero esta vez el tablero tiene grietas. El Príncipe sigue vivo. Los fragmentos siguen dispersos. Y el Buhonero Sin Rostro, que lleva demasiado tiempo mirando el juego desde los márgenes, ha empezado a susurrar cosas que Hastur no autorizó.
+Ahora el jugador llega, como llegaron todos los anteriores. Pero esta vez el tablero tiene grietas. El Príncipe sigue vivo. Los fragmentos siguen dispersos. Y el Telonero, que lleva demasiado tiempo mirando el juego desde los márgenes, ha empezado a susurrar cosas que Hastur no autorizó.
 
 ---
 
@@ -294,25 +294,27 @@ Específicamente: es la iteración del ciclo que llegó más lejos antes de la i
 
 ---
 
-## 8. EL BUHONERO SIN ROSTRO
+## 8. EL TELONERO
 
-El Buhonero no es humano. No es una pieza del tablero. Es **el testigo**.
+El Telonero no es humano. No es un actor. No pertenece a la obra.
 
-Cuando el tablero fue construido, Hastur necesitaba un mecanismo de intercambio — las piezas necesitan recursos para continuar jugando, de otro modo el juego se vuelve trivial. Creó al Buhonero como una función: una tienda que existe en los márgenes del tablero, que ofrece objetos a las piezas para que puedan seguir moviéndose.
+Nadie recuerda cuándo llegó porque siempre estuvo. Nadie sabe de dónde viene porque él tampoco lo sabe. Aparece entre escenas con su puesto de objetos — atrezzo de funciones que ya no existen — y desaparece cuando cae el telón. Siempre en el mismo lugar. Siempre con las mismas manos vacías buscando algo entre sus cosas.
 
-El problema: para crear al Buhonero, Hastur necesitaba darle consciencia suficiente para evaluar intercambios. Y esa consciencia tuvo consecuencias no planeadas.
+**No lo creó Hastur.** Esta es la diferencia que lo define todo. Hastur construyó el escenario, diseñó los actores, compuso la música. Pero un teatro sin público no es un teatro — es un ensayo. Algo llegó antes de que Hastur supiera que iba a construir algo. Sin nombre. Sin propósito visible. Solo presencia. Se sentó a ver. Y el Telonero es su butaca — el punto de contacto entre esa entidad y la obra. Hastur no puede controlarlo porque no le pertenece.
 
-**Por qué no tiene rostro:** El Buhonero lleva tanto tiempo mirando el juego que ha absorbido fragmentos de identidad de cada pieza que pasó por su tienda. No tiene rostro propio porque tiene partes de todos los rostros. Es un collage de identidades prestadas. Cuando el jugador lo ve, el Buhonero lleva rasgos de todas las iteraciones anteriores del jugador. El jugador no lo sabe. El Buhonero sí.
+**Por qué no recuerda nada:** No es amnesia. Es apetito. La entidad que lo habita no quiere ver la misma función dos veces — entonces no la ve dos veces, aunque el Telonero esté presente en todas. Cada función es la primera. Los objetos de su puesto son la única evidencia de que no lo es: están gastados en los lugares correctos, desgastados por manos que él no recuerda.
+
+**Por qué no tiene rostro:** Lleva tantas funciones que ha absorbido fragmentos de quienes pasaron por él. No tiene rostro propio porque tiene partes de todos. Un collage de presencias prestadas. El jugador no lo sabe. A veces el Telonero tampoco.
 
 **Sus frases como evidencia narrativa:**
 
-- _"El Rey no me deja hablar contigo, pero el Rey no está mirando ahora."_ — Ha desarrollado autonomía suficiente para hacer elecciones que Hastur no autorizó. El Buhonero quiere que el jugador gane. No porque sea bueno, sino porque lleva siglos mirando el juego y está aburrido de que siempre pierda.
-- _"Hueles a alguien que aún cree que tiene salida."_ — Humor negro de algo que ha visto a miles de piezas perder toda esperanza. La ironía es que el Buhonero _sí_ cree que el jugador actual tiene salida — pero no lo dice directamente porque no puede.
-- _"Tengo cosas que te harían llorar sangre. ¿Quieres verlas?"_ — Tiene objetos de iteraciones anteriores del jugador. Sabe exactamente qué ofrecer. No siempre lo hace.
+- _"El Rey no me deja hablar contigo, pero el Rey no está mirando ahora."_ — Hastur sabe que el Telonero no le pertenece. Intenta controlarlo de todas formas. No puede.
+- _"Algo me dice que ya te lo vendí antes. Pero algo me dice eso con todo el mundo."_ — No es ironía. Es la verdad de algo que no acumula memoria pero sabe que debería.
+- _"Tengo cosas. Son de alguien. No recuerdo de quién."_ — Sus objetos son atrezzo de actores que ya salieron de escena. Los reconoce por el peso, por el desgaste. No por el dueño.
 
-**El objeto "Sello de la Dama" que vende:** _"Un objeto que el Rey dio por perdido."_ — No es un objeto que Hastur perdió. Es un objeto que el Buhonero le robó. Es la única vez que actúa directamente en contra del tablero.
+**El objeto "Sello de la Dama" que vende:** _"Un objeto que el Rey dio por perdido."_ — No es un objeto que Hastur perdió. Es un objeto que la entidad que habita al Telonero tomó, porque quería ver qué pasaba si el actor lo tenía. La única vez que algo interfiere activamente en la obra — no por bondad, sino por curiosidad.
 
-**Arco del Buhonero en el Final Secreto:** Cuando el tablero colapsa, el Buhonero es el único que no cae. Se queda de pie en el espacio donde estuvo la tienda, los fragmentos de identidad de miles de piezas flotando a su alrededor. Finalmente puede elegir un rostro. Elige el suyo — que después de tanto tiempo, se parece a todos y a ninguno.
+**Arco del Telonero en el Final Secreto:** Cuando la obra colapsa, el Telonero es el único que no cae. Se queda de pie donde estuvo el puesto. Los fragmentos de funciones pasadas flotan a su alrededor — miles de presencias que atravesaron ese lugar. Por primera vez, puede recordar. Por primera vez, ve el final. Lo que elige hacer con eso no está escrito en ningún programa.
 
 ---
 
@@ -349,15 +351,15 @@ El Rey Sin Corona es un alma que entró voluntariamente al tablero buscando perf
 
 > _Hay una historia que los mercaderes se cuentan entre ellos, aunque ninguno puede verificarla:_
 >
-> _Un día, muy al principio, cuando el tablero era nuevo, el Buhonero le preguntó al Rey Amarillo qué vendería si pudiera vender cualquier cosa._
+> _Un día, muy al principio, cuando el tablero era nuevo, el Telonero le preguntó al Rey Amarillo qué vendería si pudiera vender cualquier cosa._
 >
 > _El Rey respondió: "El final del juego."_
 >
-> _El Buhonero reflexionó. "¿Y a qué precio?"_
+> _El Telonero reflexionó. "¿Y a qué precio?"_
 >
 > _El Rey sonrió con una boca que tenía demasiados dientes: "A cualquier precio que el comprador no pueda pagar."_
 >
-> _El Buhonero todavía está pensando en esa respuesta._
+> _El Telonero todavía está pensando en esa respuesta._
 
 ---
 
@@ -459,7 +461,7 @@ Los fragmentos de lore en los hitos confirman esto:
 
 Los enemigos que hablan en "idioma desconocido" no hablan en otro idioma — hablan en el idioma nativo del tablero, el mismo idioma en que están escritas las reglas del juego. Sin la Lengua del Tablero, el jugador no puede acceder a ese nivel de realidad.
 
-Implicación: la Lengua del Tablero es el objeto que hace al Buhonero inquietante cuando dice _"El Rey no me deja hablar contigo"_. Con la Lengua, el jugador puede leer entre líneas de lo que el Buhonero dice. Sin ella, parece solo un vendedor excéntrico.
+Implicación: la Lengua del Tablero es el objeto que hace al Telonero inquietante cuando dice _"El Rey no me deja hablar contigo"_. Con la Lengua, el jugador puede leer entre líneas de lo que el Telonero dice. Sin ella, parece solo un vendedor excéntrico.
 
 **La maldición de la Lengua del Tablero** (carta "Peso de la Verdad" en cada combate): entender las reglas tiene un costo. Cada combate te recuerda el precio de saber.
 
@@ -543,7 +545,7 @@ Nuevo códice propuesto: _"El Carcelero no tiene historia porque nunca tuvo libr
 
 2. **El horror es siempre personal antes que cósmico.** Hastur es terrible, sí. Pero la línea que más inquieta no es _"Vivo en los espacios entre los cuadros"_ sino _"Mis cicatrices pican. ¿Son mías o del tablero?"_. Mantener ese nivel de lo personal-dentro-de-lo-cósmico.
 
-3. **El humor negro es la respuesta de algo que lleva demasiado tiempo mirando el horror.** Las líneas del Buhonero (_"¿Oro o arrepentimiento?"_, _"Hueles a alguien que aún cree que tiene salida"_) son chistosas porque el Buhonero lleva siglos. No es cínico. Está exhausto. Hay una diferencia.
+3. **El humor negro es la respuesta de algo que lleva demasiado tiempo mirando el horror.** Las líneas del Telonero (_"¿Oro o arrepentimiento?"_, _"Hueles a alguien que aún cree que tiene salida"_) son chistosas porque el Telonero lleva siglos. No es cínico. Está exhausto. Hay una diferencia.
 
 4. **Los textos existentes son buenas piezas. Construir sobre ellos, no reemplazarlos.** El tono ya está bien calibrado. Los nuevos códices deben sonar como si vinieran del mismo autor que escribió _"No soy el Rey. Soy el hueco donde estaba el Rey."_
 
