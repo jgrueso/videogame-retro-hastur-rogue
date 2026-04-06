@@ -1,17 +1,19 @@
 extends Node2D
 
 var shop_items: Array = [
-	{"label": "Sangre Embalsamada (+15 HP max)", "cost": 25, "action": "max_hp", "desc": "Sabe a ceniza y a un pasado que no es tuyo."},
-	{"label": "Elixir de la Agonia (Cura 20 HP)", "cost": 15, "action": "heal", "desc": "Dormira tu dolor, pero no tus pesadillas."},
-	{"label": "Sello de la Dama (Reliquia)", "cost": 30, "action": "relic", "desc": "Un objeto que el Rey dio por perdido."},
+	{"label": "Sangre Embalsamada (+15 HP max)", "cost": 25, "action": "max_hp", "desc": "Sabe a ceniza y a un pasado que no es tuyo. El atrezzo de alguien que ya salio de escena."},
+	{"label": "Elixir de la Agonia (Cura 20 HP)", "cost": 15, "action": "heal", "desc": "Dormira tu dolor, pero no tus lineas."},
+	{"label": "Sello de la Dama (Reliquia)", "cost": 30, "action": "relic", "desc": "Un objeto que el autor dio por perdido. El Telonero lo encontro entre bastidores."},
 ]
 
 var greeting: String = ""
 const GREETINGS = [
-	"\"¿Que traes en tus bolsillos, pequeña pieza? ¿Oro o arrepentimiento?\"",
-	"\"Valla, valla... hueles a alguien que aun cree que tiene salida.\"",
-	"\"El Rey no me deja hablar contigo, pero el Rey no esta mirando ahora.\"",
-	"\"Tengo cosas que te harian llorar sangre. ¿Quieres verlas?\""
+	"\"¿Que traes en tus bolsillos, pequeño actor? ¿Oro o arrepentimiento?\"",
+	"\"Valla, valla... hueles a alguien que aun cree que puede reescribir su escena.\"",
+	"\"El autor no me deja hablar contigo, pero el autor no esta mirando ahora.\"",
+	"\"Tengo atrezzo que te haria llorar sangre. ¿Quieres verlo?\"",
+	"\"Algo me dice que ya te lo vendi antes. Pero algo me dice eso con todo el mundo.\"",
+	"\"Tengo cosas. Son de alguien. No recuerdo de quien. El desgaste dice que era importante.\""
 ]
 
 var shop_content: Control

@@ -4,10 +4,10 @@ const CHARACTERS = [
 	{
 		"id": "mahar",
 		"name": "MAHAR, EL CRUZADO",
-		"style": "Senda del Acero — MARCIAL-RELIGIOSO",
+		"style": "El Devoto — ROL: El que vino a destruir la obra y es su mayor defensor",
 		"hp": 55,
-		"lore": "Un cruzado de la Cofradia de los Palidos. Decadas de peregrinacion, ciudades quemadas y herejes ejecutados, todo en nombre de un objeto sagrado que nadie en la Cofradia le ha descrito del todo.\n\nSus superiores le dijeron que estaba aqui. Le dijeron que lo reconoceria cuando lo viera. No le dijeron mas.\n\n'He cruzado mares de ceniza por mi fe. Si este es su purgatorio, lo atravesare con el acero.'",
-		"fate": "Lo que buscas existe. Esta aqui. Cuando lo encuentres, entenderas por que nadie regreso a contarlo.",
+		"lore": "Un cruzado de la Cofradia de los Palidos. Decadas de peregrinacion en nombre de un objeto sagrado que nadie le ha descrito del todo — una mascara, le dijeron. El rostro del Rey Amarillo, sellado en cera negra.\n\nLo que no sabe: la Cofradia que lo envio tambien esta en el guion. Tambien recibio una invitacion. Tambien lleva anos en cartelera sin saberlo.\n\n'He cruzado mares de ceniza por mi fe. Si este es su escenario, lo atravesare con el acero.'",
+		"fate": "Lo que buscas existe. Lo que no sabes: cuando lo encuentres, habras cumplido exactamente lo que la obra necesitaba de ti.",
 		"passive": "FERVOR: Cordura >= 60 -> Tu primer ataque de cada turno inflige +4 de dano (el golpe guiado). Cordura < 40 -> Pierdes 2 HP por turno, pero todos tus ataques infligen +2 de dano (fe rota).",
 		"color": Color(0.8, 0.3, 0.3),
 		"symbol": "♜",
@@ -22,29 +22,29 @@ const CHARACTERS = [
 	{
 		"id": "estratega",
 		"name": "EL ESTRATEGA",
-		"style": "Senda del Cristal — TACTICO",
+		"style": "El Cronista — ROL: El co-autor involuntario",
 		"hp": 47,
-		"lore": "Un erudito que paso decadas estudiando las estrellas y los mapas imposibles. Cree que Valdris es un rompecabezas que, una vez resuelto, detendra la podredumbre de su mundo. Lo que no ha contemplado es que el tablero ya lo ha calculado a el.\n\n'No busco sangre, sino el patron que mueve las manos de la realidad.'",
-		"fate": "El patrón se completará. La pregunta es si quedarás dentro o fuera del diseño.",
-		"passive": "LOGICA: Tus cartas de Inquisidor Ciego cuestan -1 de energia. Robas 1 carta extra al inicio de cada combate.",
+		"lore": "Un erudito que paso decadas mapeando anomalias geometricas imposibles — en realidad, cartografiaba los bordes de Carcosa sin saberlo. Hay ecos en sus mapas: patrones que no deberian existir, voces matematicas que no tienen fuente.\n\nNo sabe que esos ecos son de alguien. No sabe que cada escena que analiza es una escena que completa.\n\n'No busco sangre, sino el patron que mueve las manos de la realidad. Pero, ¿que pasa si el patron me esta moviendo a mi?'",
+		"fate": "El patrón se completará. La pregunta no es si quedarás dentro o fuera del diseño — es si entenderás que siempre fuiste su co-autor.",
+		"passive": "PRESION TACTICA: Cada carta jugada genera 1 Presion (max 5). La Presion reduce el ATK de todos los enemigos en 1 por punto este turno. Al inicio del turno enemigo, la Presion se resetea. Robas 1 carta extra al inicio de cada combate.",
 		"color": Color(0.2, 0.4, 0.7),
 		"symbol": "♛",
 		"deck": [
 			{"name": "Siervo Quebrado", "attack": 2, "defense": 0, "cost": 1},
 			{"name": "Susurro Debilitante", "attack": 0, "defense": 0, "cost": 0},
-			{"name": "Inquisidor Ciego", "attack": 4, "defense": 0, "cost": 2},
-			{"name": "Inquisidor Ciego", "attack": 4, "defense": 0, "cost": 2},
+			{"name": "Inquisidor Ciego", "attack": 7, "defense": 0, "cost": 2},
+			{"name": "Analisis Profundo", "attack": 0, "defense": 0, "cost": 1, "draw": 2},
 			{"name": "Dama del Tablero", "attack": 8, "defense": 3, "cost": 3},
 		]
 	},
 	{
 		"id": "guardian",
 		"name": "EL GUARDIAN",
-		"style": "Senda del Muro — DEFENSIVO",
+		"style": "El Actor Olvidado — ROL: El que ya actuó antes",
 		"hp": 55,
-		"lore": "Un caballero que desperto entre las ruinas de su propio juramento. No recuerda a quien protegia, solo que no debe fallar de nuevo. Su escudo es lo unico que queda de su identidad. Lo que aun no sabe es que el juramento que lleva roto era hacia si mismo.\n\n'No permitire que una sola pieza mas caiga en este juego sin sentido.'",
-		"fate": "Lo que proteges ya está roto. Solo queda decidir quién paga el precio.",
-		"passive": "RESILIENCIA: Cada vez que generas 10 o más Escudo en un turno, ganas 1 Furia. A las 3 cargas, tu siguiente ataque hace daño doble.",
+		"lore": "Un caballero que desperto entre las ruinas de su propio juramento. No recuerda a quien protegia. Lo que aun no sabe: su amnesia no es accidental — es un reset de escena. Ya estuvo en este escenario. Ya hizo este juramento. Ante alguien cuyo nombre el tablero borro de su memoria.\n\nHay algo en el aire de esta obra que lo reconoce antes de que su mente lo haga.\n\n'No permitire que una sola pieza mas caiga en este guion sin sentido.'",
+		"fate": "Lo que proteges ya está aquí. Lo que no recuerdas: ya actuaste este papel. El telón cayó y la obra volvió a comenzar. Tú también.",
+		"passive": "RESILIENCIA: Cada vez que generas 6 o mas Escudo en un turno, ganas 1 Furia. A las 3 cargas: tu siguiente ataque hace dano doble O el proximo golpe recibido refleja el dano absorbido.",
 		"color": Color(0.3, 0.55, 0.3),
 		"symbol": "♞",
 		"deck": [
@@ -82,10 +82,10 @@ func _ready() -> void:
 		available_characters.append({
 			"id": "prince",
 			"name": "EL PRÍNCIPE DE CARCOSA",
-			"style": "Senda del Abismo — LOCURA",
+			"style": "El Rol Estelar — ROL: El que ES la obra",
 			"hp": 48,
-			"lore": "Un antiguo heredero de un reino que ya no existe. Su cuerpo es un receptaculo de la estatica abisal. Lo que el Principe no dice es que ya conoce el final. Y lo acepta.\n\n'No me liberaste para salvarme, sino para que termine lo que el Rey empezó.'",
-			"fate": "Cada movimiento te lleva de vuelta. Siempre de vuelta al mismo umbral.",
+			"lore": "No hay razon para que este aqui. Nunca estuvo fuera del guion. Su cuerpo es un receptaculo de la estatica abisal — no porque Hastur lo haya corrompido, sino porque el y la obra son la misma cosa. Un fragmento del Rey Amarillo en forma mortal que no lo sabe.\n\nLo que el Principe no dice: ya conoce el ultimo acto. Y lo acepta.\n\n'No me liberaste para salvarme, sino para que termine lo que el Rey empezó.'",
+			"fate": "Cada movimiento te lleva de vuelta. Siempre de vuelta al mismo umbral. No buscas salida — eres la obra misma buscando su último acto.",
 			"passive": "RESONANCIA: Cartas de Escala x1.5 (Cordura < 60) | x2 (Cordura < 35). Inicio de combate: -8 Cordura. Demencia recibida → Escudo parcial.",
 			"color": Color(0.5, 0.2, 0.8),
 			"symbol": "♔",
@@ -130,7 +130,7 @@ func _build_ui() -> void:
 
 	# ── Header ────────────────────────────────────────────────────────────
 	var header = Label.new()
-	header.text = "ELIGE TU PIEZA"
+	header.text = "ELIGE TU ROL EN LA OBRA"
 	if _font_title:
 		header.add_theme_font_override("font", _font_title)
 	header.add_theme_font_size_override("font_size", 44)

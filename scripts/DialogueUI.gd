@@ -11,11 +11,18 @@ const TOAST_CHARS_PER_S : float = 25.0
 const MAX_TOASTS        : int   = 4
 
 signal cinematic_finished
+signal _choice_selected(index: int)
 
 var _canvas: CanvasLayer
 var _log_panel: Panel
 var _log_scroll: ScrollContainer
 var _log_vbox: VBoxContainer
+var _ticker_panel: Panel
+var _ticker_label: Label
+var _log_toggle_btn: Button
+var _debug_overlay: Panel
+var _debug_label: Label
+var _debug_turn: int = 0
 var _cinematic_panel: PanelContainer
 var _cinematic_label: RichTextLabel
 var _skip_hint: Label
@@ -44,27 +51,36 @@ func _load_fonts() -> void:
 		_font_ui = load("res://assets/fonts/rajdhani.medium.ttf")
 	if ResourceLoader.exists("res://assets/fonts/RubikGlitch-Regular.ttf"):
 		_font_corrupted = load("res://assets/fonts/RubikGlitch-Regular.ttf")
-
 func _build_ui() -> void:
 	_canvas = CanvasLayer.new()
-	_canvas.layer = 30
+	_canvas.layer = 200
 	add_child(_canvas)
 
-	# Log Panel (top-left)
+	# Botón LOG discreto (Esquina inferior derecha)
+	_log_toggle_btn = Button.new()
+	_log_toggle_btn.text = "LOG"
+	_log_toggle_btn.position = Vector2(1060, 600)
+	_log_toggle_btn.size = Vector2(36, 16)
+	_log_toggle_btn.add_theme_font_size_override("font_size", 9)
+	_log_toggle_btn.modulate.a = 0.65
+	_log_toggle_btn.pressed.connect(_toggle_history_panel)
+	_canvas.add_child(_log_toggle_btn)
+
+	# Panel histórico discreto
 	_log_panel = Panel.new()
-	_log_panel.position = Vector2(10, 55)
-	_log_panel.size = Vector2(300, 180)
-	_log_panel.modulate.a = 0.25
-	_log_panel.mouse_filter = Control.MOUSE_FILTER_PASS
+	_log_panel.position = Vector2(850, 420)
+	_log_panel.size = Vector2(250, 175)
+	_log_panel.visible = false
+	_log_panel.modulate.a = 0.85
 	var ls = StyleBoxFlat.new()
 	ls.bg_color = Color(0, 0, 0, 0.7)
-	ls.border_width_left = 2
-	ls.border_color = Color(0.3, 0.3, 0.3)
+	ls.border_width_left = 1
+	ls.border_color = Color(0.25, 0.2, 0.1)
 	_log_panel.add_theme_stylebox_override("panel", ls)
 	_canvas.add_child(_log_panel)
 
 	_log_scroll = ScrollContainer.new()
-	_log_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_KEEP_SIZE, 5)
+	_log_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_KEEP_SIZE, 4)
 	_log_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_log_panel.add_child(_log_scroll)
 
@@ -72,8 +88,29 @@ func _build_ui() -> void:
 	_log_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_log_scroll.add_child(_log_vbox)
 
-	_log_panel.mouse_entered.connect(func(): create_tween().tween_property(_log_panel, "modulate:a", 0.8, 0.2))
-	_log_panel.mouse_exited.connect(func(): create_tween().tween_property(_log_panel, "modulate:a", 0.25, 0.3))
+	# Conectar señal de CombatLog
+	CombatLog.entry_added.connect(_on_log_entry_added)
+
+	# Debug overlay (solo en builds de depuración)
+	if OS.is_debug_build():
+		_debug_overlay = Panel.new()
+		_debug_overlay.position = Vector2(0, 0)
+		_debug_overlay.size = Vector2(1920, 22)
+		_debug_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ds = StyleBoxFlat.new()
+		ds.bg_color = Color(0, 0, 0, 0.55)
+		_debug_overlay.add_theme_stylebox_override("panel", ds)
+		_canvas.add_child(_debug_overlay)
+
+		_debug_label = Label.new()
+		_debug_label.add_theme_font_size_override("font_size", 10)
+		_debug_label.position = Vector2(5, 3)
+		_debug_label.size = Vector2(1910, 16)
+		_debug_label.modulate = Color(0.5, 1.0, 0.5)
+		_debug_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_debug_overlay.add_child(_debug_label)
+
+		CombatLog.turn_started.connect(_on_debug_turn_started)
 
 	# Cinematic Panel (center-top)
 	_cinematic_panel = PanelContainer.new()
@@ -248,29 +285,72 @@ func bark(text: String, world_pos: Vector2, color: Color = Color(0.8, 0.7, 0.9),
 	if is_instance_valid(container):
 		container.queue_free()
 
-func add_log(subject: String, text: String, color: Color) -> void:
+func add_log(subject: String, text: String, color: Color,
+		category: int = CombatLog.Category.COMBAT) -> void:
+	CombatLog.log(subject, text, color, category)
+
+
+func _toggle_history_panel() -> void:
+	_log_panel.visible = not _log_panel.visible
+
+
+func _on_log_entry_added(entry: Dictionary) -> void:
+	# Debug overlay
+	if is_instance_valid(_debug_label):
+		_debug_label.text = "T%d | %s: %s" % [_debug_turn, entry["subject"], entry["text"]]
+
+	# Separador especial para entradas SYSTEM (marcadores de turno)
+	if entry["category"] == CombatLog.Category.SYSTEM:
+		_add_turn_separator(entry["text"], entry["color"])
+		return
+
+	# Añadir al panel histórico
 	if not is_instance_valid(_log_vbox):
 		return
 	var lbl = Label.new()
-	lbl.text = "[%s]: %s" % [subject.to_upper(), text]
+	lbl.text = "[%s]: %s" % [entry["subject"].to_upper(), entry["text"]]
 	lbl.add_theme_font_size_override("font_size", 11)
 	if _font_ui:
 		lbl.add_theme_font_override("font", _font_ui)
-	lbl.modulate = Color(color.r, color.g, color.b, 0.0)
+	lbl.modulate = Color(entry["color"].r, entry["color"].g, entry["color"].b, 0.0)
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
 	lbl.custom_minimum_size.x = 280
 	_log_vbox.add_child(lbl)
 
-	var tw = create_tween()
-	tw.tween_property(lbl, "modulate:a", 1.0, 0.3)
+	create_tween().tween_property(lbl, "modulate:a", 1.0, 0.3)
 
-	if _log_vbox.get_child_count() > 20:
+	if _log_vbox.get_child_count() > 30:
 		_log_vbox.get_child(0).queue_free()
 
 	await get_tree().process_frame
-	_log_scroll.set_v_scroll(int(_log_vbox.size.y))
+	if is_instance_valid(_log_scroll):
+		_log_scroll.set_v_scroll(int(_log_vbox.size.y))
 
-	Events.dialogue_line_shown.emit(Mode.LOG, text)
+	Events.dialogue_line_shown.emit(Mode.LOG, entry["text"])
+
+
+func _add_turn_separator(text: String, color: Color) -> void:
+	if not is_instance_valid(_log_vbox):
+		return
+	var sep = Label.new()
+	sep.text = text
+	sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sep.add_theme_font_size_override("font_size", 10)
+	sep.modulate = color
+	_log_vbox.add_child(sep)
+
+	if _log_vbox.get_child_count() > 30:
+		_log_vbox.get_child(0).queue_free()
+
+	await get_tree().process_frame
+	if is_instance_valid(_log_scroll):
+		_log_scroll.set_v_scroll(int(_log_vbox.size.y))
+
+
+func _on_debug_turn_started(turn_num: int, is_player: bool) -> void:
+	_debug_turn = turn_num
+	if is_instance_valid(_debug_label):
+		_debug_label.text = "── TURNO %d — %s ──" % [turn_num, "JUGADOR" if is_player else "ENEMIGOS"]
 
 func cinematic(text: String, color: Color = Color(0.9, 0.82, 0.75)) -> void:
 	_cinematic_queue.push_back({"text": text, "color": color})
@@ -282,6 +362,7 @@ func cinematic_line(text: String, color: Color = Color(0.9, 0.82, 0.75)) -> void
 	await cinematic_finished
 
 func clear_log() -> void:
+	CombatLog.clear()
 	if not is_instance_valid(_log_vbox):
 		return
 	for child in _log_vbox.get_children():
@@ -294,32 +375,55 @@ func skip() -> void:
 ## options: Array[Dictionary] — cada dict: {"label": String, "effect": Dictionary}
 ## Efectos soportados: sanity (int), lore_progress (int), hp (int), gold (int), max_hp (int)
 func cinematic_choice(options: Array) -> int:
-	_cinematic_panel.visible = true
-	_cinematic_panel.modulate.a = 1.0
-	_cinematic_label.text = ""
-	_skip_hint.modulate.a = 0.0
-	_choice_container.visible = true
-	for child in _choice_container.get_children():
-		child.queue_free()
+	# Construir panel de elección centrado en la pantalla
+	var vp_size = get_viewport().get_visible_rect().size
+	var choice_panel := Panel.new()
+	choice_panel.custom_minimum_size = Vector2(520, 0)
+	choice_panel.position = Vector2(vp_size.x / 2.0 - 260, vp_size.y * 0.7)
+	var cp_style := StyleBoxFlat.new()
+	cp_style.bg_color = Color(0.04, 0.03, 0.07, 0.97)
+	cp_style.set_border_width_all(2)
+	cp_style.border_color = Color(0.55, 0.42, 0.12, 0.85)
+	cp_style.set_corner_radius_all(6)
+	choice_panel.add_theme_stylebox_override("panel", cp_style)
+	_canvas.add_child(choice_panel)
 
-	var chosen := -1
+	var cp_vbox := VBoxContainer.new()
+	cp_vbox.add_theme_constant_override("separation", 12)
+	cp_vbox.position = Vector2(20, 20)
+	cp_vbox.custom_minimum_size = Vector2(480, 0)
+	choice_panel.add_child(cp_vbox)
+
 	for i in range(options.size()):
 		var opt = options[i]
 		var btn := Button.new()
 		btn.text = opt.get("label", "???")
-		btn.add_theme_font_size_override("font_size", 14)
+		btn.custom_minimum_size = Vector2(480, 44)
+		btn.add_theme_font_size_override("font_size", 15)
 		if _font_ui:
 			btn.add_theme_font_override("font", _font_ui)
-		var idx = i
-		btn.pressed.connect(func(): chosen = idx)
-		_choice_container.add_child(btn)
+		var btn_style := StyleBoxFlat.new()
+		btn_style.bg_color = Color(0.10, 0.08, 0.14)
+		btn_style.set_border_width_all(1)
+		btn_style.border_color = Color(0.45, 0.32, 0.10)
+		btn_style.set_corner_radius_all(4)
+		btn.add_theme_stylebox_override("normal", btn_style)
+		var btn_hover := btn_style.duplicate() as StyleBoxFlat
+		btn_hover.bg_color = Color(0.22, 0.16, 0.08)
+		btn_hover.border_color = Color(0.85, 0.65, 0.20)
+		btn.add_theme_stylebox_override("hover", btn_hover)
+		var idx := i
+		btn.pressed.connect(_choice_selected.emit.bind(idx))
+		cp_vbox.add_child(btn)
 
-	await get_tree().create_timer(0.1).timeout
-	while chosen == -1:
-		await get_tree().process_frame
+	# Ajustar tamaño del panel al contenido tras un frame
+	await get_tree().process_frame
+	choice_panel.size = Vector2(520, cp_vbox.size.y + 40)
 
-	_choice_container.visible = false
-	_cinematic_panel.visible = false
+	# Usar señal en lugar de closure para evitar problemas de captura en coroutinas
+	var chosen: int = await _choice_selected
+
+	choice_panel.queue_free()
 	_skip_requested = false  # evitar que la siguiente cinematic_line se salte
 	_apply_cinematic_effect(options[chosen].get("effect", {}))
 	return chosen
@@ -327,6 +431,8 @@ func cinematic_choice(options: Array) -> int:
 func _apply_cinematic_effect(effect: Dictionary) -> void:
 	if effect.has("sanity"):
 		GameManager.sanity = clamp(GameManager.sanity + effect["sanity"], 0, GameManager.max_sanity)
+	if effect.has("fragment_count_w3"):
+		GameManager.fragment_count_w3 = max(0, GameManager.fragment_count_w3 + effect["fragment_count_w3"])
 	if effect.has("lore_progress"):
 		GameManager.lore_progress += effect["lore_progress"]
 	if effect.has("hp"):
@@ -335,6 +441,15 @@ func _apply_cinematic_effect(effect: Dictionary) -> void:
 		GameManager.coins = max(0, GameManager.coins + effect["gold"])
 	if effect.has("max_hp"):
 		GameManager.player_max_hp = max(1, GameManager.player_max_hp + effect["max_hp"])
+	if effect.has("remove_card") and effect["remove_card"]:
+		var removed = GameManager.remove_random_card()
+		if removed != "": toast("CARTA PERDIDA: " + removed, Color.RED)
+	if effect.has("remove_secret_item") and effect["remove_secret_item"]:
+		var removed = GameManager.remove_random_secret_item()
+		if removed != "": toast("FRAGMENTO ENTREGADO: " + removed.replace("_", " ").to_upper(), Color.GOLD)
+	if effect.has("remove_relic") and effect["remove_relic"]:
+		var removed = GameManager.remove_random_relic()
+		if removed != "": toast("RELIQUIA PERDIDA: " + removed, Color.RED)
 
 # ── Cinematic interno ─────────────────────────────────────────────────────────
 

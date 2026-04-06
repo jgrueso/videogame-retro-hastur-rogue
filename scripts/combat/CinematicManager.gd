@@ -53,11 +53,50 @@ func show_avatar_intro() -> void:
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await reveal_tw.finished
 
-	var intro_choice = await DialogueUI.cinematic_choice([
-		{"label": "Enfrentarlo",    "effect": {"sanity": -5}},
-		{"label": "Invocar calma", "effect": {"hp": -10, "sanity": 10}},
-	])
+	# --- ELECCIÓN BASADA EN LORE / FRAGMENTOS ---
+	var options = []
+	options.append({"label": "Luchar (Iniciar Combate)", "effect": {"sanity": -10}})
+	
+	var has_reality_fragment = not GameManager.secret_items.is_empty()
+	var has_persistent_fragment = GameManager.fragment_count_w3 > 0
 
+	if has_reality_fragment or has_persistent_fragment:
+		var frag_type = "de Realidad" if has_reality_fragment else "de Carcosa"
+		options.append({
+			"label": "Entregar (Ofrecer 1 Fragmento %s y -15 HP)" % frag_type, 
+			"effect": {
+				"remove_secret_item": true if has_reality_fragment else false,
+				"fragment_count_w3": -1 if not has_reality_fragment else 0,
+				"hp": -15
+			}
+		})
+	
+	options.append({
+		"label": "Huir (Sacrificar 1 Carta y -25 Cordura)", 
+		"effect": {"remove_card": true, "sanity": -25}
+	})
+
+	var intro_choice = await DialogueUI.cinematic_choice(options)
+
+	# Si elige cualquier opción que NO sea Luchar (índice 0)
+	if intro_choice > 0:
+		quote_lbl.visible = false
+		var exit_tw = create_tween()
+		exit_tw.tween_property(curtain, "color:a", 1.0, 0.5)
+		
+		var selected_label = options[intro_choice]["label"]
+		if selected_label.begins_with("Entregar"):
+			DialogueUI.toast("FRAGMENTO ENTREGADO AL VACÍO", Color.GOLD)
+		else:
+			DialogueUI.toast("MENTE FRACTURADA AL HUIR", Color.DARK_RED)
+			
+		await exit_tw.finished
+		await main.get_tree().create_timer(0.5).timeout
+		layer.queue_free()
+		GameManager.go_to_scene("res://scenes/ui/Map.tscn")
+		return
+
+	# --- CONTINUAR AL COMBATE (Si eligió Luchar) ---
 	# --- EFECTO ROTOSCOPIA / GLITCH / FLASH ---
 	quote_lbl.visible = false
 	if main.get_node_or_null("/root/AudioManager"):
@@ -81,6 +120,7 @@ func show_avatar_intro() -> void:
 		AudioManager.play("player_hit")
 
 	await tw.finished
+	print("Intro finalizada, apareciendo enemigo...")
 	layer.queue_free()
 
 
@@ -1066,5 +1106,3 @@ func show_death_dialogue(enemy_name: String) -> void:
 	if text.is_empty(): return
 	var col = Color(0.95, 0.8, 0.3) if enemy_name.begins_with("EL ") else Color(0.75, 0.75, 0.8)
 	DialogueUI.cinematic(text, col)
-
-

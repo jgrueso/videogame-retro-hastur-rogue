@@ -11,8 +11,8 @@ const CHAR_DATA = {
 
 const PASSIVE_DESCRIPTIONS = {
 	"mahar":     "FERVOR: Cordura >= 60: tu primer ataque de cada turno inflige +4 de daño (el golpe guiado). Cordura < 40: pierdes 2 HP por turno, todos los ataques infligen +2 de daño (fe rota).",
-	"estratega": "LOGICA: Tus cartas de Inquisidor Ciego cuestan -1 de energía. Robas 1 carta extra al inicio de cada combate.",
-	"guardian":  "RESILIENCIA: Cada vez que generas 10 o más Escudo en un turno, ganas 1 Furia. A las 3 cargas, tu siguiente ataque hace daño doble.",
+	"estratega": "PRESION TACTICA: Cada carta jugada genera 1 Presion (max 5). La Presion reduce el ATK de todos los enemigos en 1 por punto este turno. Al inicio del turno enemigo, la Presion se resetea. Robas 1 carta extra al inicio de combate.",
+	"guardian":  "RESILIENCIA: Cada vez que generas 6 o mas Escudo en un turno, ganas 1 Furia. A las 3 cargas: tu siguiente ataque hace dano doble O el proximo golpe recibido refleja el dano absorbido al atacante.",
 	"prince":    "RESONANCIA: Cartas de Escala x1.5 (Cordura < 60) | x2 (Cordura < 35). Inicio de combate: -8 Cordura. Daño de Demencia recibido → Escudo parcial.",
 }
 

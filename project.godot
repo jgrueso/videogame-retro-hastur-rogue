@@ -21,6 +21,7 @@ GameManager="*uid://hdbwypomjclr"
 AudioManager="*res://scripts/AudioManager.gd"
 Events="*res://scripts/Events.gd"
 DialogueUI="*res://scenes/ui/DialogueUI.tscn"
+CombatLog="*res://scripts/CombatLog.gd"
 
 [display]
 

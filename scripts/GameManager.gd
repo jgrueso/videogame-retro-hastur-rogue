@@ -39,7 +39,7 @@ var current_map_col: int = -1
 var unlocked_lore: Array = [] # IDs de lore encontrados (pergaminos, capítulos)
 var prince_unlocked: bool = false # Personaje secreto
 var is_vault_room: bool = false # Si entramos via Grieta
-var mark_level: int = 0 # Nivel del Signo Amarillo (+25% daño y +1 Energía por nivel)
+var mark_level: int = 0 # Nivel del Signo Amarillo / Marca de Escena (+25% daño y +1 Energía por nivel). Marco teatral KY-A2: acumulador por acto de la obra.
 var is_in_void_path: bool = false # Si estamos en la mini-mazmorra secreta
 var rift_visited: bool = false # Si ya entramos a una grieta en esta run
 var rift_notified: bool = false # Si ya ocurrió el evento de descubrimiento en el mapa
@@ -63,6 +63,28 @@ func enter_void_path() -> void:
 	rift_visited = true
 	void_path_step = 0
 	go_to_scene("res://scenes/ui/VoidMap.tscn")
+
+func remove_random_secret_item() -> String:
+	if secret_items.is_empty(): return ""
+	var idx = randi() % secret_items.size()
+	var item_id = secret_items[idx]
+	secret_items.remove_at(idx)
+	return item_id
+
+func remove_random_card() -> String:
+	if player_deck.is_empty(): return ""
+	var idx = randi() % player_deck.size()
+	var card_name = player_deck[idx]["name"]
+	player_deck.remove_at(idx)
+	return card_name
+
+func remove_random_relic() -> String:
+	if relics.is_empty(): return ""
+	var idx = randi() % relics.size()
+	var rid = relics[idx]
+	var rname = RELIC_DATA[rid]["name"]
+	relics.remove_at(idx)
+	return rname
 
 var _transitioning: bool = false
 var _close_active_overlay: Callable = Callable()

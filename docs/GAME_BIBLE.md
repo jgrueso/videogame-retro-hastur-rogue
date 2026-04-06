@@ -1,4 +1,4 @@
-# CHECKMATE ROGUE — BIBLIA NARRATIVA
+# LA OBRA DEL REY AMARILLO — BIBLIA NARRATIVA
 ### Fuente de Verdad del Mundo, los Personajes y el Tono
 
 > Este documento es la referencia canónica para cualquier texto nuevo del juego.
@@ -6,10 +6,54 @@
 
 ---
 
+## MARCO TEATRAL — LA OBRA DEL REY AMARILLO
+
+> *"La obra lleva años en cartelera. Nadie recuerda la primera noche. Nadie ha visto el último acto."*
+
+El juego usa el ajedrez como metáfora histórica y el **teatro** como metáfora operativa. El tablero de ajedrez *se convierte en el escenario* de una obra que siempre estuvo ahí. Los personajes no son piezas — son actores que no recuerdan haber audicionado.
+
+Esta capa teatral proviene de *La Obra del Rey Amarillo* de Robert W. Chambers (1895) — un texto maldito que conduce a la locura a quien lo lee completo. En el mundo del juego, la obra es real: lleva representándose siglos, en el escenario que fue Carcosa.
+
+### Axiomas Narrativos (Framework [KY])
+
+| ID | Axioma | Implicación en juego |
+|----|--------|----------------------|
+| KY-A1 | **Texto Prohibido**: entender la obra = locura = transformación | Sanidad baja = poder aumentado — la locura no destruye, transforma |
+| KY-A2 | **El Principio de la Máscara**: identidad es teatral; el rol se vuelve real | Cada personaje tiene un ROL ASIGNADO que ignora — descubrirlo es su arco |
+| KY-A3 | **El Escenario como Trampa**: Carcosa no es un lugar, es una actuación en curso | El loop roguelike = noches sucesivas de la misma obra |
+| KY-A4 | **La Paradoja de Cassilda**: el que más ama al Rey es el más destruido | El personaje que más avanza en la verdad paga el mayor precio |
+| KY-A5 | **La Trampa del Autor**: Hastur no pelea — él *escribió* la historia | El boss final no es combate: es un monólogo |
+
+### Equivalencias: Ajedrez → Teatro
+
+| Metáfora Ajedrez | Metáfora Teatro |
+|------------------|-----------------|
+| Piezas en un tablero | Actores en una obra que no recuerdan haber ensayado |
+| Jaque mate | El telón cae (la escena termina) |
+| Runs del roguelike | Noches sucesivas de la misma representación |
+| Muerte/reset | *"El telón cae — mañana la obra vuelve a comenzar"* |
+| El mapa | El programa de mano (se revela escena por escena) |
+| Rooms/salas | Escenas (cada una tiene título, como acto de obra) |
+| Victoria | Última escena — el personaje elige su final |
+| El tablero dorado | Las tablas del escenario de Carcosa |
+| Items del Vendedor | Atrezzo / Utilería |
+| Eventos aleatorios | Entre bastidores |
+
+### Roles Teatrales — Personajes Jugables
+
+| Personaje | Rol en La Obra | Paralelo Chambers |
+|-----------|---------------|-------------------|
+| **Mahar, El Cruzado** | El Devoto / El que vino a destruir la obra y es su mayor defensor | Hildred Castaigne — el creyente verdadero que se destruye |
+| **El Estratega** | El Cronista / El co-autor involuntario | Narrador de "The Yellow Sign" — el artista que ve demasiado |
+| **El Guardián** | El Actor Olvidado / El que ya actuó antes | El Guardián del Signo Amarillo — el no-muerto servidor |
+| **El Príncipe de Carcosa** | El Rol Estelar / El que ES la obra | El Extraño / El Rey Amarillo en forma mortal |
+
+---
+
 ## SECCIÓN 1 — PREMISA Y TONO
 
 ### Logline
-Un jugador atrapado en un tablero de ajedrez infinito descubre que las reglas del juego no fueron diseñadas para ser ganadas — sino para que nunca terminen.
+Un actor atrapado en una obra eterna descubre que sus líneas fueron escritas mucho antes de que él llegara al escenario — y que el autor todavía está entre bastidores.
 
 ### Los 5 Pilares de Tono
 
@@ -17,11 +61,11 @@ Un jugador atrapado en un tablero de ajedrez infinito descubre que las reglas de
 
 2. **Todo tuvo un nombre antes.** Los enemigos fueron personas. Las reliquias pertenecieron a alguien. El tablero fue un reino. La crueldad tiene historia.
 
-3. **El tablero recicla, no perdona.** Morir no es el castigo. Volver es el castigo. El jugador no "falla un run" — el tablero lo reclama y lo vuelve a usar.
+3. **El escenario recicla, no perdona.** Morir no es el castigo. Volver es el castigo. El jugador no "falla un run" — el telón cae y la obra vuelve a comenzar. Siempre con el mismo actor.
 
 4. **La esperanza existe, pero cuesta.** No todo es oscuridad. Hay momentos de conexión genuina, de belleza en ruinas, de luz antes del cierre. Pero esos momentos deben ganarse, y su ganancia implica una pérdida real.
 
-5. **El idioma del tablero tiene gramática propia.** Las palabras del mundo (pieza, ciclo, eco, estática) no son metáforas. Son los términos técnicos de una prisión.
+5. **El idioma del escenario tiene gramática propia.** Las palabras del mundo (pieza, ciclo, eco, estática, escena, acto, guion) no son metáforas. Son los términos técnicos de una prisión con forma de teatro.
 
 ### Lo que el juego ES
 - Una meditación sobre el ciclo y el olvido, usando el ajedrez como prisma

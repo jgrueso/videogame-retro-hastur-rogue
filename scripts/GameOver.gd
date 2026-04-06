@@ -38,18 +38,18 @@ func build_ui() -> void:
 
 	var title_text: String
 	if won:
-		title_text = "EL TABLERO SE ROMPE" if GameManager.is_hastur_fight else "HAS GANADO"
+		title_text = "EL TELÓN CAE" if GameManager.is_hastur_fight else "LA ESCENA TERMINA"
 	else:
-		title_text = "HAS CAIDO"
+		title_text = "EL TELÓN CAE."
 	_typewrite(title, title_text, 0.09)  # no await — corre en paralelo con el resto del build
 
 	var subtitle = Label.new()
 	if won and GameManager.is_hastur_fight:
-		subtitle.text = "Hastur no muere. Pero esta vez, tu tampoco."
+		subtitle.text = "Hastur no muere. Pero esta vez, tú tampoco. Mañana la obra vuelve a comenzar."
 	elif won:
-		subtitle.text = "El Rey Amarillo cae. El juego era tuyo desde el principio."
+		subtitle.text = "El Rey Amarillo cae. La obra siempre estuvo escrita para ti."
 	else:
-		subtitle.text = "El Gran Jugador mueve otra pieza."
+		subtitle.text = "El autor mueve a su actor a la siguiente escena."
 	subtitle.add_theme_font_size_override("font_size", 16)
 	subtitle.modulate = Color(0.0, 0.0, 0.0, 0.0)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -65,13 +65,13 @@ func build_ui() -> void:
 
 	var cause_lbl = Label.new()
 	if won:
-		cause_lbl.text = "PARTIDA COMPLETADA. EL TABLERO ESPERA LA PROXIMA PIEZA."
+		cause_lbl.text = "REPRESENTACIÓN COMPLETADA. EL ESCENARIO AGUARDA AL PRÓXIMO ACTOR."
 		cause_lbl.modulate = Color(0.6, 0.9, 0.4)
 	elif GameManager.sanity <= 0:
-		cause_lbl.text = "TU MENTE HA SIDO RECLAMADA POR EL TABLERO.\nERES UNA PIEZA SIN MEMORIA."
+		cause_lbl.text = "TU MENTE HA SIDO RECLAMADA POR LA OBRA.\nEL AUTOR TE HA REESCRITO DESDE ADENTRO."
 		cause_lbl.modulate = Color(0.8, 0.4, 1.0) # Purpura locura
 	else:
-		cause_lbl.text = "TU CARNE HA FALLADO...."
+		cause_lbl.text = "TU ESCENA HA TERMINADO ANTES DE TIEMPO."
 		cause_lbl.modulate = Color(0.8, 0.2, 0.2) # Rojo daño
 	cause_lbl.add_theme_font_size_override("font_size", 18)
 	cause_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -95,7 +95,7 @@ func build_ui() -> void:
 	add_child(panel)
 
 	var resumen_title = Label.new()
-	resumen_title.text = "RESUMEN DE LA PARTIDA"
+	resumen_title.text = "RESUMEN DE LA REPRESENTACIÓN"
 	resumen_title.add_theme_font_size_override("font_size", 18)
 	resumen_title.modulate = Color(0.9, 0.7, 0.3)
 	resumen_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -105,12 +105,12 @@ func build_ui() -> void:
 
 	# Stats
 	var stats = [
-		["Piso alcanzado", str(GameManager.current_map_floor) + " / " + str(GameManager.map_graph.size())],
+		["Escena alcanzada", str(GameManager.current_map_floor) + " / " + str(GameManager.map_graph.size())],
 		["Combates ganados", str(GameManager.combat_count)],
 		["Monedas acumuladas", str(GameManager.coins)],
 		["Cartas en el mazo", str(GameManager.player_deck.size())],
-		["Reliquias obtenidas", str(GameManager.relics.size())],
-		["Semilla", str(GameManager.run_seed)],
+		["Atrezzo obtenido", str(GameManager.relics.size())],
+		["Representación N°", str(GameManager.run_seed)],
 	]
 
 	for i in range(stats.size()):
@@ -120,7 +120,7 @@ func build_ui() -> void:
 
 	# Cartas del mazo
 	var deck_title = Label.new()
-	deck_title.text = "Mazo final:"
+	deck_title.text = "Mazo al final de la función:"
 	deck_title.add_theme_font_size_override("font_size", 13)
 	deck_title.modulate = Color(0.7, 0.7, 0.7)
 	deck_title.position = Vector2(310, 425)
@@ -139,7 +139,7 @@ func build_ui() -> void:
 	# Reliquias obtenidas
 	if not GameManager.relics.is_empty():
 		var relic_title = Label.new()
-		relic_title.text = "Reliquias:"
+		relic_title.text = "Atrezzo:"
 		relic_title.add_theme_font_size_override("font_size", 13)
 		relic_title.modulate = Color(0.7, 0.7, 0.7)
 		relic_title.position = Vector2(310, 490)
@@ -156,7 +156,7 @@ func build_ui() -> void:
 
 	# Botones
 	var retry_btn = Button.new()
-	retry_btn.text = "Nueva partida" if won else "Volver a intentarlo"
+	retry_btn.text = "La obra vuelve a comenzar." if won else "La obra vuelve a comenzar."
 	retry_btn.position = Vector2(276, 540)
 	retry_btn.size = Vector2(280, 50)
 	retry_btn.pressed.connect(_on_retry)

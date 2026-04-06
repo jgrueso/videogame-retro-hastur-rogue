@@ -18,12 +18,20 @@ var first_card_this_turn: bool = true
 var cards_played_this_turn: int = 0
 var velo_used: bool = false
 var turn_counter: int = 1 # Contador para Reloj Circular
-var furia_points: int = 0
+var furia_points: int = 0:
+	set(v):
+		furia_points = clamp(v, 0, 3)
+		if is_inside_tree():
+			update_ui()
+			update_card_states()
 var shield_gained_this_turn: int = 0 # Acumulador de escudo por turno para la pasiva del Guardián
 var enemy_attacked_last_turn: bool = false # Para Contraofensiva
 var trono_carcosa_active: bool = false
 var ojo_grito_first_turn: bool = false
 var mahar_guided_struck: bool = false # Pasiva FERVOR: rastrear primer golpe del turno
+var presion_points: int = 0            # Pasiva PRESIÓN TÁCTICA del Estratega (reset cada turno enemigo)
+var prince_quiebre_active: bool = false # Príncipe: estado QUIEBRE cuando cordura llega a 0
+var espejo_acero_active: bool = false   # Guardián: reflejo pendiente del Espejo de Acero
 
 # ── UI & Visuals ──────────────────────────────────────────────────────────────
 var ui: Node # Instancia de CombatUI.gd
@@ -229,16 +237,13 @@ func _ready() -> void:
 	is_player_turn = true
 	enemy_attacked_last_turn = false
 	await draw_hand()
-	
 	# --- LÓGICA ESPECIAL AVATAR DE HASTUR ---
 	if not enemies.is_empty() and "AVATAR" in enemies[0].name.to_upper():
-		await _show_avatar_intro()
+		await _show_avatar_intro() # Espera a que termine la frase
+		# Llamamos a la nueva función de la UI para mostrarlo
+		ui.reveal_avatar(0)
 		GameManager.sanity = max(0, GameManager.sanity - 30)
 		DialogueUI.toast("¡PRESENCIA ATERRADORA! -30 Cordura")
-		if get_node_or_null("/root/AudioManager"):
-			AudioManager.play_loop("Glith_distorsion_noised_sound")
-			_sync_dynamic_audio()
-		update_ui()
 
 	# --- LÓGICA ESPECIAL VERDADERO HASTUR ---
 	if GameManager.is_hastur_fight:
@@ -299,8 +304,8 @@ func _setup_encounter() -> void:
 		var items_count = GameManager.secret_items.size()
 		var spawn_chance = 0.0
 		if items_count == 1: spawn_chance = 0.15
-		elif items_count == 2: spawn_chance = 0.30
-		elif items_count >= 3: spawn_chance = 0.50
+		elif items_count == 2: spawn_chance = 0.35
+		elif items_count >= 3: spawn_chance = 1.0 # Inevitable si tienes todo
 		
 		# Forzar si viene del menu dev
 		if GameManager.dev_force_avatar:
@@ -441,6 +446,7 @@ func draw_hand(count: int = -1) -> void:
 	reorganize_hand()
 
 	if is_turn_start:
+		CombatLog.log_turn(turn_counter, true)
 		ui._assign_cursed_card()
 		update_ui()   # sincroniza _fervor_last_spent tras reset del flag
 
@@ -490,10 +496,6 @@ func _spawn_card_node(data_in: Dictionary, start_pos: Vector2 = Vector2.ZERO, de
 	if start_pos != Vector2.ZERO:
 		card.animate_draw(start_pos, delay)
 	
-	# Pasiva Estratega: Inquisidores mas baratos (Visual y Logica)
-	if GameManager.selected_character == "estratega" and "INQUISIDOR" in data.get("name", "").to_upper():
-		card.set_cost_modifier(-1)
-		
 	card.connect("card_selected", _on_card_selected)
 	card.connect("card_played",   _on_card_played)
 
@@ -662,6 +664,21 @@ func _process(_delta: float) -> void:
 			ui.highlight_enemy_panel(hovered_panel)
 		else:
 			ui.clear_target_highlight()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not OS.is_debug_build():
+		return
+	if not (event is InputEventKey and event.pressed):
+		return
+	if event.keycode == KEY_F9:
+		CombatLog.verbosity = CombatLog.Verbosity.VERBOSE \
+			if CombatLog.verbosity == CombatLog.Verbosity.NORMAL \
+			else CombatLog.Verbosity.NORMAL
+		DialogueUI.toast("Log: " + CombatLog.Verbosity.keys()[CombatLog.verbosity])
+	elif event.keycode == KEY_F10:
+		CombatLog.export_to_file()
+		DialogueUI.toast("Log exportado → user://combat_log.txt")
+
 
 func _input(event: InputEvent) -> void:
 	# Cancelar selección de carta para destilado con Escape
@@ -938,7 +955,11 @@ func _trigger_boss_phase_2(e: Dictionary) -> void:
 
 func update_card_states() -> void:
 	for card in hand_container.get_children():
-		card.set_disabled(not is_player_turn or card.get_effective_cost() > player_energy)
+		var blocked = not is_player_turn or card.get_effective_cost() > player_energy
+		# QUIEBRE del Príncipe: cartas con coste de cordura no se pueden pagar
+		if not blocked and prince_quiebre_active and card.card_data.get("sanity_cost", 0) > 0:
+			blocked = true
+		card.set_disabled(blocked)
 		# Indicador visual de Contraofensiva
 		if "CONTRAOFENSIVA" in card.card_name:
 			if enemy_attacked_last_turn:

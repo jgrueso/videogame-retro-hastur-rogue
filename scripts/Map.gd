@@ -112,6 +112,116 @@ const NPC_DIALOGUES: Dictionary = {
 			},
 		]
 	},
+"editor": {
+	"portrait": "✒",
+	"name": "Mr. Wilde — El Editor",
+	"lines": [
+		{
+			"id": "start",
+			"text": "Yo no reparo lo que está roto. Reparo lo que nunca debió construirse así.\n\nTu historia tiene líneas que no le sirven. ¿Quieres que las edite?",
+			"choices": [
+				{"label": "¿Qué eres tú?", "next": "identidad"},
+				{"label": "Edita una línea. (Elimina carta del mazo)", "next": "editar_carta"},
+				{"label": "Muéstrame el próximo acto. (-15 monedas)", "next": "revelar_boss"},
+				{"label": "Marcharme.", "next": "end"},
+			]
+		},
+		{
+			"id": "identidad",
+			"text": "Soy el consejero. El que ya vio el rostro antes de que nadie supiera que había un rostro que ver.\n\nLo que ese conocimiento me costó ya no importa. Lo importante es que el guion sigue, y tú sigues en él.",
+			"effect": {"lore_progress": 10, "sanity": -5},
+			"choices": [
+				{"label": "¿Conoces la Cofradia de los Palidos?", "next": "cofradia"},
+				{"label": "¿Qué ofreces?", "next": "start"},
+				{"label": "Marcharme.", "next": "end"},
+			]
+		},
+		{
+			"id": "cofradia",
+			"text": "La Corte sigue buscando el rostro. Qué devotos. Qué inútilmente devotos.",
+			"effect": {"lore_progress": 15},
+			"choices": [
+				{"label": "¿Qué quieres decir?", "next": "cofradia_verdad"},
+				{"label": "Marcharme.", "next": "end"},
+			]
+		},
+		{
+			"id": "cofradia_verdad",
+			"text": "Quiero decir que los que te enviaron también fueron enviados por alguien. Y ese alguien lleva mucho tiempo sabiendo cómo termina esta función.\n\nPero eso no es lo que vine a decirte.",
+			"effect": {"lore_progress": 20, "sanity": -10},
+			"choices": [
+				{"label": "¿Entonces qué?", "next": "start"},
+				{"label": "Marcharme.", "next": "end"},
+			]
+		},
+		{
+			"id": "editar_carta",
+			"text": "Una línea eliminada. El guion queda más limpio. El personaje, más definido.\n\n¿Qué historia quieres contar con lo que queda?",
+			"effect": {"remove_card": true, "lore_progress": 5},
+			"choices": [
+				{"label": "Continuar.", "next": "end"},
+			]
+		},
+		{
+			"id": "revelar_boss",
+			"text": "El próximo guardián tiene memoria de ti. Ha visto tu forma de actuar. Prepárate para que lo que más usas sea exactamente lo que él espera.\n\nEso es todo lo que puedo decirte sin reescribir demasiado.",
+			"effect": {"coins": -15, "lore_progress": 10},
+			"choices": [
+				{"label": "Gracias.", "next": "end"},
+			]
+		},
+	]
+},
+"cassilda": {
+	"portrait": "◈",
+	"name": "Cassilda — La Reina sin Reino",
+	"lines": [
+		{
+			"id": "start",
+			"text": "Along the shore the cloud waves break, the twin suns sink beneath the lake...\n\n[Las palabras aparecen como tinta en el aire antes de desvanecerse.]",
+			"choices": [
+				{"label": "¿Quién eres?", "next": "identidad"},
+				{"label": "Escuchar en silencio.", "next": "escuchar"},
+				{"label": "Retroceder.", "next": "end"},
+			]
+		},
+		{
+			"id": "identidad",
+			"text": "Una reina sin reino. Una canción sin intérprete. Una promesa que el tablero no supo guardar.\n\nHe estado aquí desde antes de que comenzara tu primera escena.",
+			"effect": {"lore_progress": 15, "sanity": -10},
+			"choices": [
+				{"label": "¿Qué quieres de mí?", "next": "quiere"},
+				{"label": "Retroceder.", "next": "end"},
+			]
+		},
+		{
+			"id": "quiere",
+			"text": "Que alguien recuerde que Carcosa existió antes de que el Amarillo la vistiera. Que hubo un guardián que juró. Que hubo un príncipe que creyó poder salvar lo que se rompió.\n\nSolo eso. Recordar.",
+			"effect": {"lore_progress": 25, "sanity": -5},
+			"choices": [
+				{"label": "Recordaré.", "next": "end"},
+				{"label": "No puedo prometer eso.", "next": "end"},
+			]
+		},
+		{
+			"id": "escuchar",
+			"text": "Los patrones que seguiste eran míos. Los mapas que trazaste eran mi voz filtrada a través de la geometría.\n\nNo mapeabas Carcosa. Completabas mis frases.\n\n[El Estratega entiende esto en su totalidad. Los demás solo escuchan música.]",
+			"effect": {"lore_progress": 30, "sanity": -15},
+			"choices": [
+				{"label": "¿Qué debo hacer ahora?", "next": "instruccion"},
+				{"label": "No comprendo.", "next": "end"},
+			]
+		},
+		{
+			"id": "instruccion",
+			"text": "Hay alguien que lleva siglos buscándome sin saber que me busca. Su juramento todavía está activo.\n\nCuando lo encuentres, él reconocerá este eco antes de que su memoria lo haga. No le digas que te envié.",
+			"effect": {"lore_progress": 35},
+			"choices": [
+				{"label": "Entendido.", "next": "end"},
+			]
+		},
+	]
+},
 }
 
 const ROOM_COLORS = {
@@ -136,8 +246,8 @@ const ROOM_COLORS = {
 const ROOM_DESCRIPTIONS: Dictionary = {
 	"combat":      ["⚔ ECO DE BATALLA",       "Un fragmento del pasado combate por sobrevivir.",       ["Las piezas muertas nunca descansan.", "Cada victoria es una deuda pendiente.", "El tablero recuerda cada golpe."]],
 	"elite":       ["☠ PRESENCIA VORAZ",       "Una entidad corrompida. Recompensa mayor, riesgo letal.", ["No todos los que entran comprenden lo que enfrentan.", "Su hambre no tiene origen. Solo destino.", "Ha visto morir a mejores."]],
-	"event":       ["♄ AUGURIO",               "El tablero te ofrece una elección. Nada es gratis.",    ["Las elecciones aquí pesan más que las espadas.", "Cada favor tiene un nombre grabado en el reverso.", "El tablero no regala nada."]],
-	"shop":        ["☤ EL BUHONERO",           "Monedas por poder. Reliquias, cartas, magia menor.",    ["¿Cuánto vale lo que aún no sabes que necesitas?", "Compra con cuidado. Lo que no se compra, se cobra.", "El buhonero siempre vende lo que el siguiente comprador necesitará."]],
+	"event":       ["♄ ENTRE BASTIDORES",       "La obra te ofrece una elección. Nada es gratis.",       ["Las elecciones entre escenas pesan más que las espadas.", "Cada favor tiene un nombre grabado en el reverso.", "El guion no regala nada — todo tiene su precio en el siguiente acto."]],
+	"shop":        ["☤ EL TELONERO",            "Atrezzo, cartas y utilería entre bastidores.",          ["¿Cuánto vale lo que aún no sabes que necesitas?", "Compra con cuidado. Lo que no se compra, se cobra en otra escena.", "El Telonero siempre vende lo que el siguiente actor necesitará."]],
 	"boss":        ["★ JEFE DE MUNDO",         "El guardián del piso. Derrótalo para avanzar.",         ["Fue creado para detenerte. Lleva haciéndolo desde antes de que nacieras.", "No guarda el camino por lealtad. Lo hace por necesidad.", "Matar al guardián no abre la puerta. Solo la desbloquea."]],
 	"rest":        ["🕯 HOGUERA DE CENIZA",    "Descansa, forja o sacrifica. Un momento de tregua.",   ["La hoguera no calienta. Solo postpone el frío.", "Incluso aquí, algo observa desde las sombras.", "El descanso en Valdris es mentira. Pero es la única mentira útil."]],
 	"treasure":    ["📦 COFRE OLVIDADO",       "Algo brilla entre la ceniza. ¿Carta o reliquia?",       ["Quien lo dejó aquí ya no puede reclamarlo.", "El brillo no es señal de valor. A veces es señal de trampa.", "Lleva aquí esperando más tiempo del que imaginas."]],
@@ -164,7 +274,7 @@ const ROOM_CORRUPTED_DESCRIPTIONS: Array = [
 const ROOM_LABELS = {
 	ROOM_COMBAT:   "⚔ Eco de Batalla",
 	ROOM_ELITE:    "☠ Presencia Voraz",
-	ROOM_EVENT:    "♄ Augurio",
+	ROOM_EVENT:    "♄ Entre Bastidores",
 	ROOM_SHOP:     "☤ El Telonero",
 	ROOM_BOSS:     "★ JEFE DE MUNDO",
 	ROOM_FINAL:    "♔ EL REY SIN CORONA",
@@ -302,11 +412,6 @@ func _generate_map() -> Array:
 				floor_nodes.append({"type": ROOM_REST, "connections": []})
 			graph.append(floor_nodes)
 			continue
-		if f == num_floors - 4:
-			# Otro descanso antes del tramo final
-			floor_nodes.append({"type": ROOM_REST, "connections": []})
-			graph.append(floor_nodes)
-			continue
 		if f in shop_floors:
 			floor_nodes.append({"type": ROOM_SHOP, "connections": []})
 			# Siempre un nodo bypass: el buhonero es perdible por diseño
@@ -314,10 +419,8 @@ func _generate_map() -> Array:
 			graph.append(floor_nodes)
 			continue
 
-		# Pisos normales: 1-4 nodos
-		var num_cols = randi_range(1, 4)
-		if f == 0:
-			num_cols = randi_range(2, 4)  # Inicio: siempre 2-4 caminos
+		# Pisos normales: 2-4 nodos (mínimo 2 para garantizar agencia del jugador)
+		var num_cols = randi_range(2, 4)
 
 		var prev_type = ""
 		for c in range(num_cols):
@@ -327,6 +430,36 @@ func _generate_map() -> Array:
 			floor_nodes.append(node_data)
 
 		graph.append(floor_nodes)
+
+	# Pase post-generación: garantizar descanso orgánico (máx 5 pisos sin rest)
+	var consecutive_no_rest = 0
+	for f in range(graph.size() - 3):  # excluir los 3 pisos fijos finales
+		var floor_has_rest = false
+		for node in graph[f]:
+			if node.type == ROOM_REST:
+				floor_has_rest = true
+				break
+		if floor_has_rest:
+			consecutive_no_rest = 0
+		else:
+			consecutive_no_rest += 1
+			if consecutive_no_rest >= 5:
+				# Convertir el nodo menos costoso (combat > event > elite > treasure)
+				var best_c = -1
+				var best_priority = 999
+				for c in range(graph[f].size()):
+					var ntype = graph[f][c].type
+					var priority = 999
+					if ntype == ROOM_COMBAT:   priority = 0
+					elif ntype == ROOM_EVENT:  priority = 1
+					elif ntype == ROOM_ELITE:  priority = 2
+					elif ntype == ROOM_TREASURE: priority = 3
+					if priority < best_priority:
+						best_priority = priority
+						best_c = c
+				if best_c >= 0:
+					graph[f][best_c].type = ROOM_REST
+					consecutive_no_rest = 0
 
 	# Generar conexiones entre pisos
 	for f in range(graph.size() - 1):
@@ -400,28 +533,30 @@ func _pick_room_type(f_idx: int, total: int, prev_type: String) -> String:
 
 	if progress < 0.30:
 		# ── Zona temprana (30%) — aprender combate, poca elite ──
-		# Combat 55% | Event 25% | Elite 12% | Treasure 8%
-		if roll < 0.55:        t = ROOM_COMBAT
-		elif roll < 0.80:      t = ROOM_EVENT
-		elif roll < 0.92:      t = ROOM_ELITE
-		else:                  t = ROOM_TREASURE
+		# Combat 50% | Event 22% | Elite 8% | Treasure 12% | Rest 8%
+		if roll < 0.50:        t = ROOM_COMBAT
+		elif roll < 0.72:      t = ROOM_EVENT
+		elif roll < 0.80:      t = ROOM_ELITE
+		elif roll < 0.92:      t = ROOM_TREASURE
+		else:                  t = ROOM_REST
 
 	elif progress < 0.62:
-		# ── Zona media (32%) — elites frecuentes, alto riesgo/recompensa ──
-		# Elite 38% | Event 28% | Combat 22% | Treasure 12%
-		if roll < 0.38:        t = ROOM_ELITE
-		elif roll < 0.66:      t = ROOM_EVENT
-		elif roll < 0.88:      t = ROOM_COMBAT
-		else:                  t = ROOM_TREASURE
+		# ── Zona media (32%) — elites moderadas, ritmo sostenible ──
+		# Elite 28% | Event 25% | Combat 25% | Treasure 12% | Rest 10%
+		if roll < 0.28:        t = ROOM_ELITE
+		elif roll < 0.53:      t = ROOM_EVENT
+		elif roll < 0.78:      t = ROOM_COMBAT
+		elif roll < 0.90:      t = ROOM_TREASURE
+		else:                  t = ROOM_REST
 
 	else:
-		# ── Zona tardía (38%) — presión máxima, descanso esporádico ──
-		# Elite 42% | Event 28% | Combat 18% | Treasure 8% | Rest 4%
-		if roll < 0.42:        t = ROOM_ELITE
-		elif roll < 0.70:      t = ROOM_EVENT
-		elif roll < 0.88:      t = ROOM_COMBAT
-		elif roll < 0.96:      t = ROOM_TREASURE
-		else:                  t = ROOM_REST  # Descanso raro pero posible
+		# ── Zona tardía (38%) — presión alta, descanso estratégico ──
+		# Elite 35% | Event 22% | Combat 18% | Treasure 10% | Rest 15%
+		if roll < 0.35:        t = ROOM_ELITE
+		elif roll < 0.57:      t = ROOM_EVENT
+		elif roll < 0.75:      t = ROOM_COMBAT
+		elif roll < 0.85:      t = ROOM_TREASURE
+		else:                  t = ROOM_REST
 
 	# Nunca dos elites adyacentes en el mismo piso
 	if t == ROOM_ELITE and prev_type == ROOM_ELITE:
@@ -799,7 +934,7 @@ func draw_map() -> void:
 
 	var map_w: float    = vp.x * 0.85
 	var map_start_x: float = (vp.x - map_w) / 2.0
-	var map_start_y: float = total_h - 100.0
+	var map_start_y: float = 100.0
 
 	# Pre-calcular posiciones X de cada nodo
 	var positions: Array = []   # positions[f][c] = Vector2
@@ -811,7 +946,7 @@ func draw_map() -> void:
 			# Variación lateral aleatoria para que no sea una rejilla perfecta
 			var jitter = randf_range(-15, 15)
 			var x = map_start_x + (map_w / (nc + 1)) * (c + 1) + jitter
-			var y = map_start_y - f * floor_h
+			var y = map_start_y + f * floor_h
 			row_pos.append(Vector2(x, y))
 		positions.append(row_pos)
 
@@ -849,8 +984,8 @@ func draw_map() -> void:
 				elif reachable:
 					_add_dashed_line(map_content, p0, p1, Color(0.85, 0.75, 0.25, 0.75), 3.0)
 				else:
-					line_node.width = 1.2
-					line_node.default_color = Color(0.28, 0.28, 0.38, 0.18)
+					line_node.width = 2.0
+					line_node.default_color = Color(0.45, 0.40, 0.55, 0.38)
 					line_node.z_index = -10
 					map_content.add_child(line_node)
 
@@ -932,6 +1067,7 @@ func draw_map() -> void:
 				btn.mouse_exited.connect(func(): _hide_tooltip())
 
 			if reachable and not already_done:
+				_add_glow_effect(illus, Color(0.95, 0.78, 0.18))  # glow dorado pulsante
 				btn.mouse_entered.connect(func():
 					node_ctrl.create_tween().tween_property(node_ctrl, "scale", Vector2(1.07, 1.07), 0.1)
 				)
@@ -971,7 +1107,7 @@ func draw_map() -> void:
 
 	# Auto-scroll al piso actual
 	await get_tree().process_frame
-	var scroll_target = total_h - (GameManager.current_map_floor * floor_h) - (vp.y / 2.0)
+	var scroll_target = (GameManager.current_map_floor * floor_h) - (vp.y / 2.0)
 	scroll.set_v_scroll(clamp(scroll_target, 0, total_h))
 	
 	_start_void_mist(ui_layer, vp) # Capa de niebla sobre el mapa
@@ -1118,18 +1254,23 @@ func _build_dev_panel(vp: Vector2) -> Panel:
 	return p
 
 func _add_glow_effect(target: Control, col: Color) -> void:
-	var g = ColorRect.new()
-	g.size = target.size + Vector2(10, 10)
-	g.position = Vector2(-5, -5)
-	g.color = col
-	g.color.a = 0.3
+	var g = Panel.new()
+	g.size = target.size + Vector2(14, 14)
+	g.position = Vector2(-7, -7)
 	g.show_behind_parent = true
 	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(col.r, col.g, col.b, 0.75)
+	sb.corner_radius_top_left = 8
+	sb.corner_radius_top_right = 8
+	sb.corner_radius_bottom_left = 8
+	sb.corner_radius_bottom_right = 8
+	g.add_theme_stylebox_override("panel", sb)
 	target.add_child(g)
-	
+
 	var tw = g.create_tween().set_loops()
-	tw.tween_property(g, "modulate:a", 0.6, 1.0)
-	tw.tween_property(g, "modulate:a", 0.1, 1.0)
+	tw.tween_property(g, "modulate:a", 1.0, 0.8)
+	tw.tween_property(g, "modulate:a", 0.35, 0.8)
 
 func _start_shaking_node(node: Control) -> void:
 	var base_pos = node.position

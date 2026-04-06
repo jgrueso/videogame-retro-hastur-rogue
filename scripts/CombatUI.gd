@@ -44,6 +44,7 @@ var hp_bar_player: ProgressBar
 var sanity_bar_player: ProgressBar
 var lbl_energy: Label
 var lbl_furia: Label
+var lbl_presion: Label
 var lbl_fervor: Label
 var _fervor_last_san: int = -1
 var _fervor_last_spent: bool = false
@@ -239,6 +240,15 @@ func build_ui(vp: Vector2) -> void:
 		lbl_furia.modulate = Color(0.4, 0.9, 0.4)
 		player_panel.add_child(lbl_furia)
 
+	if char_id == "estratega":
+		player_panel.size.y = 126
+		lbl_presion = Label.new()
+		lbl_presion.position = Vector2(ST_X, 104)
+		lbl_presion.size = Vector2(BAR_W, 18)
+		lbl_presion.add_theme_font_size_override("font_size", 10)
+		lbl_presion.modulate = Color(0.3, 0.6, 1.0)
+		player_panel.add_child(lbl_presion)
+
 	if char_id == "mahar":
 		player_panel.size.y = 126
 		lbl_fervor = Label.new()
@@ -268,6 +278,11 @@ func build_ui(vp: Vector2) -> void:
 		var ep = _make_panel(Vector2(650 + i*220, 80), Vector2(200, 270), bg_col, border_col)
 		ep.mouse_filter = Control.MOUSE_FILTER_PASS
 		main.add_child(ep); main.enemies[i].panel = ep
+		
+		# --- AÑADE ESTO ---
+		if "AVATAR" in main.enemies[i].name.to_upper():
+				ep.modulate.a = 0.0 # Invisible al inicio		    	ep.z_index = 50     # Por encima de la viñeta (que es 40)
+		# ------------------
 
 		# Conectar señales para Tooltips de Intencion
 		var idx = i
@@ -537,6 +552,14 @@ func update_ui() -> void:
 	lbl_energy.text = ""
 	if GameManager.mark_level > 0: lbl_energy.text = "(Signo Lv%d)" % GameManager.mark_level
 
+	if lbl_presion:
+		if main.presion_points > 0:
+			lbl_presion.text = "PRESION: %d/5 (-%d ATK)" % [main.presion_points, main.presion_points]
+			lbl_presion.modulate = Color(0.3, 0.8, 1.0)
+		else:
+			lbl_presion.text = "PRESION: 0/5"
+			lbl_presion.modulate = Color(0.3, 0.5, 0.7, 0.6)
+
 	if lbl_furia:
 		lbl_furia.text = "FURIA: %d/3" % main.furia_points
 		lbl_furia.visible = true
@@ -620,6 +643,15 @@ func update_ui() -> void:
 		if card.card_data.get("cost_reduction_if_shield", 0) > 0:
 			var mod = -card.card_data["cost_reduction_if_shield"] if main.player_shield > 0 else 0
 			card.set_cost_modifier(mod)
+		# Tormenta de Hierro: coste 0 con 3 Furias
+		if card.card_data.get("cost_free_at_max_furia", false):
+			var furia_mod = -card.card_data["cost"] if main.furia_points >= 3 else 0
+			card.set_cost_modifier(furia_mod)
+		# Tormenta de Hierro: descripcion dinamica con escudo actual
+		if card.card_data.get("dmg_equals_shield", false):
+			var shield_val = main.player_shield
+			card.description = "Inflige " + str(shield_val) + " de dano (= escudo actual). Consume Furia."
+			card.update_display()
 
 # --- Funciones de animación de barras ---
 
@@ -1073,6 +1105,18 @@ func show_enemy_intro(enemy_name: String) -> void:
 	var intro = COMBAT_FLAVOR["enemy_intro"].get(enemy_name,
 		COMBAT_FLAVOR["enemy_intro"]["default"])
 	DialogueUI.cinematic(intro)
+	
+func reveal_avatar(index: int) -> void:
+	var enemy = main.enemies[index]
+	if enemy.panel:
+		# Efecto de aparición dramática
+		var tw = main.create_tween()
+		tw.tween_property(enemy.panel, "modulate:a", 1.0, 1.2).set_trans(Tween.TRANS_SINE)
+		
+		# Opcional: Un pequeño flash blanco al aparecer
+		var flash = main.create_tween()
+		flash.tween_property(enemy.panel, "modulate", Color(5, 5, 5), 0.1)
+		flash.tween_property(enemy.panel, "modulate", Color(1, 1, 1), 0.4)
 
 # ─── Destilados ───────────────────────────────────────────────────────────────
 func _show_destilado_tooltip(anchor: Control, dest_id: String) -> void:

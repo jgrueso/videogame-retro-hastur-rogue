@@ -555,3 +555,192 @@ Nuevo códice propuesto: _"El Carcelero no tiene historia porque nunca tuvo libr
 
 _Versión 1.0 — Documento base para expansión narrativa de BLACK HOLE SONG_
 _Construido sobre el lore existente en LoreData.gd, CharacterSelect.gd, CombatData.gd, Event.gd, Shop.gd y Treasure.gd_
+
+---
+
+## 13. LA OBRA DEL REY AMARILLO — MARCO EN 3 ACTOS
+
+> *"La obra lleva años en cartelera. Nadie recuerda la primera noche. Nadie ha visto el último acto."*
+
+---
+
+### ACTO I — "LA INVITACIÓN" *(La Llegada al Escenario)*
+
+**Tono:** Confusión atmosférica. Los personajes creen tener un propósito propio.
+
+**Mecánica narrativa:** Cada personaje recibe su INVITACIÓN (ya existe como fragmento de sello — ahora cobra nuevo significado). La Carta de Invitación a Carcosa no es solo un artefacto: es el guion que alguien puso en sus manos antes de que llegaran.
+
+**Revelación del acto:** No llegaron por voluntad propia. La invitación es el guion.
+
+**Boss del acto:** El Director de Escena (el Rey Sin Corona como proxy de Hastur — un NPC que "organiza" los encuentros sin ser el autor).
+
+**Personaje introducido:** **MR. WILDE / EL EDITOR** — aparece como NPC entre escenas. "Revisa tu historia" en lugar de vender items. Sabe el guion completo porque participó en escribirlo con Hastur.
+
+**Conexión roguelike:** Act 1 = construcción del mazo base = los personajes aún creen que controlan su narrativa.
+
+---
+
+### ACTO II — "LA REPRESENTACIÓN" *(El Espejo)*
+
+**Tono:** Paranoia e identidad en crisis. Los personajes se ven en otros personajes.
+
+**Mecánica narrativa:** El SIGNO AMARILLO aparece en las escenas como "marca de escena" — los personajes lo acumulan (como recurso de lore) sin entender qué significa hasta el final del acto.
+
+**Revelación del acto:** Cada uno lleva puesto un ROL que fue escrito para ellos antes de nacer. El rol es una trampa diseñada para que fallen de manera específica.
+
+**Boss del acto:** CAMILLA / LA ENMASCARADA — no ataca directamente; refleja al personaje jugable como espejo distorsionado. Su mecánica: copia las cartas del jugador y las usa contra él. Cada personaje ve una versión distinta (su propio rol corrompido).
+
+**Personaje introducido:** **CASSILDA** — aparece como NPC/evento especial en Act II. Se convierte en figura trágica al final. No es jugable.
+
+**Conexión roguelike:** Act 2 = sinergia del mazo completada = el personaje "en personaje" ya no puede salir fácilmente del rol.
+
+---
+
+### ACTO III — "EL TELÓN" *(La Última Escena)*
+
+**Tono:** Certeza inevitable. No hay salida — solo elección de cómo terminar.
+
+**Mecánica narrativa:** Los 3 fragmentos de sello (Símbolo Amarillo, Canción Amarilla, Carta de Invitación) se revelan como las 3 páginas finales del guion. Coleccionarlos los 3 = ver el verdadero final.
+
+**Revelación del acto:** Hastur no es un monstruo. Es el AUTOR. La pelea final es un monólogo donde él explica por qué te escribió así.
+
+**Boss del acto:** HASTUR / EL REY AMARILLO — el "combate" es una negociación teatral. Mecánica especial según personaje.
+
+**Conexión roguelike:** Act 3 = el mazo demuestra su build = el personaje demuestra quién eligió ser dentro de la obra.
+
+---
+
+## 14. PERSONAJES NUEVOS — NPC/BOSS (No Jugables)
+
+### CASSILDA — La Reina sin Reino
+
+**Fuente:** Fragmentos de la obra en el libro de Chambers / "Canción de Cassilda"
+
+**Rol:** NPC en Act I (guía trágica), antagonista involuntaria en Act II, eco en Act III. **No es jugable.**
+
+**Frase canónica:** *"Along the shore the cloud waves break, the twin suns sink beneath the lake..."*
+
+**Mecánica de NPC:** Deja *ecos* — pistas/fragmentos de texto que solo El Estratega puede leer con claridad. Para otros personajes, sus mensajes son crípticos o parecen ruido.
+
+**Conexiones de lore:**
+- **Con El Guardián:** Él fue su guardia principal en una era anterior. Su juramento de protección sigue activo aunque no recuerda a quién protege. Al encontrarla en Act II, algo en él *reconoce* antes de que su memoria lo haga.
+- **Con El Estratega:** Él sigue sus ecos sin saber que son de ella — solo ve patrones imposibles de ignorar para una mente como la suya.
+- **Con El Príncipe:** El juramento del Guardián era a ella *y* al Príncipe. El Príncipe no sabe que tiene un guardián que lleva siglos buscándolo.
+
+---
+
+### CAMILLA — La de Detrás de la Máscara
+
+**Fuente:** La línea más famosa de Chambers: *"¿No es acaso una máscara?"*
+
+**Rol:** Boss de Act II — aparece como aliada hasta que revela que ha estado mostrando a cada personaje su "yo guionado". **No es jugable.**
+
+**Mecánica de boss:** Copia las cartas del jugador y las usa contra él. Cada personaje ve una versión distinta de Camilla:
+- **Mahar la ve** como un cruzado corrompido que abraza la máscara
+- **El Estratega la ve** como una cartógrafa que se perdió en sus propios mapas
+- **El Guardián la ve** como un guerrero que falló en proteger lo único que importaba
+- **El Príncipe la ve** como un fragmento del Rey que eligió no resistir
+
+**Frase:** *"No soy una máscara. Soy lo que llevas debajo de la tuya."*
+
+---
+
+### MR. WILDE / EL EDITOR — El Consejero Sin Nombre
+
+**Fuente:** "The Repairer of Reputations" + lore original del juego
+
+**Identidad real:** En la antigüedad fue el consejero que orquestó la traición al rey, sabiendo que completar la obra invocaría a Hastur. Vio su rostro antes de volverse loco. No murió — *se transformó*. Fundó la Corte Pálida (que Mahar sirve sin saberlo).
+
+**Rol actual:** NPC mercader que "revisa historias" — sabe el guion completo porque él lo escribió con Hastur.
+
+**Mecánica de NPC:** No vende items — *edita tu historia*:
+- Puede eliminar una carta del mazo ("editar una línea")
+- Puede revelar información del boss próximo (costo en monedas)
+- Su diálogo con Mahar es especial: lo trata como un subordinado fiel sin revelar que él es el origen de toda la Corte
+
+**Frases canónicas:**
+- *"Yo no reparo lo que está roto. Reparo lo que nunca debió construirse así."*
+- A Mahar: *"La Corte sigue buscando el rostro. Qué devotos. Qué inútilmente devotos."*
+
+---
+
+### HILDRED CASTAIGNE — El Creyente Verdadero
+
+**Fuente:** Protagonista de "The Repairer of Reputations"
+
+**Rol:** NPC recurrente que espeja a Mahar — lo que Mahar puede llegar a ser si abraza completamente la obra.
+
+**Boss de Act II alternativo (solo con Mahar):** Aparece si Mahar acumula suficientes Signos Amarillos — un espejo de fe llevada hasta el abismo.
+
+**Mazo de boss:** Daño que escala con Signos Amarillos en el campo.
+
+**Frase:** *"Encontré el rostro. Fue lo más hermoso y lo más terrible que he visto. Y lo haría de nuevo."*
+
+---
+
+## 15. ARQUITECTURA DE LORE — CONEXIONES ENTRE PERSONAJES
+
+```
+EL REY ANTIGUO (traicionado, completó la obra sin saberlo)
+    │
+    ├── EL CONSEJERO SIN NOMBRE (= Mr. Wilde / El Editor)
+    │       └── vio el rostro de Hastur, fundó la Corte Pálida
+    │               └── MAHAR sirve a la Corte sin saber su origen
+    │
+    ├── CASSILDA (la reina, atrapada en la obra para siempre)
+    │       ├── EL GUARDIÁN (su guardia principal, vivo por juramento)
+    │       │       └── juró lealtad a ella Y al Príncipe (secreto)
+    │       └── EL ESTRATEGA (sigue sus ecos sin saber de quién son)
+    │
+    └── EL PRÍNCIPE DE CARCOSA (fragmento del Rey Amarillo en forma mortal)
+            └── no sabe que tiene un guardián que lo busca
+
+HASTUR / EL REY AMARILLO
+    └── no es el enemigo — es el autor. La obra ES él.
+        CAMILLA es su proxy en el escenario (el espejo de cada rol)
+```
+
+### Revelaciones por personaje (Act III)
+
+- **Mahar:** La Corte que sirve fue fundada por quien invocó a Hastur. Su búsqueda de la máscara es exactamente lo que Hastur quiere.
+- **El Guardián:** Cassilda está aquí. El Príncipe está aquí. Su juramento se cumple — pero ambos están atrapados en la obra tanto como él.
+- **El Estratega:** Los ecos que siguió eran de Cassilda. No mapeaba Carcosa — la estaba *completando*, escena por escena.
+- **El Príncipe:** No es un personaje atrapado en la obra. Es un fragmento de la obra misma. No hay liberación posible — solo elección de qué tipo de fragmento ser.
+
+---
+
+## 16. LOS TRES FINALES — REFRAMING TEATRAL
+
+| Final | Nombre anterior | Nombre nuevo | Significado teatral |
+|-------|----------------|--------------|---------------------|
+| Normal I | "El Eco del Rey" | **"Bis"** | La obra termina. El actor hace una reverencia. Mañana vuelve a comenzar — él lo sabe ahora. |
+| Normal II | "Jaque al Rey" | **"Reescritura"** | El actor altera su última escena. No escapa — pero el guion cambia. Pequeña victoria dentro de la trampa. |
+| Secreto | "Black Hole Song" | **"Última Función"** | El actor destruye el escenario. Hastur pierde un actor. El costo es que el personaje deja de existir. |
+
+### Texto del final "Bis" (antes: "El Eco del Rey")
+
+> *El telón cae.*
+>
+> *Por primera vez, sabes que es un telón. Que mañana volverá a subir. Que tú estarás ahí cuando lo haga.*
+>
+> *La obra lleva años en cartelera. Nadie recuerda la primera noche.*
+>
+> *Tú sí recuerdas esta.*
+
+### Texto del final "Reescritura" (antes: "Jaque al Rey")
+
+> *El Rey Amarillo cae.*
+>
+> *Por primera vez en siglos, el escenario está en silencio. Sin movimiento. Sin música. Sin el eco eterno de actores repitiendo sus líneas en la oscuridad.*
+>
+> *Eres el único actor de pie.*
+>
+> *Afuera — si hay un afuera — el viento arrastra ceniza amarilla.*
+>
+> *"H A S T U R R E C U E R D A."*
+>
+> *No como amenaza. Como promesa. El autor siempre recuerda a sus personajes.*
+
+---
+
+_Versión 2.0 — Integración del marco teatral La Obra del Rey Amarillo_

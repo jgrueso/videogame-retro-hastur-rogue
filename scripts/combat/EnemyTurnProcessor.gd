@@ -25,6 +25,7 @@ const ENEMY_COMBAT_BANTER = {
 }
 
 func process_enemy_turn() -> void:
+	CombatLog.log_turn(main.turn_counter, false)
 	main.is_player_turn = false; main.end_turn_btn.disabled = true
 	main.first_card_this_turn = true
 	main.update_card_states()
@@ -63,6 +64,7 @@ func process_enemy_turn() -> void:
 		# El Penitente en modo pacífico: contar turnos
 		if e.peaceful:
 			e.peaceful_turns -= 1
+			CombatLog.log(e.name, "Pacífico %d turnos restantes" % e.peaceful_turns, Color(0.5, 1.0, 0.7), CombatLog.Category.EFFECTS)
 
 			if e.penitente_mode == "silence":
 				# Efecto Silencio: Glitch y oscuridad
@@ -121,6 +123,21 @@ func process_enemy_turn() -> void:
 				if main.get_node_or_null("/root/AudioManager"): AudioManager.play("shield_block")
 				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), absorbed, Color(0.4, 0.7, 1.0))
 				main.update_ui() # Actualizar escudo en tiempo real
+				CombatLog.log("ESCUDO", "Absorbe %d daño" % absorbed, Color(0.4, 0.7, 1.0), CombatLog.Category.EFFECTS)
+
+				# Guardián REBOUND: 3 Furias → refleja el daño absorbido al atacante
+				if GameManager.selected_character == "guardian" and main.furia_points >= 3:
+					main.furia_points = 0
+					e.hp = max(0, e.hp - absorbed)
+					main._spawn_damage_number(e.panel.global_position + Vector2(100, 60), absorbed, Color(0.9, 0.6, 0.1))
+					main._animate_enemy_hit(e)
+					DialogueUI.toast("¡REBOUND DE FURIA! " + str(absorbed) + " reflejado.", Color(0.9, 0.6, 0.1))
+					CombatLog.log("REBOUND", "%d reflejado" % absorbed, Color(0.9, 0.6, 0.1), CombatLog.Category.EFFECTS)
+					main.update_ui()
+					if e.hp <= 0:
+						await main._kill_enemy(e)
+						main.check_combat_end()
+						continue
 
 			# Mostrar siempre el daño o el fallo si es un ataque
 			if dmg > 0:
@@ -172,8 +189,23 @@ func process_enemy_turn() -> void:
 				neu_tw.tween_property(neu_lbl, "position:y", neu_lbl.position.y - 50, 0.9)
 				neu_tw.tween_property(neu_lbl, "modulate:a", 0.0, 0.9)
 				neu_tw.chain().tween_callback(neu_lbl.queue_free)
+
+			# Guardián: Espejo de Acero — refleja hasta 60% del ataque al atacante (max 15)
+			if main.espejo_acero_active:
+				main.espejo_acero_active = false
+				var pre_shield_dmg = max(0, (base_dmg + mark_bonus) - e.get("atk_reduction", 0))
+				if pre_shield_dmg > 0:
+					var reflect_dmg = min(int(pre_shield_dmg * 0.6), 15)
+					e.hp = max(0, e.hp - reflect_dmg)
+					main._spawn_damage_number(e.panel.global_position + Vector2(100, 60), reflect_dmg, Color(0.4, 0.7, 1.0))
+					main._animate_enemy_hit(e)
+					DialogueUI.toast("¡ESPEJO DE ACERO! " + str(reflect_dmg) + " reflejado.", Color(0.4, 0.7, 1.0))
+					if e.hp <= 0: await main._kill_enemy(e)
+					main.check_combat_end()
+
 		elif action.type == "shield":
 			e.shield += action.value
+			CombatLog.log(e.name, "+%d Escudo" % action.value, Color(0.4, 0.7, 1.0), CombatLog.Category.EFFECTS)
 		elif action.type == "insanity":
 			if GameManager.selected_character == "prince" and GameManager.current_world == 2:
 				# W3: el daño de insanidad cura al Príncipe
@@ -182,11 +214,15 @@ func process_enemy_turn() -> void:
 				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), heal_amount, Color(0.7, 0.2, 1.0))
 				DialogueUI.toast("RESONANCIA: la insanidad te fortalece. +" + str(heal_amount) + " Cordura", Color(0.7, 0.2, 1.0))
 			else:
-				GameManager.sanity = max(0, GameManager.sanity - action.value)
-				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), action.value, Color(0.7, 0.3, 1.0))
-				DialogueUI.toast(e.name + ": Ataca tu cordura! (-" + str(action.value) + ")")
+				var sanity_dmg = max(0, action.value - e.get("atk_reduction", 0))
+				GameManager.sanity = max(0, GameManager.sanity - sanity_dmg)
+				main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), sanity_dmg, Color(0.7, 0.3, 1.0))
+				var toast_msg = e.name + ": Ataca tu cordura! (-" + str(sanity_dmg) + ")"
+				if sanity_dmg < action.value:
+					toast_msg += " [PRESION: -" + str(action.value - sanity_dmg) + " absorbido]"
+				DialogueUI.toast(toast_msg)
 				if GameManager.selected_character == "prince":
-					var shield_gain = int(action.value * 0.4)
+					var shield_gain = int(sanity_dmg * 0.4)
 					if shield_gain > 0:
 						main.player_shield += shield_gain
 						DialogueUI.toast("Absorcion Abisal: +" + str(shield_gain) + " Escudo")
@@ -276,6 +312,8 @@ func process_enemy_turn() -> void:
 	# Limpiar debuffs de TODOS los enemigos antes de que empiece el turno del jugador
 	for e_final in main.enemies:
 		e_final["atk_reduction"] = 0
+	# Reset de Presión Táctica del Estratega
+	main.presion_points = 0
 
 	# Reset de energía (Basado en el nuevo máximo sincronizado)
 	main.player_energy = main.player_max_energy
@@ -294,6 +332,12 @@ func process_enemy_turn() -> void:
 	if GameManager.selected_character == "mahar" and GameManager.sanity < 40:
 		main.player_hp = max(1, main.player_hp - 2)
 		DialogueUI.toast("FERVOR (fe rota): -2 HP", Color(0.8, 0.3, 0.1))
+
+	# Príncipe QUIEBRE: drena 5 HP por turno cuando cordura = 0
+	if GameManager.selected_character == "prince" and main.prince_quiebre_active:
+		main.player_hp = max(0, main.player_hp - 5)
+		main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 5, Color(0.7, 0.1, 0.8))
+		DialogueUI.toast("QUIEBRE: -5 HP (Cordura consumida)", Color(0.7, 0.1, 0.8))
 
 	# Sinergia Reliquia: Ficha de Marfil — drena 1 HP por turno
 	if GameManager.has_relic("ficha_marfil"):

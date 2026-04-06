@@ -28,9 +28,11 @@ const ALL_CARDS = [
 		"flavor": "Hay palabras que el cruzado tiene prohibido decir. Las lleva talladas en la lengua de todas formas."},
 
 	# Estratega
-	{"name": "Inquisidor Ciego", "attack": 4, "defense": 0, "cost": 2, "char": "estratega", "rarity": "common",
+	{"name": "Inquisidor Ciego", "attack": 7, "defense": 0, "cost": 2, "char": "estratega", "rarity": "common", "presion": 1,
+		"description": "7 ATK. +1 Presion al jugar.",
 		"flavor": "Buscaba la anomalia. La encontro en el espejo."},
-	{"name": "Dama del Tablero", "attack": 8, "defense": 3, "cost": 3, "char": "estratega", "rarity": "uncommon",
+	{"name": "Dama del Tablero", "attack": 8, "defense": 3, "cost": 3, "char": "estratega", "rarity": "uncommon", "presion": 2,
+		"description": "8 ATK + 3 DEF. +2 Presion al jugar.",
 		"flavor": "La pieza mas poderosa del tablero. Eso no la protegió."},
 	{"name": "Analisis Profundo", "attack": 0, "defense": 0, "cost": 1, "char": "estratega", "draw": 2, "rarity": "uncommon",
 		"flavor": "Leer mas no cambia lo que dicen las paginas."},
@@ -62,18 +64,22 @@ const ALL_CARDS = [
 	# Guardian — nuevas
 	{"name": "Bastion", "attack": 0, "defense": 6, "cost": 1, "char": "guardian", "rarity": "common",
 		"flavor": "Alguien construyo esto. Ya no esta. El muro, si."},
-	{"name": "Trinchera", "attack": 0, "defense": 4, "cost": 2, "char": "guardian", "rarity": "uncommon", "bonus_def_if_shield": 3,
-		"description": "4 DEF. Si ya tienes escudo, +3 DEF adicional.",
+	{"name": "Trinchera", "attack": 0, "defense": 5, "cost": 2, "char": "guardian", "rarity": "uncommon", "bonus_def_if_shield": 4,
+		"description": "5 DEF. Si ya tienes escudo, +4 DEF adicional (total 9).",
 		"flavor": "La segunda linea siempre es mas solida. La primera ya sabe cuanto duele."},
 	{"name": "Represalia", "attack": 5, "defense": 0, "cost": 2, "char": "guardian", "rarity": "uncommon", "cost_reduction_if_shield": 1,
 		"description": "5 ATK. -1 coste si tienes escudo activo.",
 		"flavor": "Hay rabia en el escudo. La guardo para el momento correcto."},
-	{"name": "Fortaleza Interior", "attack": 0, "defense": 0, "cost": 3, "char": "guardian", "rarity": "rare", "shield_from_max_hp": 0.15,
-		"description": "Escudo = 15% de HP maximo.",
+	{"name": "Fortaleza Interior", "attack": 0, "defense": 0, "cost": 3, "char": "guardian", "rarity": "rare", "shield_from_max_hp": 0.20, "gain_furia": 1,
+		"description": "Escudo = 20% de HP maximo. Gana 1 Furia directamente.",
 		"flavor": "No todo el escudo esta en las manos. Algo viene de mas adentro."},
-	{"name": "Espejo de Acero", "attack": 0, "defense": 0, "cost": 2, "char": "guardian", "rarity": "rare", "exhaust": true, "reflect_damage": 0.6,
-		"description": "Exhaust: el proximo golpe recibido inflige 60% de su dano al atacante.",
+	{"name": "Espejo de Acero", "attack": 0, "defense": 0, "cost": 2, "char": "guardian", "rarity": "rare", "exhaust": true, "reflect_damage": 0.6, "reflect_cap": 15,
+		"description": "Exhaust: el proximo golpe recibido inflige 60% de su dano al atacante (max 15).",
 		"flavor": "Convertirte en lo que te ataca no es victoria. Es supervivencia. Tiene que ser suficiente."},
+	{"name": "Tormenta de Hierro", "attack": 0, "defense": 0, "cost": 2, "char": "guardian", "rarity": "uncommon",
+		"dmg_equals_shield": true, "cost_free_at_max_furia": true, "consumes_furia": true,
+		"description": "Inflige [ESCUDO] de dano al enemigo. Consume todas las cargas de Furia.",
+		"flavor": "El escudo no es solo proteccion. Es el peso acumulado de todo lo que resististe."},
 
 	# Universal — Cartas de Evento originales
 	{"name": "Ceniza Preventiva", "attack": 0, "defense": 0, "cost": 1, "discard_for_shield": true, "rarity": "uncommon",
@@ -102,9 +108,9 @@ const ALL_CARDS = [
 		"scaling_sanity": true,
 		"description": "5 ATK (x1.5 si Cordura < 60 | x2 si < 35).",
 		"flavor": "No es un eco. Es lo que queda cuando el silencio decide hablar."},
-	{"name": "Velo de Demencia", "attack": 0, "defense": 0, "cost": 0, "char": "prince", "rarity": "common",
-		"draw": 2, "sanity_cost": 12,
-		"description": "Roba 2 cartas. Pierde 12 Cordura.",
+	{"name": "Velo de Demencia", "attack": 0, "defense": 0, "cost": 1, "char": "prince", "rarity": "common",
+		"draw": 2, "sanity_cost": 10,
+		"description": "Roba 2 cartas. Pierde 10 Cordura.",
 		"flavor": "Ver mas no cuesta la vista. Cuesta lo que eras antes de ver."},
 
 	# Príncipe — Poco comunes
@@ -113,8 +119,8 @@ const ALL_CARDS = [
 		"description": "6 Escudo (x1.5 si Cordura < 60 | x2 si < 35). Cuesta 5 Cordura.",
 		"flavor": "No te cubre de los golpes. Te cubre del miedo a recibirlos."},
 	{"name": "Locura Canalizada", "attack": 0, "defense": 0, "cost": 0, "char": "prince", "rarity": "uncommon",
-		"draw": 1, "gain_energy": 1, "sanity_cost": 15,
-		"description": "Roba 1 carta + gana 1 Energia. Pierde 15 Cordura.",
+		"gain_energy": 1, "sanity_cost": 15,
+		"description": "Gana 1 Energia. Pierde 15 Cordura.",
 		"flavor": "El tablero llama locura a lo que no puede predecir."},
 
 	# Príncipe — Raras
@@ -123,8 +129,8 @@ const ALL_CARDS = [
 		"description": "9 ATK + 9 Escudo (x1.5 si Cordura < 60 | x2 si < 35).",
 		"flavor": "La herencia no era el trono. Era lo que habia debajo del trono."},
 	{"name": "Fragmento de Carcosa", "attack": 0, "defense": 0, "cost": 2, "char": "prince", "rarity": "rare",
-		"exhaust": true, "draw": 4, "sanity_cost": 30,
-		"description": "AGOTAR: Roba 4 cartas. Pierde 30 Cordura.",
+		"exhaust": true, "draw": 3, "sanity_cost": 30,
+		"description": "AGOTAR: Roba 3 cartas. Pierde 30 Cordura.",
 		"flavor": "Cada fragmento recuerda la forma del todo. El todo no era algo que debias recordar."},
 
 	# Legendarias (Solo via Grieta)

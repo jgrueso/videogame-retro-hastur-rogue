@@ -182,10 +182,7 @@ func setup(data: Dictionary) -> void:
 
 	flavor = data.get("flavor", "")
 	
-	if GameManager.selected_character == "estratega" and "INQUISIDOR" in card_name:
-		description += "\n\n[LÓGICA: Coste -1]"
-	
-	requires_target = (attack > 0 or "JAQUE ETERNO" in card_name or "INCISION PRECISA" in card_name or "MIRADA QUE DEVORA" in card_name) and not ("ECO DEL VAC" in card_name or "POSICION VENTAJOSA" in card_name)
+	requires_target = (attack > 0 or card_data.get("dmg_equals_shield", false) or "JAQUE ETERNO" in card_name or "INCISION PRECISA" in card_name or "MIRADA QUE DEVORA" in card_name) and not ("ECO DEL VAC" in card_name or "POSICION VENTAJOSA" in card_name)
 	update_display()
 
 func update_display(force_upgrade_style: bool = false) -> void:
@@ -277,6 +274,15 @@ func update_display(force_upgrade_style: bool = false) -> void:
 		tooltip_text += "[color=#ff66ff]Jugar cuesta " + str(curse_cost) + " Cordura.[/color]\n"
 		tooltip_text += "[color=#777777][font_size=10]Si Cordura insuficiente, el exceso daña tu Vida.[/font_size][/color]"
 
+	# --- INFO PASIVA GUARDIÁN ---
+	if GameManager.selected_character == "guardian":
+		var combat = get_tree().get_root().find_child("Combat", true, false)
+		if combat and "furia_points" in combat:
+			if combat.furia_points >= 3:
+				tooltip_text += "\n\n[color=#ffaa44]✦ FURIA MÁXIMA:[/color]\n[color=#ffffaa]Próximo ataque x2 daño o REBOTE DE ESCUDO.[/color]"
+			else:
+				tooltip_text += "\n\n[color=#6688aa]✦ RESILIENCIA:[/color]\n[color=#aabbcc]Gana 1 Furia por cada 6 de escudo generado.[/color]"
+
 	var _tlabel = tooltip_panel.get_node("TooltipLabel")
 	_tlabel.text = tooltip_text
 	_tlabel.modulate = Color.WHITE
@@ -309,7 +315,21 @@ func update_display(force_upgrade_style: bool = false) -> void:
 	_apply_style(Color(0.35, 0.35, 0.1) if is_hovered else Color(0.12, 0.12, 0.15))
 
 func get_effective_cost() -> int:
-	return max(0, cost + cost_modifier)
+	var c = max(0, cost + cost_modifier)
+	
+	# Lógica especial Guardián: Tormenta de Hierro (Gratis a Furia 3)
+	if card_data.get("cost_free_at_max_furia", false):
+		var combat = get_tree().get_root().find_child("Combat", true, false)
+		if combat and "furia_points" in combat and combat.furia_points >= 3:
+			return 0
+			
+	# Lógica especial Guardián: Represalia (-1 coste si hay escudo)
+	if card_data.get("cost_reduction_if_shield", 0) > 0:
+		var combat = get_tree().get_root().find_child("Combat", true, false)
+		if combat and "player_shield" in combat and combat.player_shield > 0:
+			c = max(0, c - card_data["cost_reduction_if_shield"])
+			
+	return c
 
 func _update_cost_label() -> void:
 	var effective = max(0, cost + cost_modifier)

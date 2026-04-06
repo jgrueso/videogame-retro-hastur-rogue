@@ -46,7 +46,7 @@ func resolve(card, enemy_idx: int) -> void:
 	elif "TRONO DE CARCOSA" in c_upper:
 		card_handled = true
 		if target_e:
-			var dmg = 10
+			var dmg = card.attack
 			var absorbed = min(target_e.shield, dmg)
 			if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(target_e)
 			if dmg > 0:
@@ -54,8 +54,8 @@ func resolve(card, enemy_idx: int) -> void:
 				main._spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(1, 0.3, 0.3))
 				main._animate_enemy_hit(target_e)
 				if target_e.hp <= 0: await main._kill_enemy(target_e)
-		main.player_shield += 10
-		main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 10, Color(0.4, 0.7, 1))
+		main.player_shield += card.defense
+		main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1))
 		main.trono_carcosa_active = true
 		DialogueUI.toast("¡El Trono reclama su dominio!")
 		main.update_ui()
@@ -141,25 +141,28 @@ func resolve(card, enemy_idx: int) -> void:
 
 	elif "ECO DEL VAC" in c_upper:
 		card_handled = true
-		DialogueUI.toast("¡ECO DEL VACÍO!")
+		DialogueUI.toast("¡" + card.card_name + "!")
+		var dmg = card.attack
 		for e_aoe in main.enemies:
 			if e_aoe.hp > 0:
-				e_aoe.hp -= 4
-				main._spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), 4, Color(0.7, 0.7, 1.0))
+				e_aoe.hp -= dmg
+				main._spawn_damage_number(e_aoe.panel.global_position + Vector2(100, 60), dmg, Color(0.7, 0.7, 1.0))
 				main._animate_enemy_hit(e_aoe)
 				if e_aoe.hp <= 0: await main._kill_enemy(e_aoe)
 		main.update_ui()
 
 	elif "POSICION VENTAJOSA" in c_upper:
 		card_handled = true
-		var choice = await _show_choice_dialog(["⚔ 4 ATK", "🛡 4 DEF"])
+		var opt_atk = "⚔ " + str(card.attack) + " ATK"
+		var opt_def = "🛡 " + str(card.defense) + " DEF"
+		var choice = await _show_choice_dialog([opt_atk, opt_def])
 		if choice == 0:
 			# ATK: aplicar al primer enemigo vivo
 			var atk_target = null
 			for e_find in main.enemies:
 				if e_find.hp > 0: atk_target = e_find; break
 			if atk_target:
-				var dmg = 4
+				var dmg = card.attack
 				var absorbed = min(atk_target.shield, dmg)
 				if absorbed > 0: atk_target.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(atk_target)
 				if dmg > 0:
@@ -170,15 +173,15 @@ func resolve(card, enemy_idx: int) -> void:
 			else:
 				DialogueUI.toast("No hay enemigos.")
 		else:
-			main.player_shield += 4
-			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), 4, Color(0.4, 0.7, 1))
+			main.player_shield += card.defense
+			main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), card.defense, Color(0.4, 0.7, 1))
 		main.update_ui()
 
 	elif "CONTRAOFENSIVA" in c_upper:
 		card_handled = true
 		if main.enemy_attacked_last_turn:
 			if target_e:
-				var dmg = 8
+				var dmg = card.attack
 				var absorbed = min(target_e.shield, dmg)
 				if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(target_e)
 				if dmg > 0:
@@ -203,6 +206,7 @@ func resolve(card, enemy_idx: int) -> void:
 		for e_deb in main.enemies:
 			if e_deb.hp > 0:
 				e_deb["atk_reduction"] = e_deb.get("atk_reduction", 0) + reduction
+				CombatLog.log("DEBUFF", "-%d ATK (Susurro) → %s" % [reduction, e_deb.name], Color(0.4, 1.0, 0.4), CombatLog.Category.EFFECTS)
 				# Feedback visual: Destello verde de debilidad
 				var tw = create_tween()
 				tw.tween_property(e_deb.panel, "modulate", Color(0.4, 1.2, 0.4), 0.1)
@@ -226,18 +230,64 @@ func resolve(card, enemy_idx: int) -> void:
 
 	elif "FORTALEZA INTERIOR" in c_upper:
 		card_handled = true
-		var shield_amount = int(main.player_max_hp * 0.15)
+		var shield_amount = int(main.player_max_hp * 0.20)
 		main.player_shield += shield_amount
 		main._spawn_damage_number(main.player_panel.global_position + Vector2(200, 30), shield_amount, Color(0.4, 0.7, 1))
 		DialogueUI.toast("Fortaleza Interior: +" + str(shield_amount) + " Escudo")
+		if main.furia_points < 3:
+			main.furia_points += 1
+			DialogueUI.toast("Fortaleza Interior: +1 Furia! (" + str(main.furia_points) + "/3)", Color(0.4, 0.9, 0.4))
 		main.update_ui()
+
+	elif "ESPEJO DE ACERO" in c_upper:
+		card_handled = true
+		main.espejo_acero_active = true
+		DialogueUI.toast("Espejo de Acero: el proximo golpe sera reflejado.", Color(0.4, 0.7, 1))
+		main.update_ui()
+
+	elif card.card_data.get("dmg_equals_shield", false):
+		card_handled = true
+		if target_e:
+			var total_dmg = main.player_shield
+			if card.card_data.get("consumes_furia", false):
+				main.furia_points = 0
+			main.player_shield = 0
+			var dmg = total_dmg
+			if dmg > 0:
+				var absorbed = min(target_e.shield, dmg)
+				if absorbed > 0: target_e.shield -= absorbed; dmg -= absorbed; main._animate_shield_block(target_e)
+				if dmg > 0:
+					target_e.hp = max(0, target_e.hp - dmg)
+					main._spawn_damage_number(target_e.panel.global_position + Vector2(100, 60), dmg, Color(0.9, 0.6, 0.1))
+					main._animate_enemy_hit(target_e)
+					if target_e.hp <= 0: await main._kill_enemy(target_e)
+			DialogueUI.toast("¡TORMENTA DE HIERRO! " + str(total_dmg) + " daño", Color(0.9, 0.6, 0.1))
+			CombatLog.log("TORMENTA", "%d daño (= escudo)" % total_dmg, Color(0.9, 0.6, 0.1), CombatLog.Category.EFFECTS)
+			main.update_ui()
+		else:
+			DialogueUI.toast("Selecciona un objetivo")
+			main.player_energy += effective_cost
+			card.set_disabled(false)
+			return
 
 	# ── LÓGICA DE ATAQUE Y DEFENSA GENÉRICA ──
 	if not card_handled:
 		var shield_amount = card.defense
+		# Bonus de escudo condicional (ej: Trinchera: +bonus si ya hay escudo activo)
+		var bonus_def = card.card_data.get("bonus_def_if_shield", 0)
+		if bonus_def > 0 and main.player_shield > 0:
+			shield_amount += bonus_def
 		if target_e:
 			if target_e.peaceful and card.attack > 0: target_e.peaceful = false; main.enemy_turn.set_enemy_aggressive(target_e)
 			var dmg = card.attack
+			
+			# Modificador de FURIA del Guardián (x2 daño al atacar con 3 cargas)
+			if GameManager.selected_character == "guardian" and main.furia_points >= 3 and dmg > 0:
+				dmg *= 2
+				main.furia_points = 0 # Se consume la furia al atacar
+				DialogueUI.toast("¡GOLPE DE FURIA! Daño x2", Color(1.0, 0.5, 0.2))
+				CombatLog.log("FURIA", "Ataque potenciado x2", Color(1.0, 0.5, 0.2), CombatLog.Category.EFFECTS)
+
 			# Modificadores de Destilados
 			if main.destilado_next_atk_mult > 1.0:
 				dmg = int(dmg * main.destilado_next_atk_mult)
@@ -263,14 +313,15 @@ func resolve(card, enemy_idx: int) -> void:
 			# Resonancia del Príncipe en W3: +1 ATK por stack
 			if GameManager.selected_character == "prince" and GameManager.resonancia_stacks > 0:
 				dmg += GameManager.resonancia_stacks
-			if GameManager.selected_character == "guardian" and main.furia_points >= 3:
-				dmg *= 2; main.furia_points = 0; DialogueUI.toast("¡RESILIENCIA!"); main._trigger_screen_blink()
+				CombatLog.log("RESONANCIA", "+%d ATK stacks" % GameManager.resonancia_stacks, Color(0.7, 0.2, 1.0), CombatLog.Category.EFFECTS)
+			# Guardian RESILIENCIA: el rebound pasivo se activa en EnemyTurnProcessor, no aquí
 			# Pasiva Mahar: FERVOR
 			if GameManager.selected_character == "mahar" and dmg > 0:
 				if GameManager.sanity >= 60 and not main.mahar_guided_struck:
 					dmg += 4
 					main.mahar_guided_struck = true
 					DialogueUI.toast("FERVOR: +4 al golpe guiado", Color(0.9, 0.6, 0.2))
+					CombatLog.log("FERVOR", "+4 al golpe guiado", Color(0.9, 0.6, 0.2), CombatLog.Category.EFFECTS)
 				elif GameManager.sanity < 40:
 					dmg += 2
 
@@ -325,9 +376,16 @@ func resolve(card, enemy_idx: int) -> void:
 	elif cd_costs.get("hp_cost", 0) > 0:
 		main.player_hp = max(0, main.player_hp - cd_costs["hp_cost"])
 		DialogueUI.toast("-" + str(cd_costs["hp_cost"]) + " HP")
+		CombatLog.log("COSTE", "-%d HP (carta)" % cd_costs["hp_cost"], Color(0.9, 0.3, 0.3), CombatLog.Category.EFFECTS)
 	if cd_costs.get("sanity_cost", 0) > 0:
 		GameManager.sanity = max(0, GameManager.sanity - cd_costs["sanity_cost"])
 		DialogueUI.toast("-" + str(cd_costs["sanity_cost"]) + " Sanidad")
+		# QUIEBRE del Príncipe: cuando la cordura llega a 0
+		if GameManager.selected_character == "prince" and GameManager.sanity <= 0 and not main.prince_quiebre_active:
+			main.prince_quiebre_active = true
+			DialogueUI.toast("¡QUIEBRE! La cordura se ha consumido. -5 HP por turno.", Color(0.8, 0.1, 0.9))
+			CombatLog.log("QUIEBRE", "Cordura 0 — -5HP/turno", Color(0.8, 0.1, 0.9), CombatLog.Category.EFFECTS)
+			main._trigger_screen_blink()
 
 	# ── MARCA DEL VACÍO ──
 	if main.ui.get_cursed_card_node() == card:
@@ -348,6 +406,10 @@ func resolve(card, enemy_idx: int) -> void:
 			msg += " / -%d HP" % overflow
 		DialogueUI.toast(msg, Color(0.6, 0.0, 0.9))
 		main.ui.clear_cursed_card()
+		if GameManager.selected_character == "prince" and GameManager.sanity <= 0 and not main.prince_quiebre_active:
+			main.prince_quiebre_active = true
+			DialogueUI.toast("¡QUIEBRE! La cordura se ha consumido. -5 HP por turno.", Color(0.8, 0.1, 0.9))
+			main._trigger_screen_blink()
 
 	if main.player_hp <= 0: main._check_player_death(); return
 
@@ -359,6 +421,7 @@ func resolve(card, enemy_idx: int) -> void:
 		main.discard_pile.append(card.card_data.duplicate())
 	else:
 		DialogueUI.toast(card.card_name + " se agota.")
+		CombatLog.log("AGOTADA", card.card_name, Color(0.6, 0.4, 0.8), CombatLog.Category.EFFECTS)
 
 	main.first_card_this_turn = false
 	card.queue_free()
@@ -367,15 +430,30 @@ func resolve(card, enemy_idx: int) -> void:
 	if GameManager.has_relic("reloj_negro") and main.cards_played_this_turn % 3 == 0:
 		main.player_energy = min(main.player_energy + 1, main.player_max_energy); main._flash_relic("reloj_negro")
 
-	# Pasiva Guardian: RESILIENCIA — 1 Furia por cada 10 escudo generado en el turno
+	# Pasiva Estratega: PRESIÓN TÁCTICA — cada carta jugada genera 1 Presión (+ extra del campo "presion")
+	if GameManager.selected_character == "estratega":
+		var card_presion = card.card_data.get("presion", 0)
+		var old_presion = main.presion_points
+		main.presion_points = min(5, main.presion_points + 1 + card_presion)
+		var presion_gained = main.presion_points - old_presion
+		if presion_gained > 0:
+			for e_pr in main.enemies:
+				if e_pr.hp > 0:
+					e_pr["atk_reduction"] = e_pr.get("atk_reduction", 0) + presion_gained
+			DialogueUI.toast("PRESION: " + str(main.presion_points) + "/5 (-" + str(main.presion_points) + " ATK enemigos)", Color(0.3, 0.6, 1.0))
+			CombatLog.log("PRESIÓN", "Stack %d/5" % main.presion_points, Color(0.3, 0.6, 1.0), CombatLog.Category.EFFECTS)
+			main.update_intent_labels()
+
+	# Pasiva Guardian: RESILIENCIA — 1 Furia por cada 6 escudo generado en el turno
 	if GameManager.selected_character == "guardian":
 		var gained = max(0, main.player_shield - shield_before)
 		if gained > 0:
 			main.shield_gained_this_turn += gained
-			while main.shield_gained_this_turn >= 10 and main.furia_points < 3:
-				main.shield_gained_this_turn -= 10
+			while main.shield_gained_this_turn >= 6 and main.furia_points < 3:
+				main.shield_gained_this_turn -= 6
 				main.furia_points += 1
 				DialogueUI.toast("¡RESILIENCIA! Furia acumulada: " + str(main.furia_points) + "/3")
+				CombatLog.log("FURIA", "Stack %d/3" % main.furia_points, Color(0.4, 0.9, 0.4), CombatLog.Category.EFFECTS)
 
 	main.update_ui(); main.update_intent_labels(); main.check_combat_end()
 
